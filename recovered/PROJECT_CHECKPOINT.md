@@ -316,3 +316,30 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Single-timeframe API responses are now labelled unconfirmed and explicitly require multi-timeframe confirmation; the scanner's confirmed 1h/4h alert process is unchanged.
 - Added tests for inactive live-market rejection, closed-candle return, and single-timeframe API scope.
 - Pending: latest CI verification.
+
+
+## Historical research pipeline verification checkpoint (2026-11-17)
+
+**Verified code head:** `0b947b7a16b8e7bbcce8bfd30502dcbf69cd2b36`
+
+**Latest GitHub Actions evidence:** [Run #43983550669](https://github.com/Eventodigital473/SI-AI/actions/runs/43983550669)
+- Python 3.12 dependency installation: passed.
+- `python -m compileall -q .`: passed.
+- Full pytest suite: **76 passed, 4 subtests passed in 1.32s**.
+- Evidence artifact: [si-ai-test-evidence-72](https://github.com/Eventodigital473/SI-AI/actions/runs/43983550669/artifacts/14283329312), ID `14283329312`, SHA-256 `7137a57d45aea9642013816e546aa48545e785887edb8f2ce2b32d2a8bbb00a8`.
+
+**New historical research components:**
+- `historical_data.py`: public Binance OHLCV downloader for SPOT and linear USDT perpetuals; bounded pagination, strict OHLCV validation, closed-candle-only filtering, exclusive end-time validation, historical inactive-market support only when exchange metadata explicitly identifies status, atomic local dataset storage, and SHA-256 verification.
+- `historical_backtest.py`: checksum-verified dataset loader, chronological holdout, expanding walk-forward, fail-closed profitability gate, and atomic JSON report.
+- `test_historical_data.py` and `test_historical_backtest.py`: pagination, market resolution, incomplete candle/window exclusion, checksum tampering, report generation, and futures fail-closed tests.
+- Local datasets/reports are git-ignored under `data/historical/` and `data/reports/`.
+
+**Remaining blockers:**
+1. No real historical dataset has yet been downloaded or evaluated. Existing historical-data tests use synthetic fixtures only.
+2. Futures profitability remains INCONCLUSIVE until timestamped historical funding and exchange-specific maintenance-margin/liquidation modelling are implemented and verified.
+3. Forward paper-trading observation and signal-quality review remain pending.
+4. Final read-only Termux/Binance public-data and Android notification smoke test remains last.
+
+**Exact next step:** validate the historical downloader against one bounded, read-only public Binance dataset in the final live-data phase, verify its manifest/checksum, then run the report runner. Do not use synthetic fixtures as profitability evidence.
+
+**Safety and repository state:** signal provider only; no automatic orders, no private API keys, no Telegram. Main untouched. PR #1 remains draft/open/unmerged. Verified code backup commit: `0b947b7a16b8e7bbcce8bfd30502dcbf69cd2b36`.
