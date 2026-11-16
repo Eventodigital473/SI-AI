@@ -227,3 +227,36 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Added tests to ensure a changed risk policy or missing freshness guard prevents scanner startup.
 - Updated README with the exact alert fields, entry/confirmation timeframe meaning, TP reference-level caveat, manual-fill warning, spot exit-only behavior, stale-candle handling, and incomplete multi-timeframe WAIT behavior.
 - Pending: latest consolidated CI and remaining end-to-end review.
+
+
+## Session checkpoint — reliability audit (2026-11-17)
+
+**Latest verified code head before this checkpoint update:** `39276d030aac8d8343312b109521d32e3845a7d9`
+
+**Verified CI:** [Run #43981533016](https://github.com/Eventodigital473/SI-AI/actions/runs/43981533016) succeeded on the exact code head above.
+- Python 3.12 dependencies installed.
+- `python -m compileall -q .`: passed.
+- `python -m pytest -q --junitxml=test-results.xml`: **60 passed, 4 subtests passed in 1.18s**.
+- Evidence artifact: [si-ai-test-evidence-64](https://github.com/Eventodigital473/SI-AI/actions/runs/43981533016/artifacts/14281774341), ID `14281774341`, SHA-256 `af2939ff5a9c63ea2bae3d9a88ae872a3eb76a937c7936ab1a2d5b7fb75ea72f`.
+- This is offline code/test evidence only; it does not prove live exchange reliability or profitability.
+
+**Files changed in this session:**
+- `recovered/SI-AI/si_ai_scanner.py`: coin identity, explicit entry/confirmation timeframe, entry reference caveat, TP1/TP2/TP3 reference targets, startup policy validation.
+- `recovered/SI-AI/SI_AI_smc.py`: candle freshness checks, independent market refresh timers, stricter active/wrapped/stablecoin filtering, historical-analysis decoupling.
+- `recovered/SI-AI/backtesting.py`: OOS boundary correction, stop-gap fill correction, UTC funding-boundary proxy correction.
+- `recovered/SI-AI/profitability_gate.py`: missing/undersized fold evidence remains INCONCLUSIVE.
+- `recovered/SI-AI/main.py`: incomplete multi-timeframe requests force WAIT; duplicate timeframes rejected.
+- `recovered/SI-AI/market.py`: no network request at import time.
+- Added/updated tests: scanner alerts, freshness, market refresh recovery, historical symbol validation, import safety, backtest gaps/OOS/funding boundaries, API incomplete confluence and risk policy.
+- Updated `.github/workflows/dynamic-coin-tests.yml` to PR-only checks with concurrency cancellation; README updated.
+
+**Still pending:**
+1. Public historical OHLCV downloader/cache with dataset integrity and reproducible backtest runs.
+2. Historical timestamped Binance futures funding integration; current constant-rate proxy is not historical funding.
+3. Exchange-specific maintenance-margin/liquidation model; futures profitability gate must remain INCONCLUSIVE until verified.
+4. Paper-trading journal and forward observation; no profitability claims before evidence.
+5. Final read-only Termux/Binance public-data smoke test, notification check and recovery/backup check.
+
+**Exact next step:** implement and test the public historical OHLCV data ingestion/cache for spot first, then use those verified datasets for chronological holdout and walk-forward reports. Keep futures certification blocked until historical funding and liquidation modelling are complete.
+
+**Safety/state:** no automatic orders, no private API keys, no Telegram. Main remains untouched. PR #1 remains open, draft and unmerged. Current working branch is `feature/dynamic-coin-universe`. The verified code backup is the GitHub commit above; this checkpoint update is documentation-only.
