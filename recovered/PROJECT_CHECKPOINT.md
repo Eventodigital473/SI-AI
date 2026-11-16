@@ -66,13 +66,15 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - No automatic order placement added. No credentials or private endpoints added.
 - `main` remains untouched.
 
-**Automated validation:** GitHub Actions run [SI-AI Dynamic Coin Universe Tests](https://github.com/Eventodigital473/SI-AI/actions/runs/43973347084) completed successfully on commit `f13c38811557e56d4e5f26d35243a382301ad508`.
+**Automated validation:** GitHub Actions pull-request run [SI-AI Dynamic Coin Universe Tests](https://github.com/Eventodigital473/SI-AI/actions/runs/43973445791) completed successfully on commit `2b54769a0704646b59c79986014ac05f49128ed9`.
 
 - Python 3.12 dependency installation: passed.
 - `python -m compileall -q .`: passed.
-- `python -m pytest -q`: **27 passed in 1.13s**.
+- `python -m pytest -q`: **27 passed in 0.90s**.
 - Tests use mocked exchange metadata/tickers; they do not make live Binance requests.
+
+**Review PR:** [#1 — Add dynamic Binance USDT coin universe for SI-AI](https://github.com/Eventodigital473/SI-AI/pull/1) is open as a draft against `recovery/restore-upload-zip`. It is not merged. GitHub reports the PR as mergeable. `main` remains at baseline `a395f10c55dedd1faae00c70d02d8b604bedfd08`.
 
 **Remaining validation:** live public Binance discovery has not yet been smoke-tested from Termux. The 5m/10m quote-volume and 0.15% spread thresholds are initial screening settings and must be reviewed against live eligible-market counts. The offline tests do not prove current market liquidity, data quality, signal profitability, or live execution conditions.
 
-**Next step:** open a review PR against `recovery/restore-upload-zip`; then run one controlled read-only live-universe smoke test from Termux before considering merge to the recovery branch. Do not merge to `main` without separate explicit approval.
+**Next step:** run one controlled read-only live-universe smoke test from Termux, verify actual eligible counts and SOL/BNB inclusion, then review and mark the PR ready before merging into the recovery branch. Do not merge to `main` without separate explicit approval.
