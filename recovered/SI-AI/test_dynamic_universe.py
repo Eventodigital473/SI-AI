@@ -71,12 +71,15 @@ class DynamicUniverseTests(unittest.TestCase):
         }
         self.original_symbols = list(si.SYMBOLS)
         self.original_refresh = si._UNIVERSE_LAST_REFRESH
+        self.original_market_refresh = dict(si._MARKET_UNIVERSE_LAST_REFRESH)
 
     def tearDown(self):
         si.MARKET_SYMBOLS.clear()
         si.MARKET_SYMBOLS.update(self.original_market_symbols)
         si.SYMBOLS = self.original_symbols
         si._UNIVERSE_LAST_REFRESH = self.original_refresh
+        si._MARKET_UNIVERSE_LAST_REFRESH.clear()
+        si._MARKET_UNIVERSE_LAST_REFRESH.update(self.original_market_refresh)
 
     def test_selects_up_to_100_liquid_coins_per_market_and_prioritizes_sol_bnb(self):
         fake_futures = FakeExchange("FUTURES")
@@ -167,6 +170,33 @@ class DynamicUniverseTests(unittest.TestCase):
         candles = [[now_ms + interval, 100, 101, 99, 100, 1000]]
         with self.assertRaisesRegex(ValueError, "future-dated"):
             si.validate_candle_freshness(candles, "1h", now_ms)
+
+    def test_failed_market_retries_without_waiting_for_other_market_refresh(self):
+        failed_futures = FakeExchange("FUTURES", fail=True)
+        good_spot = FakeExchange("SPOT")
+        with patch.dict(
+            si.EXCHANGES,
+            {"FUTURES": failed_futures, "SPOT": good_spot},
+            clear=False,
+        ):
+            si.refresh_symbol_universe(force=True)
+            self.assertEqual(si._MARKET_UNIVERSE_LAST_REFRESH["FUTURES"], 0.0)
+            self.assertGreater(si._MARKET_UNIVERSE_LAST_REFRESH["SPOT"], 0.0)
+
+            recovered_futures = FakeExchange("FUTURES")
+            with patch.dict(
+                si.EXCHANGES,
+                {"FUTURES": recovered_futures, "SPOT": good_spot},
+                clear=False,
+            ):
+                selected = si.refresh_symbol_universe(force=False)
+
+        self.assertGreaterEqual(
+            len(selected["FUTURES"]), si.MIN_ELIGIBLE_COINS
+        )
+        self.assertEqual(
+            si.MARKET_UNIVERSE_STATUS["FUTURES"], "ready"
+        )
 
     def test_scanner_config_accepts_dynamic_coin_universe(self):
         scanner.validate_config()

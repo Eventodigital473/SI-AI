@@ -43,6 +43,7 @@ MARKET_UNIVERSE_STATUS = {
 }
 SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 _UNIVERSE_LAST_REFRESH = 0.0
+_MARKET_UNIVERSE_LAST_REFRESH = {market: 0.0 for market in MARKETS}
 
 # Futures is intentionally analysed first. Both exchanges use public endpoints.
 MARKETS = ["FUTURES", "SPOT"]
@@ -116,14 +117,18 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
     """
     global SYMBOLS, _UNIVERSE_LAST_REFRESH
     now = time.monotonic()
-    if not force and _UNIVERSE_LAST_REFRESH and (
-        now - _UNIVERSE_LAST_REFRESH < UNIVERSE_REFRESH_SECONDS
-    ):
-        return {market: get_symbols(market) for market in MARKETS}
 
     failures = []
     refreshed_any = False
     for market in MARKETS:
+        last_refresh = _MARKET_UNIVERSE_LAST_REFRESH.get(market, 0.0)
+        if (
+            not force
+            and last_refresh
+            and now - last_refresh < UNIVERSE_REFRESH_SECONDS
+        ):
+            continue
+
         exchange = EXCHANGES[market]
         try:
             exchange.load_markets()
@@ -219,6 +224,7 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                 if len(MARKET_SYMBOLS[market]) >= MIN_ELIGIBLE_COINS
                 else "below_minimum"
             )
+            _MARKET_UNIVERSE_LAST_REFRESH[market] = now
             refreshed_any = True
 
         except Exception as exc:

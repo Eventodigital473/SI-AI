@@ -180,3 +180,11 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Removed the legacy market.py import-time network request; the standalone ticker fetch now runs only when the module is executed directly.
 - Added an import-safety test that fails if importing market.py calls the exchange ticker endpoint.
 - Pending verification: CI on the latest commit; deeper indicator/risk review, historical funding/liquidation modelling, real data backtests, paper-trading, and final Termux validation remain.
+
+
+### Independent market-universe refresh recovery (2026-11-17)
+
+- Changed refresh scheduling to track SPOT and FUTURES independently. A temporary failure on one exchange no longer waits for the other market's successful refresh timer before retrying.
+- Last-known-good symbols remain preserved on a failed market refresh; the failed market is retried on the next scanner cycle while the healthy market retains its 15-minute cache.
+- Added a regression test for partial exchange failure followed by recovery.
+- Pending: CI verification and continued review. No live exchange claim is made.
