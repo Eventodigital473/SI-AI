@@ -37,6 +37,10 @@ EXCLUDED_BASES = {
 LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 MARKET_SYMBOLS = {"FUTURES": ["BTC/USDT", "ETH/USDT"],
                   "SPOT": ["BTC/USDT", "ETH/USDT"]}
+MARKET_UNIVERSE_STATUS = {
+    "FUTURES": "not_refreshed",
+    "SPOT": "not_refreshed",
+}
 SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 _UNIVERSE_LAST_REFRESH = 0.0
 
@@ -194,10 +198,20 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                         selected_symbols.append(preferred_symbol)
 
             MARKET_SYMBOLS[market] = list(dict.fromkeys(selected_symbols))
+            MARKET_UNIVERSE_STATUS[market] = (
+                "ready"
+                if len(MARKET_SYMBOLS[market]) >= MIN_ELIGIBLE_COINS
+                else "below_minimum"
+            )
             refreshed_any = True
 
         except Exception as exc:
             failures.append(f"{market}: {type(exc).__name__}: {exc}")
+            MARKET_UNIVERSE_STATUS[market] = (
+                "unavailable_using_last_known_good"
+                if MARKET_SYMBOLS.get(market)
+                else "unavailable"
+            )
             # Keep the last known good universe if the exchange is temporarily
             # unavailable. An empty initial universe remains empty (fail closed).
 
