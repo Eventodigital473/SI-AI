@@ -96,3 +96,12 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 **Validation status:** New tests have been committed but GitHub Actions evidence for this new head has not yet been retrieved. Do not report these tests as passed until the workflow run is confirmed. No backtest profitability result exists yet because no verified historical dataset has been evaluated.
 
 **Remaining work:** confirm CI on the latest commit; review and correct any failures; add historical funding data support and stronger performance gates; inspect existing SMC/risk logic and duplicate legacy modules; add paper-trading evidence capture; update PR description and final checkpoint. Termux/live Binance validation remains last, as requested.
+
+
+### Profitability framework CI evidence update
+
+- Latest verified code/workflow head: `b6c239ad8bf32588094f60014f1fc403bdc9f5d1`.
+- GitHub Actions run [#43975164271](https://github.com/Eventodigital473/SI-AI/actions/runs/43975164271): dependency installation passed; `compileall` passed; **35 tests passed in 2.64s**.
+- JUnit evidence artifact: `si-ai-test-evidence-27`, artifact ID `14280557685`, available until 2026-12-16; uploaded ZIP SHA-256: `fb2ee134ddbfeaf2f7e1073ea7756601cde62dd30b8c1e06c6a34747e18a6a0d`.
+- This proves the offline unit/regression suite passed. It does **not** prove trading profitability or live Binance behavior.
+- Pull request #1 remains open and draft; not merged. `main` remains untouched.
