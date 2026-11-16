@@ -48,3 +48,19 @@ The supplied archive was syntax-compiled successfully during packaging. Full tes
 ## Secrets
 
 Do not commit Binance API keys, Telegram tokens, passwords, `.env` files, or private account data. This package does not include runtime state, logs, or historical backup files.
+
+
+## Backtesting and profitability evidence
+
+`backtesting.py` provides an offline OHLCV evaluation engine for the current SI-AI candle-analysis function or a test callback.
+
+- A signal is calculated only from candles available at that candle close; entry is at the next candle open.
+- If stop-loss and take-profit are both touched in one candle, stop-loss is assumed first.
+- Fees and adverse slippage are charged on entry and exit; the assumptions are included in every report.
+- Position sizing uses a configurable risk percentage and the configured notional cap.
+- Reports include win rate, gross profit/loss, profit factor, net P&L, expectancy, max drawdown, trade-based Sharpe, trade ledger, and SHA-256 of the exact OHLCV input.
+- Chronological holdout and expanding-window walk-forward evaluators keep out-of-sample periods in time order.
+- Futures funding can be approximated only when an explicit per-8-hour rate is supplied. This is a constant-rate proxy, not historical exchange funding data. Liquidation is not modelled.
+- No-trade or insufficient-evidence results are marked `INCONCLUSIVE`; positive backtest results are explicitly in-sample or out-of-sample evidence, never a promise of future profit.
+
+Run the offline tests with `python -m pytest -q`. These tests do not establish live profitability. A proper profitability review still requires representative historical data, historical funding series for futures, out-of-sample and walk-forward evidence, and later paper-trading observation. SI-AI remains signal-only; automatic orders are disabled.
