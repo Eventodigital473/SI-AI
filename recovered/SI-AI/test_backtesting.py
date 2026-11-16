@@ -79,6 +79,28 @@ class BacktestingTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "INCONCLUSIVE")
 
+
+    def test_walk_forward_uses_multiple_sequential_oos_folds(self):
+        result = backtesting.evaluate_walk_forward(
+            candles_with_bars(180), "FUTURES", "BTC/USDT", "15m",
+            folds=3, signal_fn=lambda *args: {"signal": "WAIT"},
+        )
+        self.assertEqual(len(result["folds"]), 3)
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+
+    def test_optional_funding_rate_is_reported_and_deducted(self):
+        data = candles_with_bars()
+        for row in data:
+            row[0] *= 28_800_000
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=2, signal_fn=fixed_buy,
+            funding_rate_per_8h=0.001,
+        )
+        self.assertTrue(result["assumptions"]["funding_costs_included"])
+        self.assertGreater(result["trades"][0]["funding_cost_usdt"], 0)
+
     def test_rejects_bad_candle_order_and_risk(self):
         data = candles_with_bars()
         data[10][0] = data[9][0]
