@@ -729,9 +729,17 @@ def print_result(result: Dict) -> None:
 def run_analysis() -> None:
     print("\n========== SI AI | FUTURES-FIRST MARKET INTELLIGENCE ==========")
     print("PUBLIC DATA ONLY | NO API KEYS | NO ORDERS | NOT FINANCIAL ADVICE")
+    refresh_symbol_universe(force=True)
     for market in MARKETS:
-        print(f"\n================ {market} ================")
-        for symbol in SYMBOLS:
+        symbols = get_symbols(market)
+        if len(symbols) < MIN_ELIGIBLE_COINS:
+            print(
+                f"\n{market}: only {len(symbols)} eligible coins; "
+                f"minimum is {MIN_ELIGIBLE_COINS}. Skipping this market."
+            )
+            continue
+        print(f"\n================ {market} ({len(symbols)} coins) ================")
+        for symbol in symbols:
             collected = []
             for timeframe in TIMEFRAMES:
                 try:
