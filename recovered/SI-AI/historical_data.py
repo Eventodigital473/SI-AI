@@ -182,8 +182,18 @@ def download_ohlcv(
 
 
 def dataset_sha256(candles: List[list]) -> str:
+    """Hash normalized OHLCV so equivalent integer/float inputs are identical."""
+    normalized = [
+        _normalize_candle(row, index)
+        for index, row in enumerate(candles)
+    ]
+    if not normalized:
+        raise ValueError("Cannot hash an empty historical dataset")
+    for index in range(1, len(normalized)):
+        if normalized[index][0] <= normalized[index - 1][0]:
+            raise ValueError("Dataset timestamps must be strictly increasing")
     payload = json.dumps(
-        candles, separators=(",", ":"), allow_nan=False
+        normalized, separators=(",", ":"), allow_nan=False
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 

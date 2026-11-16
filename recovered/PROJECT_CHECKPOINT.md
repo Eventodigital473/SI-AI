@@ -272,3 +272,9 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Added fake-exchange tests for pagination, futures symbol resolution, incomplete-candle exclusion, invalid metadata, non-progress, malformed OHLCV, and checksum tampering.
 - Pending: CI verification, then a report CLI and real historical dataset acquisition only after final Termux/live-read-only phase approval.
 - No API keys, private endpoints, or order placement.
+
+
+### Historical dataset checksum normalization correction (2026-11-17)
+
+- Initial historical-ingestion CI found one checksum test mismatch: raw integer OHLCV values and normalized float values represented the same candle data but produced different JSON hashes.
+- Updated dataset SHA-256 to normalize every candle before hashing and to reject empty, duplicate, or unordered datasets. The fix is pending fresh CI verification.
