@@ -128,3 +128,16 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Artifact: `si-ai-test-evidence-35`, ID `14279054453`, expires 2026-12-16. ZIP SHA-256: `24b2b57a83678b9a02a0aaf9ab98327e53a8e503d13b387cc0d1ddaaee1e5fc1`.
 - Note: GitHub Actions automatically ran the repository's full configured suite on the commit (41 total). I did not separately rerun the previously completed tests manually.
 - This confirms code/test checks only. No historical dataset has been run, so no strategy profitability has been proven. Futures profitability remains blocked by missing historical funding and liquidation modelling.
+
+
+## User risk allocation preference update (2026-11-17)
+
+- User confirmed a **20% margin allocation** against a $100 reference wallet.
+- Updated SI_AI_smc.py: paper reference equity 100 USDT; per-trade risk budget 0.5% (0.50 USDT); margin allocation cap 20% (20 USDT); conservative futures leverage recommendation 1x only. Position quantity is constrained by both risk budget and margin-derived notional cap.
+- Added output fields for recommended leverage, estimated margin required, and margin budget.
+- Updated backtesting.py position sizing to use the same 20% margin cap and 1x leverage assumption.
+- Updated scanner actionable alerts to show SL, TP, reward/risk, futures leverage and estimated margin usage. Spot explicitly says leverage is not applicable.
+- Added WAIT transition notifications only when a previously actionable BUY/SELL state becomes WAIT, to avoid flooding the device with an initial WAIT for every scanned symbol.
+- Exposed risk policy in /api/config; updated risk/API tests to assert the 100 USDT / 20 USDT policy and 1x conservative leverage.
+- Important: $100 is a static reference balance, not read from Binance. 20 USDT is a cap, not a requirement to use all of it. Higher futures leverage is intentionally not recommended until historical funding and exchange-specific maintenance-margin/liquidation modelling are validated. No automatic orders.
+- CI status for these latest changes: pending at checkpoint creation; do not claim tests passed until the latest head's workflow is confirmed.
