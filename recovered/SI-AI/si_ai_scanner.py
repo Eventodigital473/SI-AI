@@ -233,6 +233,37 @@ def notification_id(market, symbol):
     )
 
 
+COIN_NAMES = {
+    "BTC": "Bitcoin", "ETH": "Ethereum", "BNB": "BNB",
+    "SOL": "Solana", "XRP": "XRP", "ADA": "Cardano",
+    "DOGE": "Dogecoin", "TRX": "TRON", "AVAX": "Avalanche",
+    "LINK": "Chainlink", "DOT": "Polkadot", "LTC": "Litecoin",
+    "BCH": "Bitcoin Cash", "UNI": "Uniswap", "ATOM": "Cosmos",
+    "ETC": "Ethereum Classic", "XLM": "Stellar", "NEAR": "NEAR Protocol",
+    "APT": "Aptos", "ARB": "Arbitrum", "OP": "Optimism",
+    "SUI": "Sui", "FIL": "Filecoin", "ICP": "Internet Computer",
+    "AAVE": "Aave", "INJ": "Injective", "RENDER": "Render",
+    "FET": "Artificial Superintelligence Alliance", "TON": "Toncoin",
+    "SHIB": "Shiba Inu", "PEPE": "Pepe", "WIF": "dogwifhat",
+    "PENGU": "Pudgy Penguins", "SEI": "Sei", "TIA": "Celestia",
+    "MKR": "Maker", "RUNE": "THORChain", "GRT": "The Graph",
+    "VET": "VeChain", "ALGO": "Algorand", "HBAR": "Hedera",
+    "EOS": "EOS", "XTZ": "Tezos", "SAND": "The Sandbox",
+    "MANA": "Decentraland", "AXS": "Axie Infinity",
+    "CRV": "Curve DAO", "SNX": "Synthetix", "DYDX": "dYdX",
+    "EGLD": "MultiversX", "KAVA": "Kava", "ZEC": "Zcash",
+    "XMR": "Monero", "DASH": "Dash", "COMP": "Compound",
+    "LDO": "Lido DAO", "JUP": "Jupiter", "PYTH": "Pyth Network",
+    "WLD": "Worldcoin", "ONDO": "Ondo", "ENA": "Ethena",
+    "PENDLE": "Pendle", "FLOKI": "Floki", "BONK": "Bonk",
+}
+
+
+def coin_display_name(symbol):
+    base_asset = str(symbol).split("/", 1)[0].upper()
+    return COIN_NAMES.get(base_asset, base_asset)
+
+
 def make_alert(market, symbol, signal, results):
     reference = results["1h"]
     price = number(reference.get("price"))
@@ -244,14 +275,17 @@ def make_alert(market, symbol, signal, results):
     )
 
     lines = [
-        f"{market} | {symbol}",
+        f"Coin: {coin_display_name(symbol)} ({symbol})",
+        f"Market: {market}",
         f"Confirmed signal: {display_signal}",
+        "Entry timeframe: 1h",
+        "Confirmation timeframe: 4h",
         f"1h: {direction(results['1h'])}",
         f"4h: {direction(results['4h'])}",
     ]
 
     if price is not None:
-        lines.append(f"Price: {price:g}")
+        lines.append(f"Entry price (1h setup reference): {price:g}")
 
     if signal == "BUY" or market == "FUTURES":
         stop_loss = number(reference.get("stop_loss"))
