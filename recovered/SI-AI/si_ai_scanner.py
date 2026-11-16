@@ -42,6 +42,14 @@ def validate_config():
     if not math.isfinite(minimum_rr) or minimum_rr < 2.0:
         raise RuntimeError("Minimum reward/risk must be at least 2.0")
 
+    minimum_coins = int(smc.MIN_ELIGIBLE_COINS)
+    maximum_coins = int(smc.MAX_UNIVERSE_SIZE)
+    target_coins = int(smc.TARGET_UNIVERSE_SIZE)
+    if minimum_coins < 15 or maximum_coins < minimum_coins:
+        raise RuntimeError("Dynamic coin-universe limits are invalid")
+    if not minimum_coins <= target_coins <= maximum_coins:
+        raise RuntimeError("Target coin count must be between minimum and maximum")
+
 
 def setup_logging():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -302,7 +310,7 @@ def run_cycle(dry_run=False):
         request_delay = 0.35
 
     try:
-        universe = smc.refresh_symbol_universe()
+        smc.refresh_symbol_universe()
     except Exception:
         logger.exception("Coin-universe refresh failed; no scans performed")
         return
