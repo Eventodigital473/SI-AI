@@ -64,3 +64,10 @@ Do not commit Binance API keys, Telegram tokens, passwords, `.env` files, or pri
 - No-trade or insufficient-evidence results are marked `INCONCLUSIVE`; positive backtest results are explicitly in-sample or out-of-sample evidence, never a promise of future profit.
 
 Run the offline tests with `python -m pytest -q`. These tests do not establish live profitability. A proper profitability review still requires representative historical data, historical funding series for futures, out-of-sample and walk-forward evidence, and later paper-trading observation. SI-AI remains signal-only; automatic orders are disabled.
+
+
+## Profitability certification gate
+
+`profitability_gate.py` is a separate fail-closed evidence gate. It requires at least 100 chronological out-of-sample trades, positive net P&L and expectancy after costs, profit factor of at least 1.20, maximum drawdown no greater than 15%, and three sequential walk-forward folds with at least 20 trades and positive net P&L each. These are minimum review thresholds, not performance promises.
+
+Missing metrics or insufficient samples return `INCONCLUSIVE`; observed threshold breaches return `FAIL`. Futures certification additionally requires timestamped historical funding events and an explicit liquidation/maintenance-margin model. The current backtester does not yet supply those two futures models, so futures profitability cannot be certified by this gate. No real historical profitability result is claimed. Run only the focused gate tests with `python -m pytest -q test_profitability_gate.py` when validating this addition; the previously completed 35-test evidence remains historical evidence for its original commit.
