@@ -281,3 +281,13 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 
 
 - Hardened the checksum-tampering test to alter only volume while preserving valid OHLC relationships, so the expected failure specifically verifies SHA-256 integrity rather than malformed-candle validation.
+
+
+## Historical validation report runner (2026-11-17)
+
+- Added `historical_backtest.py` to load and checksum-verify a saved dataset, run chronological holdout and expanding-window walk-forward validation, evaluate the fail-closed profitability gate, and atomically write a reproducible JSON report.
+- Insufficient-data validation errors are represented as INCONCLUSIVE, not as successful performance.
+- Futures gate remains INCONCLUSIVE without historical funding and liquidation/maintenance-margin evidence.
+- Added tests for successful report plumbing, futures fail-closed behavior, and insufficient-data handling. Positive test fixtures are synthetic and do not represent market returns.
+- Reports are saved under git-ignored `data/reports/`.
+- Pending: CI verification, then actual historical datasets must be downloaded in the final read-only live-data phase; no profitability claim yet.

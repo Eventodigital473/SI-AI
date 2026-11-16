@@ -15,3 +15,4 @@ logs/
 *.before_*
 
 data/historical/
+data/reports/
