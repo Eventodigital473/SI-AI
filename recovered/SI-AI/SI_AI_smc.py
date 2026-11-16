@@ -43,10 +43,10 @@ MARKET_UNIVERSE_STATUS = {
 }
 SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 _UNIVERSE_LAST_REFRESH = 0.0
-_MARKET_UNIVERSE_LAST_REFRESH = {market: 0.0 for market in MARKETS}
 
 # Futures is intentionally analysed first. Both exchanges use public endpoints.
 MARKETS = ["FUTURES", "SPOT"]
+_MARKET_UNIVERSE_LAST_REFRESH = {market: 0.0 for market in MARKETS}
 FUTURES_EXCHANGE_ID = "binanceusdm"
 SPOT_EXCHANGE_ID = "binance"
 

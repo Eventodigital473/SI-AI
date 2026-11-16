@@ -188,3 +188,9 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Last-known-good symbols remain preserved on a failed market refresh; the failed market is retried on the next scanner cycle while the healthy market retains its 15-minute cache.
 - Added a regression test for partial exchange failure followed by recovery.
 - Pending: CI verification and continued review. No live exchange claim is made.
+
+
+### Configuration initialization ordering correction (2026-11-17)
+
+- During review of the independent refresh change, caught that its per-market refresh timestamp dictionary was initialized before MARKETS. Moved initialization immediately after MARKETS is defined.
+- This correction is included before accepting CI evidence for the latest head; earlier CI results are not attributed to this correction.
