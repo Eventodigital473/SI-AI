@@ -76,8 +76,9 @@ def evaluate_profitability_evidence(
         checks.append({"name": name, "status": state, "detail": detail})
 
     count = _finite_number(oos.get("trade_count"))
-    check("minimum_oos_trades", count is not None and count >= rules["minimum_oos_trades"],
-          count is not None, f"observed={count}; required={rules['minimum_oos_trades']}")
+    enough_oos = count is not None and count >= rules["minimum_oos_trades"]
+    check("minimum_oos_trades", enough_oos, enough_oos,
+          f"observed={count}; required={rules['minimum_oos_trades']}")
 
     net = _finite_number(oos.get("net_pnl_usdt"))
     check("positive_oos_net_pnl", net is not None and net > 0, net is not None,
@@ -111,8 +112,8 @@ def evaluate_profitability_evidence(
         positive = pnl is not None and pnl > 0
         if positive and enough:
             positive_folds += 1
-        check(f"fold_{index}_positive_net_pnl", positive, pnl is not None,
-              f"observed={pnl}")
+        check(f"fold_{index}_positive_net_pnl", positive, enough and pnl is not None,
+              f"observed={pnl}; sample_sufficient={enough}")
 
     check("positive_walk_forward_folds",
           positive_folds >= rules["minimum_positive_walk_forward_folds"],
