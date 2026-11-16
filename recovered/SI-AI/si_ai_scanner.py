@@ -82,10 +82,6 @@ def acquire_lock():
     return handle
 
 
-def allowed_state_keys():
-    return set()
-
-
 def load_state():
     if not STATE_FILE.exists():
         return {"version": STATE_VERSION, "last_signals": {}}
@@ -323,7 +319,12 @@ def run_cycle(dry_run=False):
                 market, len(market_symbols), smc.MIN_ELIGIBLE_COINS
             )
             continue
-        logger.info("%s universe: %d eligible USDT coins", market, len(market_symbols))
+        logger.info(
+            "%s universe: %d eligible USDT coins (minimum=%d, target=%d, maximum=%d, status=%s)",
+            market, len(market_symbols), smc.MIN_ELIGIBLE_COINS,
+            smc.TARGET_UNIVERSE_SIZE, smc.MAX_UNIVERSE_SIZE,
+            smc.MARKET_UNIVERSE_STATUS.get(market, "unknown")
+        )
         for symbol in market_symbols:
             key = f"{market}|{symbol}"
             results = {}
