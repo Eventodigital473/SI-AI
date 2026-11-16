@@ -72,6 +72,10 @@ def api_config():
         "symbols_by_market": {
             market: smc.get_symbols(market) for market in smc.MARKETS
         },
+        "universe_status_by_market": {
+            market: smc.MARKET_UNIVERSE_STATUS.get(market, "unknown")
+            for market in smc.MARKETS
+        },
         "universe_policy": {
             "minimum_eligible_coins": smc.MIN_ELIGIBLE_COINS,
             "target_coins": smc.TARGET_UNIVERSE_SIZE,
