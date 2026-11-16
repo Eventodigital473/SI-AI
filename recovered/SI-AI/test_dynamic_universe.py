@@ -29,6 +29,15 @@ class FakeExchange:
         self._add("TOKEN3L", 90_000_000.0)
         self._add("LOWVOL", 1_000_000.0)
         self._add("WIDE", 90_000_000.0, ask=1.02)
+        self._add("INACTIVE", 90_000_000.0)
+        self.markets[
+            f"INACTIVE/USDT:USDT" if market == "FUTURES" else "INACTIVE/USDT"
+        ]["active"] = False
+        self._add("UNKNOWNACTIVE", 90_000_000.0)
+        self.markets[
+            f"UNKNOWNACTIVE/USDT:USDT" if market == "FUTURES" else "UNKNOWNACTIVE/USDT"
+        ]["active"] = None
+        self._add("WBNB", 90_000_000.0)
 
     def _add(self, base, volume, ask=1.0005):
         canonical = f"{base}/USDT"
@@ -103,6 +112,9 @@ class DynamicUniverseTests(unittest.TestCase):
             self.assertNotIn("TOKEN3L/USDT", symbols)
             self.assertNotIn("LOWVOL/USDT", symbols)
             self.assertNotIn("WIDE/USDT", symbols)
+            self.assertNotIn("INACTIVE/USDT", symbols)
+            self.assertNotIn("UNKNOWNACTIVE/USDT", symbols)
+            self.assertNotIn("WBNB/USDT", symbols)
 
     def test_does_not_fabricate_coins_to_reach_minimum(self):
         fake_futures = FakeExchange("FUTURES", count=10)

@@ -202,3 +202,11 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Corrected profitability-gate aggregation so missing or undersized fold evidence yields INCONCLUSIVE instead of being incorrectly promoted to a FAIL by the aggregate positive-fold check.
 - Added regression tests for funding-boundary timing and missing walk-forward fold metrics.
 - Futures certification remains blocked until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are integrated.
+
+
+### Strict active-market and wrapped/stablecoin filtering (2026-11-17)
+
+- Universe discovery now requires market metadata to explicitly confirm active status; missing/unknown status is excluded rather than treated as active.
+- Expanded stablecoin/fiat and wrapped-asset base exclusions.
+- Added mock-exchange assertions for inactive, unknown-status, and wrapped assets.
+- Pending: CI verification and continued end-to-end review.

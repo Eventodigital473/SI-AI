@@ -32,7 +32,10 @@ PRIORITY_BASES = ("BTC", "ETH", "BNB", "SOL")
 EXCLUDED_BASES = {
     "USDC", "FDUSD", "TUSD", "USDP", "DAI", "USDE", "USDS",
     "BUSD", "USDD", "USD1", "UST", "USTC", "EUR", "TRY",
+    "EURC", "EURI", "AEUR", "USYC", "USDJ", "USDX", "USDB",
+    "USDF", "USDK", "USTB", "USDH",
     "WBTC", "WETH", "STETH", "WSTETH", "CBETH", "BETH",
+    "WBETH", "WBNB", "BTCB", "WAVAX", "WMATIC", "WFTM",
 }
 LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 MARKET_SYMBOLS = {"FUTURES": ["BTC/USDT", "ETH/USDT"],
@@ -143,7 +146,8 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
             for exchange_symbol, metadata in exchange.markets.items():
                 if not isinstance(metadata, dict):
                     continue
-                if metadata.get("active") is False:
+                # Require an explicit active flag; unknown status is not eligible.
+                if metadata.get("active") is not True:
                     continue
                 if metadata.get("quote") != "USDT":
                     continue
