@@ -18,7 +18,8 @@ These are initial configurable screening thresholds, not a guarantee of liquidit
 
 - Signal provider only: this project is intended to report signals for manual review.
 - It must not place Binance orders automatically.
-- Risk values are paper estimates based on the constants in `SI_AI_smc.py`, not account-specific balances or exchange-confirmed liquidation calculations.
+- Risk values use a $100 USDT reference wallet, 0.5% maximum risk budget per trade, and a 20% margin allocation cap ($20). The sizing cap is applied to notional at the configured leverage.
+- Futures leverage is conservatively fixed at 1x; higher leverage is not recommended until an exchange-specific maintenance-margin and liquidation model is validated. Spot trading has no leverage.
 - Review all signals independently before making any trading decision.
 
 ## Project files
@@ -71,3 +72,14 @@ Run the offline tests with `python -m pytest -q`. These tests do not establish l
 `profitability_gate.py` is a separate fail-closed evidence gate. It requires at least 100 chronological out-of-sample trades, positive net P&L and expectancy after costs, profit factor of at least 1.20, maximum drawdown no greater than 15%, and three sequential walk-forward folds with at least 20 trades and positive net P&L each. These are minimum review thresholds, not performance promises.
 
 Missing metrics or insufficient samples return `INCONCLUSIVE`; observed threshold breaches return `FAIL`. Futures certification additionally requires timestamped historical funding events and an explicit liquidation/maintenance-margin model. The current backtester does not yet supply those two futures models, so futures profitability cannot be certified by this gate. No real historical profitability result is claimed. Run only the focused gate tests with `python -m pytest -q test_profitability_gate.py` when validating this addition; the previously completed 35-test evidence remains historical evidence for its original commit.
+
+
+## $100 reference wallet and 20% margin policy
+
+- Reference wallet: **100 USDT** (static planning value; SI-AI does not read the user's Binance wallet).
+- Margin allocation cap: **20% = 20 USDT** per signal, not a required amount to spend.
+- Risk budget: **0.5% = 0.50 USDT** maximum planned loss per trade before any unmodelled execution differences; actual position size is the lower of the risk-based size and the margin-cap size.
+- Futures leverage recommendation: **1x only** until historical funding, exchange maintenance-margin tiers, and liquidation modelling are validated. This deliberately avoids guessing higher leverage.
+- Spot: leverage is not applicable. Position notional is still capped by the 20 USDT allocation.
+- Alerts include BUY/SELL/WAIT, entry reference, SL, TP, reward/risk, leverage (futures only), and estimated margin usage. WAIT alerts are sent only when a previously actionable BUY/SELL state changes to WAIT, avoiding an initial flood of hundreds of WAIT notifications.
+- User manually decides and places trades. No automatic Binance order placement is implemented.
