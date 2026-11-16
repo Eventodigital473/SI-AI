@@ -291,3 +291,11 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Added tests for successful report plumbing, futures fail-closed behavior, and insufficient-data handling. Positive test fixtures are synthetic and do not represent market returns.
 - Reports are saved under git-ignored `data/reports/`.
 - Pending: CI verification, then actual historical datasets must be downloaded in the final read-only live-data phase; no profitability claim yet.
+
+
+### Historical dataset window-boundary validation (2026-11-17)
+
+- Historical downloads now exclude candles whose close time extends beyond the requested exclusive end timestamp, not merely candles whose open time is after it.
+- Dataset save/load now validates canonical market/symbol/timeframe metadata and declared time bounds; corrupted or inconsistent metadata fails closed.
+- Added regression tests for partial end intervals and datasets outside declared windows.
+- Pending CI verification.

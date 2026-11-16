@@ -153,7 +153,7 @@ def download_ohlcv(
 
         for candle in normalized:
             timestamp = candle[0]
-            if timestamp >= end:
+            if timestamp + interval_ms > end:
                 reached_end = True
                 break
             if timestamp < start:
@@ -246,6 +246,21 @@ def save_dataset(
         if normalized[index][0] <= normalized[index - 1][0]:
             raise ValueError("Dataset timestamps must be strictly increasing")
 
+    if symbol != symbol.strip() or symbol != symbol.upper() or symbol.count("/") != 1 or not symbol.split("/", 1)[0] or symbol.split("/", 1)[1] != "USDT":
+        raise ValueError("symbol must be a canonical uppercase BASE/USDT string")
+    interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
+    start_value = _integer_timestamp(
+        start_ms if start_ms is not None else normalized[0][0], "start_ms"
+    )
+    end_value = _integer_timestamp(
+        end_ms if end_ms is not None else normalized[-1][0] + interval_ms,
+        "end_ms",
+    )
+    if end_value <= start_value:
+        raise ValueError("end_ms must be greater than start_ms")
+    if normalized[0][0] < start_value or normalized[-1][0] + interval_ms > end_value:
+        raise ValueError("Dataset candles fall outside the declared [start_ms, end_ms) range")
+
     digest = dataset_sha256(normalized)
     path = Path(output_path) if output_path is not None else (
         DATA_DIR / market.lower()
@@ -256,8 +271,8 @@ def save_dataset(
         "market": market,
         "symbol": symbol,
         "timeframe": timeframe,
-        "start_ms": start_ms if start_ms is not None else normalized[0][0],
-        "end_ms": end_ms if end_ms is not None else normalized[-1][0] + smc.TIMEFRAME_MILLISECONDS[timeframe],
+        "start_ms": start_value,
+        "end_ms": end_value,
         "downloaded_at_utc": datetime.now(timezone.utc).isoformat(),
         "candle_count": len(normalized),
         "data_sha256": digest,
@@ -277,10 +292,29 @@ def load_dataset(path: str | Path) -> Dict:
     candles = payload.get("candles")
     if not isinstance(candles, list) or not candles:
         raise ValueError("Historical dataset has no candles")
+    market = payload.get("market")
+    symbol = payload.get("symbol")
+    timeframe = payload.get("timeframe")
+    if market not in smc.MARKETS or timeframe not in smc.TIMEFRAME_MILLISECONDS:
+        raise ValueError("Historical dataset has invalid market or timeframe metadata")
+    if (
+        not isinstance(symbol, str) or symbol != symbol.strip()
+        or symbol != symbol.upper() or symbol.count("/") != 1
+        or not symbol.split("/", 1)[0] or symbol.split("/", 1)[1] != "USDT"
+    ):
+        raise ValueError("Historical dataset has invalid symbol metadata")
+    start_value = _integer_timestamp(payload.get("start_ms"), "dataset start_ms")
+    end_value = _integer_timestamp(payload.get("end_ms"), "dataset end_ms")
+    if end_value <= start_value:
+        raise ValueError("Historical dataset has an invalid time range")
+
     normalized = [_normalize_candle(row, index) for index, row in enumerate(candles)]
     for index in range(1, len(normalized)):
         if normalized[index][0] <= normalized[index - 1][0]:
             raise ValueError("Historical dataset timestamps are not strictly increasing")
+    interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
+    if normalized[0][0] < start_value or normalized[-1][0] + interval_ms > end_value:
+        raise ValueError("Historical dataset candles fall outside declared time range")
     digest = dataset_sha256(normalized)
     if payload.get("data_sha256") != digest:
         raise ValueError("Historical dataset SHA-256 mismatch")

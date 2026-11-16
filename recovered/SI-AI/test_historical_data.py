@@ -72,6 +72,29 @@ class HistoricalDataTests(unittest.TestCase):
         )
         self.assertEqual(len(result), len(rows) - 1)
 
+    def test_download_excludes_candle_that_closes_after_requested_end(self):
+        rows = make_candles()
+        interval = 900_000
+        end_ms = rows[-1][0] + interval - 1
+        exchange = FakeExchange("SPOT", rows)
+        result = historical_data.download_ohlcv(
+            "SPOT", "BTC/USDT", "15m",
+            rows[0][0], end_ms,
+            exchange=exchange, now_ms=rows[-1][0] + interval,
+        )
+        self.assertEqual(len(result), len(rows) - 1)
+
+    def test_save_rejects_dataset_outside_declared_time_window(self):
+        rows = make_candles()
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "outside"):
+                historical_data.save_dataset(
+                    "SPOT", "BTC/USDT", "15m", rows,
+                    output_path=Path(directory) / "bad.json",
+                    start_ms=rows[0][0],
+                    end_ms=rows[-1][0] + 900_000 - 1,
+                )
+
     def test_futures_symbol_resolves_to_usdt_settled_contract(self):
         rows = make_candles()
         exchange = FakeExchange("FUTURES", rows)
