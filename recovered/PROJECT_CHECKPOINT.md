@@ -117,3 +117,14 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Previously reported 35-test CI evidence belongs to code head `b6c239ad8bf32588094f60014f1fc403bdc9f5d1`; do not attribute it to these new commits.
 - No real historical market dataset has been tested; no profitability claim is made.
 - Automatic Binance order placement remains disabled. Termux/live validation remains the final phase.
+
+
+### Profitability gate CI verification (2026-11-17)
+
+- Corrected the gate so an undersized OOS sample is `INCONCLUSIVE`, not a false `FAIL`; fold-level positive-P&L checks are also not evaluated as failures when the fold sample is too small.
+- Latest verified code head: `b7566d23d381381283c0559dabbc3c184c4360de`.
+- GitHub Actions PR run [#43976125312](https://github.com/Eventodigital473/SI-AI/actions/runs/43976125312): dependency installation passed, compileall passed, **41 tests passed in 0.67s**, evidence artifact uploaded.
+- Matching push run [#43976112399](https://github.com/Eventodigital473/SI-AI/actions/runs/43976112399) also succeeded.
+- Artifact: `si-ai-test-evidence-35`, ID `14279054453`, expires 2026-12-16. ZIP SHA-256: `24b2b57a83678b9a02a0aaf9ab98327e53a8e503d13b387cc0d1ddaaee1e5fc1`.
+- Note: GitHub Actions automatically ran the repository's full configured suite on the commit (41 total). I did not separately rerun the previously completed tests manually.
+- This confirms code/test checks only. No historical dataset has been run, so no strategy profitability has been proven. Futures profitability remains blocked by missing historical funding and liquidation modelling.
