@@ -55,30 +55,42 @@ jobs:
                   name = pathlib.PurePosixPath(info.filename)
                   if name.is_absolute() or ".." in name.parts:
                       raise SystemExit(f"Unsafe archive path: {info.filename}")
-                  if not name.parts or name.parts[0] != "SI-AI":
-                      raise SystemExit(f"Unexpected archive root: {info.filename}")
+                  if info.filename != "UPLOAD_INSTRUCTIONS.txt" and (
+                      not name.parts or name.parts[0] != "SI-AI"
+                  ):
+                      raise SystemExit(f"Unexpected archive path: {info.filename}")
                   if info.external_attr >> 16 & 0o170000 == 0o120000:
                       raise SystemExit(f"Symlink rejected: {info.filename}")
 
-              for info in entries:
+              source_entries = [i for i in entries if i.filename.startswith("SI-AI/")]
+              instruction_entries = [i for i in entries if i.filename == "UPLOAD_INSTRUCTIONS.txt"]
+              if len(source_entries) != 10 or len(instruction_entries) != 1:
+                  raise SystemExit("Expected 10 SI-AI source files and one upload instruction file")
+
+              for info in source_entries:
                   relative = pathlib.PurePosixPath(info.filename).relative_to("SI-AI")
                   target = destination.joinpath(*relative.parts)
                   target.parent.mkdir(parents=True, exist_ok=True)
                   target.write_bytes(zf.read(info))
 
-          files = sorted(p for p in destination.rglob("*") if p.is_file())
-          if len(files) != 11:
-              raise SystemExit(f"Post-extraction count mismatch: {len(files)}")
+              instruction_target = pathlib.Path("recovered/UPLOAD_INSTRUCTIONS.txt")
+              instruction_target.parent.mkdir(parents=True, exist_ok=True)
+              instruction_target.write_bytes(zf.read(instruction_entries[0]))
 
+          files = sorted(p for p in destination.rglob("*") if p.is_file())
+          if len(files) != 10:
+              raise SystemExit(f"Expected 10 source files after extraction, found {len(files)}")
+
+          all_recovered = files + [pathlib.Path("recovered/UPLOAD_INSTRUCTIONS.txt")]
           manifest = pathlib.Path("recovered/RESTORE_MANIFEST.txt")
           manifest.parent.mkdir(parents=True, exist_ok=True)
           lines = [
               "SI-AI archive recovery manifest",
               f"Archive Git blob SHA: {git_blob}",
-              f"Extracted files: {len(files)}",
+              f"Recovered files: {len(all_recovered)} (10 source files + upload instructions)",
               "",
           ]
-          for path in files:
+          for path in all_recovered:
               digest = hashlib.sha256(path.read_bytes()).hexdigest()
               lines.append(f"{digest}  {path.as_posix()}")
           manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
