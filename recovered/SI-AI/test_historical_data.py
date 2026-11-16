@@ -120,7 +120,7 @@ class HistoricalDataTests(unittest.TestCase):
                 loaded["data_sha256"], historical_data.dataset_sha256(rows)
             )
             payload = json.loads(path.read_text(encoding="utf-8"))
-            payload["candles"][0][4] = 999.0
+            payload["candles"][0][5] = 1001.0
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
                 historical_data.load_dataset(path)
