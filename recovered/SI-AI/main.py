@@ -18,7 +18,8 @@ def validate_market_symbol(data):
     if market not in smc.MARKETS:
         raise ValueError("Unsupported market. Use FUTURES or SPOT.")
 
-    smc.refresh_symbol_universe()
+    if symbol not in smc.get_symbols(market):
+        smc.refresh_symbol_universe()
     if symbol not in smc.get_symbols(market):
         raise ValueError("Unsupported symbol for this market's selected USDT universe. Refresh /api/config.")
 
