@@ -153,11 +153,20 @@ def api_multi_timeframe():
                 "error": "Provide a non-empty timeframe list."
             }), 400
 
-        if any(tf not in smc.TIMEFRAMES for tf in timeframes):
+        if any(
+            not isinstance(tf, str) or tf not in smc.TIMEFRAMES
+            for tf in timeframes
+        ):
             return jsonify({
                 "success": False,
                 "error": "Unsupported timeframe",
                 "available_timeframes": smc.TIMEFRAMES
+            }), 400
+
+        if len(set(timeframes)) != len(timeframes):
+            return jsonify({
+                "success": False,
+                "error": "Duplicate timeframes are not allowed."
             }), 400
 
         results = []
@@ -185,13 +194,31 @@ def api_multi_timeframe():
                 "errors": errors
             }), 502
 
-        combined = smc.combine_timeframes(results)
+        if errors:
+            # Partial timeframe data must never produce an actionable confluence.
+            combined = {
+                "weighted_score": None,
+                "overall_signal": "WAIT",
+                "analysis_status": "INCOMPLETE",
+                "reason": (
+                    "One or more requested timeframe analyses failed; "
+                    "incomplete confluence is not actionable."
+                ),
+            }
+        else:
+            combined = smc.combine_timeframes(results)
+            combined["analysis_status"] = "COMPLETE"
 
-        if market == "SPOT" and combined["overall_signal"] == "SELL":
+        if (
+            not errors
+            and market == "SPOT"
+            and combined["overall_signal"] == "SELL"
+        ):
             combined["overall_signal"] = "SELL/EXIT"
 
         return jsonify({
             "success": True,
+            "complete": not errors,
             "market": market,
             "symbol": symbol,
             "multi_timeframe": combined,

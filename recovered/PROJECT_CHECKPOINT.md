@@ -210,3 +210,12 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Expanded stablecoin/fiat and wrapped-asset base exclusions.
 - Added mock-exchange assertions for inactive, unknown-status, and wrapped assets.
 - Pending: CI verification and continued end-to-end review.
+
+
+### API multi-timeframe fail-closed correction (2026-11-17)
+
+- Multi-timeframe API now rejects duplicate or invalid timeframe inputs.
+- If any requested timeframe fails, successful partial analyses are still returned for diagnosis, but combined confluence is explicitly marked INCOMPLETE and overall signal is forced to WAIT. Partial data can no longer create an actionable combined BUY/SELL.
+- Fully successful requests are marked COMPLETE. Spot bearish signals are labelled SELL/EXIT only when the full requested timeframe set succeeded.
+- Added regression tests for incomplete-confluence WAIT behavior, complete responses, and duplicate timeframe rejection.
+- Pending: latest CI verification.

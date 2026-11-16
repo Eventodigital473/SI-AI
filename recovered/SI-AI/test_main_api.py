@@ -134,6 +134,10 @@ class MainApiTests(unittest.TestCase):
         data = response.get_json()
         self.assertTrue(data["success"])
         self.assertEqual(data["timeframe_count"], 2)
+        self.assertTrue(data["complete"])
+        self.assertEqual(
+            data["multi_timeframe"]["analysis_status"], "COMPLETE"
+        )
 
         for result in data["successful_analyses"]:
             self.assertIn("paper_quantity", result)
@@ -201,6 +205,26 @@ class MainApiTests(unittest.TestCase):
         self.assertEqual(data["timeframe_count"], 1)
         self.assertEqual(len(data["errors"]), 1)
         self.assertEqual(data["errors"][0]["timeframe"], "1h")
+        self.assertFalse(data["complete"])
+        self.assertEqual(
+            data["multi_timeframe"]["overall_signal"], "WAIT"
+        )
+        self.assertEqual(
+            data["multi_timeframe"]["analysis_status"], "INCOMPLETE"
+        )
+
+    def test_duplicate_timeframes_are_rejected(self):
+        with patch.object(main.smc, "analyze") as mocked:
+            response = self.client.post(
+                "/api/multi-timeframe",
+                json={
+                    "market": "FUTURES",
+                    "symbol": "BTC/USDT",
+                    "timeframes": ["1h", "1h"],
+                },
+            )
+        self.assertEqual(response.status_code, 400)
+        mocked.assert_not_called()
 
     def test_all_timeframe_failures_return_error(self):
         with patch.object(
