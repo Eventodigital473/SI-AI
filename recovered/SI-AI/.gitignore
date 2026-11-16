@@ -13,3 +13,5 @@ logs/
 *.bak
 *.backup*
 *.before_*
+
+data/historical/

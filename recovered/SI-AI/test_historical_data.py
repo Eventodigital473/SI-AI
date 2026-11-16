@@ -1,0 +1,141 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+import historical_data
+
+
+class FakeExchange:
+    def __init__(self, market, candles):
+        self.market = market
+        self.candles = candles
+        self.calls = []
+        if market == "SPOT":
+            key = "BTC/USDT"
+            metadata = {
+                "active": True, "quote": "USDT", "spot": True,
+                "swap": False, "linear": False, "settle": None,
+            }
+        else:
+            key = "BTC/USDT:USDT"
+            metadata = {
+                "active": True, "quote": "USDT", "spot": False,
+                "swap": True, "linear": True, "settle": "USDT",
+            }
+        self.markets = {key: metadata}
+
+    def load_markets(self):
+        return self.markets
+
+    def milliseconds(self):
+        return 10**15
+
+    def fetch_ohlcv(self, symbol, timeframe, since, limit):
+        self.calls.append((symbol, timeframe, since, limit))
+        return [row for row in self.candles if row[0] >= since][:limit]
+
+
+def make_candles(count=7, start=1_700_000_000_000, interval=900_000):
+    return [
+        [start + index * interval, 100, 101, 99, 100, 1000]
+        for index in range(count)
+    ]
+
+
+class HistoricalDataTests(unittest.TestCase):
+    def test_download_paginates_and_uses_exclusive_end(self):
+        rows = make_candles()
+        exchange = FakeExchange("SPOT", rows)
+        interval = 900_000
+        result = historical_data.download_ohlcv(
+            "SPOT", "BTC/USDT", "15m",
+            rows[0][0], rows[-1][0] + interval,
+            exchange=exchange, limit=2,
+            now_ms=rows[-1][0] + interval,
+        )
+        self.assertEqual(len(result), len(rows))
+        self.assertEqual(result[0][0], rows[0][0])
+        self.assertEqual(result[-1][0], rows[-1][0])
+        self.assertGreaterEqual(len(exchange.calls), 3)
+
+    def test_incomplete_current_candle_is_excluded(self):
+        rows = make_candles()
+        exchange = FakeExchange("SPOT", rows)
+        interval = 900_000
+        now_ms = rows[-1][0] + interval - 1
+        result = historical_data.download_ohlcv(
+            "SPOT", "BTC/USDT", "15m",
+            rows[0][0], rows[-1][0] + interval,
+            exchange=exchange, limit=100,
+            now_ms=now_ms,
+        )
+        self.assertEqual(len(result), len(rows) - 1)
+
+    def test_futures_symbol_resolves_to_usdt_settled_contract(self):
+        rows = make_candles()
+        exchange = FakeExchange("FUTURES", rows)
+        result = historical_data.download_ohlcv(
+            "FUTURES", "BTC/USDT", "15m",
+            rows[0][0], rows[-1][0] + 900_000,
+            exchange=exchange, now_ms=rows[-1][0] + 900_000,
+        )
+        self.assertEqual(len(result), len(rows))
+        self.assertTrue(exchange.calls)
+        self.assertEqual(exchange.calls[0][0], "BTC/USDT:USDT")
+
+    def test_inactive_or_wrong_market_is_rejected(self):
+        rows = make_candles()
+        exchange = FakeExchange("SPOT", rows)
+        exchange.markets["BTC/USDT"]["active"] = None
+        with self.assertRaisesRegex(ValueError, "active USDT"):
+            historical_data.download_ohlcv(
+                "SPOT", "BTC/USDT", "15m",
+                rows[0][0], rows[-1][0] + 900_000,
+                exchange=exchange, now_ms=rows[-1][0] + 900_000,
+            )
+
+    def test_pagination_non_progress_is_rejected(self):
+        rows = make_candles()
+        exchange = FakeExchange("SPOT", rows)
+        exchange.fetch_ohlcv = lambda *args, **kwargs: rows[:2]
+        with self.assertRaisesRegex(RuntimeError, "did not advance"):
+            historical_data.download_ohlcv(
+                "SPOT", "BTC/USDT", "15m",
+                rows[0][0], rows[-1][0] + 900_000,
+                exchange=exchange, limit=2,
+                now_ms=rows[-1][0] + 900_000,
+            )
+
+    def test_dataset_save_load_and_checksum_verification(self):
+        rows = make_candles()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "dataset.json"
+            saved = historical_data.save_dataset(
+                "SPOT", "BTC/USDT", "15m", rows, output_path=path
+            )
+            loaded = historical_data.load_dataset(saved)
+            self.assertEqual(loaded["candles"], rows)
+            self.assertEqual(
+                loaded["data_sha256"], historical_data.dataset_sha256(rows)
+            )
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["candles"][0][4] = 999.0
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
+                historical_data.load_dataset(path)
+
+    def test_malformed_candles_are_rejected(self):
+        rows = make_candles()
+        rows[2][2] = 50
+        exchange = FakeExchange("SPOT", rows)
+        with self.assertRaisesRegex(ValueError, "OHLC relationship"):
+            historical_data.download_ohlcv(
+                "SPOT", "BTC/USDT", "15m",
+                rows[0][0], rows[-1][0] + 900_000,
+                exchange=exchange, now_ms=rows[-1][0] + 900_000,
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -260,3 +260,15 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 **Exact next step:** implement and test the public historical OHLCV data ingestion/cache for spot first, then use those verified datasets for chronological holdout and walk-forward reports. Keep futures certification blocked until historical funding and liquidation modelling are complete.
 
 **Safety/state:** no automatic orders, no private API keys, no Telegram. Main remains untouched. PR #1 remains open, draft and unmerged. Current working branch is `feature/dynamic-coin-universe`. The verified code backup is the GitHub commit above; this checkpoint update is documentation-only.
+
+
+## Historical OHLCV ingestion implementation (2026-11-17)
+
+- Added `historical_data.py` for public Binance SPOT and linear USDT perpetual OHLCV downloads.
+- Pagination is bounded and progress-checked; timestamps are normalized and strictly ordered; malformed OHLCV, inactive markets, wrong contract types, incomplete candles, and empty results fail closed.
+- End timestamp is exclusive. Only fully closed candles are retained.
+- Added local JSON dataset save/load with atomic writes, schema version, candle count, metadata, and SHA-256 integrity verification.
+- Historical datasets are stored under `data/historical/` and excluded by .gitignore; do not commit downloaded market history.
+- Added fake-exchange tests for pagination, futures symbol resolution, incomplete-candle exclusion, invalid metadata, non-progress, malformed OHLCV, and checksum tampering.
+- Pending: CI verification, then a report CLI and real historical dataset acquisition only after final Termux/live-read-only phase approval.
+- No API keys, private endpoints, or order placement.

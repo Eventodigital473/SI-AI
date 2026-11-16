@@ -86,3 +86,16 @@ Missing metrics or insufficient samples return `INCONCLUSIVE`; observed threshol
 - Stale/future-dated candles are rejected. Multi-timeframe API results are forced to WAIT if any requested timeframe fails; partial data is marked INCOMPLETE.
 - WAIT notifications are sent only when a previously actionable BUY/SELL state changes to WAIT, avoiding an initial flood of hundreds of WAIT notifications.
 - User manually decides and places trades. No automatic Binance order placement is implemented.
+
+
+## Public historical OHLCV research data
+
+Use `historical_data.py` to download public Binance spot or linear USDT perpetual OHLCV candles for a selected symbol/timeframe. It paginates with a guarded cursor, excludes incomplete candles, checks active market metadata, and writes a local JSON dataset with a SHA-256 checksum. Dataset files are stored under `data/historical/` and are git-ignored.
+
+Example CLI shape (timestamps are Unix milliseconds; end is exclusive):
+
+```bash
+python historical_data.py --market SPOT --symbol BTC/USDT --timeframe 1h --start-ms 1700000000000 --end-ms 1710000000000
+```
+
+Load and verify a saved dataset with `load_dataset(path)` before passing its candles to `backtesting.run_backtest`, `evaluate_chronological_validation`, or `evaluate_walk_forward`. The downloader uses public market-data endpoints only; it does not request API keys or place orders. Historical data is not a profitability guarantee.
