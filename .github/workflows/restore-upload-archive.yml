@@ -45,8 +45,11 @@ jobs:
 
           with zipfile.ZipFile(archive) as zf:
               entries = [i for i in zf.infolist() if not i.is_dir()]
-              if len(entries) != 10:
-                  raise SystemExit(f"Expected 10 files, found {len(entries)}")
+              if len(entries) != 11:
+                  raise SystemExit(f"Expected 11 archive files, found {len(entries)}")
+              print("Archive entries:")
+              for info in entries:
+                  print(f" - {info.filename}")
 
               for info in entries:
                   name = pathlib.PurePosixPath(info.filename)
@@ -64,7 +67,7 @@ jobs:
                   target.write_bytes(zf.read(info))
 
           files = sorted(p for p in destination.rglob("*") if p.is_file())
-          if len(files) != 10:
+          if len(files) != 11:
               raise SystemExit(f"Post-extraction count mismatch: {len(files)}")
 
           manifest = pathlib.Path("recovered/RESTORE_MANIFEST.txt")
