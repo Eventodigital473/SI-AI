@@ -259,10 +259,20 @@ def make_alert(market, symbol, signal, results):
         reward_risk = number(reference.get("reward_risk"))
 
         lines.extend([
-            f"Stop Loss: {stop_loss:g}",
-            f"Take Profit: {take_profit:g}",
-            f"Reward/Risk: {reward_risk:.2f}:1",
+            f"Stop Loss: {stop_loss:g}" if stop_loss is not None else "Stop Loss: unavailable",
+            f"Take Profit: {take_profit:g}" if take_profit is not None else "Take Profit: unavailable",
+            f"Reward/Risk: {reward_risk:.2f}:1" if reward_risk is not None else "Reward/Risk: unavailable",
         ])
+        if market == "FUTURES":
+            leverage = number(reference.get("recommended_leverage"))
+            margin = number(reference.get("paper_margin_required_usdt"))
+            budget = number(reference.get("paper_margin_budget_usdt"))
+            if leverage is not None:
+                lines.append(f"Recommended leverage: {leverage:g}x (conservative; higher leverage disabled)")
+            if margin is not None and budget is not None:
+                lines.append(f"Estimated margin: {margin:.2f} USDT / {budget:.2f} USDT budget (20% of 100 USDT reference wallet)")
+        elif market == "SPOT":
+            lines.append("Leverage: not applicable to spot")
     else:
         lines.append("Spot exit only. No short position.")
 
@@ -392,6 +402,23 @@ def run_cycle(dry_run=False):
 
             if signal == "WAIT":
                 updated_signals[key] = "WAIT"
+                # Alert only on a transition from an actionable signal to WAIT;
+                # this avoids flooding the phone with hundreds of initial WAITs.
+                if previous in ("BUY", "SELL"):
+                    wait_content = (
+                        f"{market} | {symbol}\n"
+                        "Signal changed to WAIT. Entry conditions are no longer confirmed.\n"
+                        "Do not open a new position. Review any existing position manually."
+                    )
+                    if dry_run:
+                        logger.info("DRY RUN WAIT ALERT: %s\n%s", key, wait_content)
+                    else:
+                        try:
+                            send_notification(market, symbol, "WAIT", wait_content)
+                            logger.info("%s: WAIT transition notification sent", key)
+                        except Exception:
+                            logger.exception("%s: WAIT notification failed", key)
+                            updated_signals[key] = previous
                 continue
 
             # Dry-run always previews actionable signals, even if previously alerted.
