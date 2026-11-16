@@ -48,3 +48,24 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 6. Only after review, prepare a pull request. Do not merge recovery work into `main` until explicitly reviewed.
 
 **Current phase:** Archive recovery and baseline tests complete. Code audit is in progress; no trading logic has been changed.
+
+
+## Dynamic coin-universe implementation checkpoint (2026-11-17)
+
+**Working branch:** `feature/dynamic-coin-universe` (based on `recovery/restore-upload-zip`)
+
+- Replaced the fixed BTC/ETH scanner loop with separate dynamic SPOT and FUTURES USDT universes.
+- Added eligibility checks for active markets, USDT quote/settlement, 24-hour quote volume, bid/ask spread, and excluded stablecoin/wrapped/leveraged-token bases.
+- SOL, BNB, BTC, and ETH receive inclusion priority only after passing the same filters.
+- Configured minimum 15 eligible coins, target 50, maximum 100 per market; scanner skips a market below the minimum instead of fabricating candidates.
+- Added 15-minute refresh and last-known-good preservation on exchange refresh failures.
+- Scanner notification IDs now use stable symbol/market hashes so dynamic list reordering does not remap notifications.
+- API config reports per-market symbols, status, and filter policy.
+- Added offline mock-exchange tests in `test_dynamic_universe.py`.
+- Added a dedicated CI workflow for this feature branch.
+- No automatic order placement added. No credentials or private endpoints added.
+- `main` remains untouched.
+
+**Validation status:** CI run not yet confirmed. Do not merge this branch until the complete test suite passes and live public Binance discovery is separately smoke-tested. The unit tests mock exchange responses and do not prove current market liquidity, data quality, signal profitability, or live execution conditions.
+
+**Next step:** inspect the feature branch CI result, fix any failures, then review live market-universe discovery behavior and update this checkpoint with exact test evidence.
