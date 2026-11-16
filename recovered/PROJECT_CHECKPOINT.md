@@ -141,3 +141,12 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Exposed risk policy in /api/config; updated risk/API tests to assert the 100 USDT / 20 USDT policy and 1x conservative leverage.
 - Important: $100 is a static reference balance, not read from Binance. 20 USDT is a cap, not a requirement to use all of it. Higher futures leverage is intentionally not recommended until historical funding and exchange-specific maintenance-margin/liquidation modelling are validated. No automatic orders.
 - CI status for these latest changes: pending at checkpoint creation; do not claim tests passed until the latest head's workflow is confirmed.
+
+
+### 20% margin policy CI verification (2026-11-17)
+
+- Latest verified code head: 4c97cc318329dbe55007c8defddd50a0c75c94d4.
+- GitHub Actions run [#43977270951](https://github.com/Eventodigital473/SI-AI/actions/runs/43977270951) succeeded: dependencies, compileall, **42 tests passed in 1.65s**, evidence artifact upload succeeded.
+- Evidence artifact: si-ai-test-evidence-51, ID 14282005208; ZIP SHA-256 f768ecc976b78082aa7f5e3684d3a3dd8dbb7620767bb5a729bfa54802e95219.
+- CI includes the new $100 reference-wallet/20% margin cap, 1x conservative leverage, backtest sizing alignment, API risk-policy exposure, and updated sizing assertions.
+- This is software test evidence only. It does not validate real exchange liquidation or establish profitability. No automatic trading.
