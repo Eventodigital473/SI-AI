@@ -50,9 +50,13 @@ FUTURES_EXCHANGE_ID = "binanceusdm"
 SPOT_EXCHANGE_ID = "binance"
 
 # Analysis/risk assumptions only; no account balance is queried and no orders sent.
-PAPER_EQUITY_USDT = 1000.0
+PAPER_EQUITY_USDT = 100.0
 RISK_PER_TRADE_PERCENT = 0.5
-MAX_NOTIONAL_EQUITY_MULTIPLE = 2.0
+MARGIN_ALLOCATION_PERCENT = 20.0
+RECOMMENDED_FUTURES_LEVERAGE = 1.0
+MAX_NOTIONAL_EQUITY_MULTIPLE = (
+    MARGIN_ALLOCATION_PERCENT / 100.0 * RECOMMENDED_FUTURES_LEVERAGE
+)
 MIN_REWARD_RISK = 2.0
 
 # Illustrative paper assumptions, not account-specific exchange rates.
@@ -663,10 +667,15 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
                         * RISK_PER_TRADE_PERCENT / 100.0
                     )
 
-                    max_notional = (
+                    margin_budget = (
                         PAPER_EQUITY_USDT
-                        * MAX_NOTIONAL_EQUITY_MULTIPLE
+                        * MARGIN_ALLOCATION_PERCENT / 100.0
                     )
+                    recommended_leverage = (
+                        RECOMMENDED_FUTURES_LEVERAGE
+                        if market == "FUTURES" else 1.0
+                    )
+                    max_notional = margin_budget * recommended_leverage
 
                     quantity = min(
                         risk_amount / total_risk_per_unit,
@@ -714,6 +723,15 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
         "paper_estimated_net_reward_usdt": net_reward_usdt,
         "paper_quantity": quantity,
         "paper_notional_usdt": notional,
+        "recommended_leverage": (
+            RECOMMENDED_FUTURES_LEVERAGE
+            if market == "FUTURES" and quantity is not None else None
+        ),
+        "paper_margin_required_usdt": (
+            notional / RECOMMENDED_FUTURES_LEVERAGE
+            if notional is not None and market == "FUTURES" else notional
+        ),
+        "paper_margin_budget_usdt": PAPER_EQUITY_USDT * MARGIN_ALLOCATION_PERCENT / 100.0,
         "time_utc": datetime.now(timezone.utc).isoformat(),
     }
 
