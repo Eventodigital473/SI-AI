@@ -103,6 +103,25 @@ class BacktestingTests(unittest.TestCase):
         self.assertEqual(len(result["folds"]), 3)
         self.assertEqual(result["status"], "INCONCLUSIVE")
 
+    def test_funding_proxy_counts_utc_settlement_boundaries(self):
+        period = 8 * 60 * 60 * 1000
+        self.assertEqual(
+            backtesting._funding_periods_between(
+                period - 60_000, period + 60_000
+            ),
+            1,
+        )
+        self.assertEqual(
+            backtesting._funding_periods_between(
+                period + 60_000, 2 * period - 60_000
+            ),
+            0,
+        )
+        self.assertEqual(
+            backtesting._funding_periods_between(period, 2 * period),
+            1,
+        )
+
     def test_optional_funding_rate_is_reported_and_deducted(self):
         data = candles_with_bars()
         for row in data:

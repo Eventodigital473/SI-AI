@@ -194,3 +194,11 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 
 - During review of the independent refresh change, caught that its per-market refresh timestamp dictionary was initialized before MARKETS. Moved initialization immediately after MARKETS is defined.
 - This correction is included before accepting CI evidence for the latest head; earlier CI results are not attributed to this correction.
+
+
+### Funding-proxy and evidence-gate correctness (2026-11-17)
+
+- Corrected the optional funding-rate proxy to count actual UTC 00:00, 08:00, and 16:00 settlement boundaries crossed while a position is open, rather than dividing elapsed holding time by eight hours. The report now explicitly states that it holds entry notional constant and is not historical exchange funding.
+- Corrected profitability-gate aggregation so missing or undersized fold evidence yields INCONCLUSIVE instead of being incorrectly promoted to a FAIL by the aggregate positive-fold check.
+- Added regression tests for funding-boundary timing and missing walk-forward fold metrics.
+- Futures certification remains blocked until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are integrated.

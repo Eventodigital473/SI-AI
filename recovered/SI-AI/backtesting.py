@@ -59,6 +59,15 @@ def _cost_adjusted_fill(price: float, side: str, is_entry: bool, slippage: float
     return price * adverse
 
 
+def _funding_periods_between(entry_timestamp: int, exit_timestamp: int) -> int:
+    """Count UTC 00:00/08:00/16:00 funding boundaries while a trade is open."""
+    period_ms = 8 * 60 * 60 * 1000
+    first_boundary = (int(entry_timestamp) // period_ms + 1) * period_ms
+    if first_boundary > exit_timestamp:
+        return 0
+    return int((exit_timestamp - first_boundary) // period_ms + 1)
+
+
 def _metrics(trades: List[Dict], equity_curve: List[float], initial_equity: float) -> Dict:
     pnls = [t["net_pnl_usdt"] for t in trades]
     wins = [p for p in pnls if p > 0]
@@ -216,8 +225,9 @@ def run_backtest(
             gross_pnl = (entry - exit_fill) * quantity
         fees = (entry + exit_fill) * quantity * fee
         entry_notional = entry * quantity
-        elapsed_ms = max(0, data[exit_index][0] - data[entry_bar_index][0])
-        funding_periods = elapsed_ms // 28_800_000
+        funding_periods = _funding_periods_between(
+            data[entry_bar_index][0], data[exit_index][0]
+        )
         funding_cost = 0.0
         if market == "FUTURES" and funding_rate is not None:
             funding_cost = entry_notional * funding_rate * funding_periods * (1.0 if side == "LONG" else -1.0)
@@ -267,7 +277,7 @@ def run_backtest(
             "max_holding_bars": max_holding_bars,
             "funding_costs_included": market == "FUTURES" and funding_rate is not None,
             "funding_rate_per_8h_assumption": funding_rate,
-            "funding_cost_method": "constant user-supplied rate proxy; not historical exchange funding" if funding_rate is not None else "excluded; supply a rate proxy or add historical funding series",
+            "funding_cost_method": "constant user-supplied rate at each UTC 00:00/08:00/16:00 boundary; entry notional held constant; not historical exchange funding" if funding_rate is not None else "excluded; supply a rate proxy or add historical funding series",
             "liquidation_modelled": False,
         },
         "metrics": metrics,

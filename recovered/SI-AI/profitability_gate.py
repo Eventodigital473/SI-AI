@@ -103,6 +103,7 @@ def evaluate_profitability_evidence(
           f"observed={len(valid_folds)}; required={required_folds}")
 
     positive_folds = 0
+    fold_evidence_complete = len(valid_folds) >= required_folds
     for index, fold in enumerate(valid_folds[:required_folds], start=1):
         trades = _finite_number(fold.get("trade_count"))
         pnl = _finite_number(fold.get("net_pnl_usdt"))
@@ -112,12 +113,14 @@ def evaluate_profitability_evidence(
         positive = pnl is not None and pnl > 0
         if positive and enough:
             positive_folds += 1
+        if not enough or pnl is None:
+            fold_evidence_complete = False
         check(f"fold_{index}_positive_net_pnl", positive, enough and pnl is not None,
               f"observed={pnl}; sample_sufficient={enough}")
 
     check("positive_walk_forward_folds",
           positive_folds >= rules["minimum_positive_walk_forward_folds"],
-          len(valid_folds) >= required_folds,
+          fold_evidence_complete,
           f"observed={positive_folds}; required={rules['minimum_positive_walk_forward_folds']}")
 
     assumptions = chronological_report.get("assumptions", {})

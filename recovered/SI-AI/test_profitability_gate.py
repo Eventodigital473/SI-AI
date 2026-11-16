@@ -49,6 +49,14 @@ class ProfitabilityGateTests(unittest.TestCase):
         )
         self.assertNotEqual(result["status"], "PASS")
 
+    def test_missing_fold_pnl_is_inconclusive_not_false_failure(self):
+        oos, wf = reports()
+        wf["folds"][0]["net_pnl_usdt"] = None
+        result = evaluate_profitability_evidence(
+            oos, wf, market="SPOT"
+        )
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+
     def test_invalid_market_rejected(self):
         with self.assertRaises(ValueError):
             evaluate_profitability_evidence({}, {}, market="MARGIN")
