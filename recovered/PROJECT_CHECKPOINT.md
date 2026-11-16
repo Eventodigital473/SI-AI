@@ -105,3 +105,15 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - JUnit evidence artifact: `si-ai-test-evidence-27`, artifact ID `14280557685`, available until 2026-12-16; uploaded ZIP SHA-256: `fb2ee134ddbfeaf2f7e1073ea7756601cde62dd30b8c1e06c6a34747e18a6a0d`.
 - This proves the offline unit/regression suite passed. It does **not** prove trading profitability or live Binance behavior.
 - Pull request #1 remains open and draft; not merged. `main` remains untouched.
+
+
+## Profitability evidence gate update (2026-11-17)
+
+- Added `recovered/SI-AI/profitability_gate.py`: fail-closed certification policy for chronological OOS and walk-forward evidence.
+- Minimum policy: 100 OOS trades; positive net P&L and expectancy; profit factor >= 1.20; max drawdown <= 15%; three sequential walk-forward folds, each with >= 20 trades and positive net P&L.
+- Missing metrics / insufficient samples are INCONCLUSIVE; observed failed thresholds are FAIL.
+- Futures certification additionally requires historical timestamped funding events and liquidation/maintenance-margin modelling. Current backtester does not yet provide those, so futures certification is intentionally blocked (INCONCLUSIVE) rather than overstated.
+- Added `test_profitability_gate.py` with focused tests for pass/fail/inconclusive cases and futures fail-closed behavior. These tests have been added but not yet run in this checkpoint.
+- Previously reported 35-test CI evidence belongs to code head `b6c239ad8bf32588094f60014f1fc403bdc9f5d1`; do not attribute it to these new commits.
+- No real historical market dataset has been tested; no profitability claim is made.
+- Automatic Binance order placement remains disabled. Termux/live validation remains the final phase.
