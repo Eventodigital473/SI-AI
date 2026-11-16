@@ -176,7 +176,8 @@ def run_backtest(
         risk_budget = equity * risk_pct / 100.0
         quantity = min(
             risk_budget / risk_per_unit,
-            equity * si.MAX_NOTIONAL_EQUITY_MULTIPLE / entry,
+            equity * si.MARGIN_ALLOCATION_PERCENT / 100.0
+            * si.RECOMMENDED_FUTURES_LEVERAGE / entry,
         )
         if quantity <= 0 or not math.isfinite(quantity):
             i += 1
@@ -252,6 +253,8 @@ def run_backtest(
             "fee_rate_per_side": fee,
             "slippage_rate_per_side": slippage,
             "risk_percent_per_trade": risk_pct,
+            "margin_allocation_percent": si.MARGIN_ALLOCATION_PERCENT,
+            "recommended_futures_leverage": si.RECOMMENDED_FUTURES_LEVERAGE,
             "max_notional_equity_multiple": si.MAX_NOTIONAL_EQUITY_MULTIPLE,
             "max_holding_bars": max_holding_bars,
             "funding_costs_included": market == "FUTURES" and funding_rate is not None,
