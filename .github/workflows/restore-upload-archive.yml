@@ -25,7 +25,6 @@ jobs:
           python - <<'PY'
           import hashlib
           import pathlib
-          import subprocess
           import zipfile
 
           archive = pathlib.Path("SI-AI_GITHUB_UPLOAD.zip")
@@ -34,7 +33,7 @@ jobs:
 
           data = archive.read_bytes()
           git_blob = hashlib.sha1(
-              b"blob " + str(len(data)).encode() + b"\\0" + data
+              b"blob " + str(len(data)).encode() + b"\0" + data
           ).hexdigest()
           expected = "c74988400c975a46504aed1e1310c50e14cb3016"
           if git_blob != expected:
@@ -79,8 +78,8 @@ jobs:
           for path in files:
               digest = hashlib.sha256(path.read_bytes()).hexdigest()
               lines.append(f"{digest}  {path.as_posix()}")
-          manifest.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
-          print("\\n".join(lines))
+          manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print("\n".join(lines))
           PY
 
       - name: Commit recovered source on recovery branch
