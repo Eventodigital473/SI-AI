@@ -66,6 +66,13 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - No automatic order placement added. No credentials or private endpoints added.
 - `main` remains untouched.
 
-**Validation status:** CI run not yet confirmed. Do not merge this branch until the complete test suite passes and live public Binance discovery is separately smoke-tested. The unit tests mock exchange responses and do not prove current market liquidity, data quality, signal profitability, or live execution conditions.
+**Automated validation:** GitHub Actions run [SI-AI Dynamic Coin Universe Tests](https://github.com/Eventodigital473/SI-AI/actions/runs/43973347084) completed successfully on commit `f13c38811557e56d4e5f26d35243a382301ad508`.
 
-**Next step:** inspect the feature branch CI result, fix any failures, then review live market-universe discovery behavior and update this checkpoint with exact test evidence.
+- Python 3.12 dependency installation: passed.
+- `python -m compileall -q .`: passed.
+- `python -m pytest -q`: **27 passed in 1.13s**.
+- Tests use mocked exchange metadata/tickers; they do not make live Binance requests.
+
+**Remaining validation:** live public Binance discovery has not yet been smoke-tested from Termux. The 5m/10m quote-volume and 0.15% spread thresholds are initial screening settings and must be reviewed against live eligible-market counts. The offline tests do not prove current market liquidity, data quality, signal profitability, or live execution conditions.
+
+**Next step:** open a review PR against `recovery/restore-upload-zip`; then run one controlled read-only live-universe smoke test from Termux before considering merge to the recovery branch. Do not merge to `main` without separate explicit approval.
