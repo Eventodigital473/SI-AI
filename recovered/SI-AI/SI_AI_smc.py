@@ -279,6 +279,35 @@ def validate_candles(candles: list) -> List[list]:
     return closed
 
 
+TIMEFRAME_MILLISECONDS = {
+    "15m": 15 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "4h": 4 * 60 * 60 * 1000,
+    "1d": 24 * 60 * 60 * 1000,
+}
+
+
+def validate_candle_freshness(candles: List[list], timeframe: str, now_ms: int) -> None:
+    """Reject stale or implausibly future-dated closed candles."""
+    interval_ms = TIMEFRAME_MILLISECONDS.get(timeframe)
+    if interval_ms is None:
+        raise ValueError(f"Unsupported timeframe for freshness check: {timeframe}")
+    if not candles:
+        raise ValueError("Cannot validate freshness of an empty candle series")
+    if isinstance(now_ms, bool) or not isinstance(now_ms, (int, float)) or not math.isfinite(float(now_ms)):
+        raise ValueError("Current timestamp must be a finite number")
+
+    latest_close_ms = int(candles[-1][0]) + interval_ms
+    age_ms = float(now_ms) - latest_close_ms
+    if age_ms > 2 * interval_ms:
+        raise ValueError(
+            f"Stale {timeframe} candles: latest closed candle is "
+            f"{age_ms / interval_ms:.2f} intervals old"
+        )
+    if age_ms < -interval_ms:
+        raise ValueError("Candle series contains a future-dated closed candle")
+
+
 def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
     exchange = EXCHANGES[market]
     exchange.load_markets()
@@ -302,7 +331,9 @@ def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
         timeframe=timeframe,
         limit=CANDLE_LIMIT
     )
-    return validate_candles(raw)
+    candles = validate_candles(raw)
+    validate_candle_freshness(candles, timeframe, exchange.milliseconds())
+    return candles
 
 
 # ----------------------------- INDICATORS ---------------------------------

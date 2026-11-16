@@ -141,6 +141,33 @@ class DynamicUniverseTests(unittest.TestCase):
         self.assertEqual(selected["FUTURES"], ["KEEP/USDT"])
         self.assertEqual(selected["SPOT"], ["KEEP/USDT"])
 
+    def test_freshness_accepts_recent_closed_candles(self):
+        interval = si.TIMEFRAME_MILLISECONDS["15m"]
+        now_ms = 1_800_000_000_000
+        candles = [
+            [now_ms - (80 - index) * interval, 100, 101, 99, 100, 1000]
+            for index in range(80)
+        ]
+        si.validate_candle_freshness(candles, "15m", now_ms)
+
+    def test_freshness_rejects_stale_candles(self):
+        interval = si.TIMEFRAME_MILLISECONDS["15m"]
+        now_ms = 1_800_000_000_000
+        candles = [
+            [now_ms - (80 - index) * interval, 100, 101, 99, 100, 1000]
+            for index in range(80)
+        ]
+        candles[-1][0] = now_ms - 4 * interval
+        with self.assertRaisesRegex(ValueError, "Stale"):
+            si.validate_candle_freshness(candles, "15m", now_ms)
+
+    def test_freshness_rejects_future_dated_candles(self):
+        interval = si.TIMEFRAME_MILLISECONDS["1h"]
+        now_ms = 1_800_000_000_000
+        candles = [[now_ms + interval, 100, 101, 99, 100, 1000]]
+        with self.assertRaisesRegex(ValueError, "future-dated"):
+            si.validate_candle_freshness(candles, "1h", now_ms)
+
     def test_scanner_config_accepts_dynamic_coin_universe(self):
         scanner.validate_config()
 

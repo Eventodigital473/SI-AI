@@ -163,3 +163,11 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Added/updated regression tests for stop-gap fills and the first OOS signal/entry boundary.
 - Pending verification: run consolidated GitHub Actions suite on this commit; continue engine/scanner audit, exchange-specific funding/liquidation modelling, real historical-data evaluation, paper-trading evidence, and final Termux read-only validation.
 - No automatic orders. No claim of profitability. Main and PR merge status unchanged.
+
+
+### Additional live-data safety and alert tests (2026-11-17)
+
+- Added closed-candle freshness validation before live analysis. Stale series older than two timeframe intervals and implausibly future-dated series now fail closed instead of generating signals.
+- Added focused tests for fresh/stale/future candle timestamps.
+- Added dedicated signal-alert tests for coin/symbol identity, 1h entry and 4h confirmation timeframes, entry reference, SL, TP1/TP2/TP3, leverage/margin, short-side target direction, spot exit-only behavior, and unknown-name handling.
+- Pending: consolidated CI verification. Live exchange smoke testing remains deferred to the final phase.
