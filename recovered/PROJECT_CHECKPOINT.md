@@ -171,3 +171,12 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Added focused tests for fresh/stale/future candle timestamps.
 - Added dedicated signal-alert tests for coin/symbol identity, 1h entry and 4h confirmation timeframes, entry reference, SL, TP1/TP2/TP3, leverage/margin, short-side target direction, spot exit-only behavior, and unknown-name handling.
 - Pending: consolidated CI verification. Live exchange smoke testing remains deferred to the final phase.
+
+
+### Historical-analysis compatibility and import-safety update (2026-11-17)
+
+- Decoupled historical candle analysis from the current live coin-universe membership check. The analysis engine now validates canonical BASE/USDT syntax; live API requests remain restricted by main.py's dynamic-universe validation and the scanner still only scans selected symbols.
+- Added regression tests proving historical symbols outside today's live universe can be backtested, while malformed/non-USDT symbols are rejected.
+- Removed the legacy market.py import-time network request; the standalone ticker fetch now runs only when the module is executed directly.
+- Added an import-safety test that fails if importing market.py calls the exchange ticker endpoint.
+- Pending verification: CI on the latest commit; deeper indicator/risk review, historical funding/liquidation modelling, real data backtests, paper-trading, and final Termux validation remain.

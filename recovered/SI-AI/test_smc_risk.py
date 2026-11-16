@@ -149,6 +149,28 @@ class RiskManagementTests(unittest.TestCase):
                 "FUTURES", "BTC/USDT", "15m", candles
             )
 
+    def test_historical_symbol_is_not_limited_to_live_dynamic_universe(self):
+        candles = [
+            [i, 100, 101, 99, 100, 100]
+            for i in range(si.MIN_CANDLES)
+        ]
+        with patch.object(si, "get_symbols", return_value=["BTC/USDT"]):
+            si.validate_analysis_inputs(
+                "FUTURES", "HISTORICAL/USDT", "15m", candles
+            )
+
+    def test_non_usdt_or_noncanonical_symbols_are_rejected(self):
+        candles = [
+            [i, 100, 101, 99, 100, 100]
+            for i in range(si.MIN_CANDLES)
+        ]
+        for symbol in ("BTC/BUSD", "btc/USDT", "BTCUSDT", "/USDT"):
+            with self.subTest(symbol=symbol):
+                with self.assertRaises(ValueError):
+                    si.validate_analysis_inputs(
+                        "FUTURES", symbol, "15m", candles
+                    )
+
     def test_non_numeric_atr_blocks_entry(self):
         result = run_analysis("FUTURES", "Bullish", "Bullish", atr=None)
         self.assertEqual(result["signal"], "WAIT")

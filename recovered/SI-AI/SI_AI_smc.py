@@ -492,8 +492,15 @@ def validate_analysis_inputs(market: str, symbol: str,
                              timeframe: str, candles: list) -> None:
     if market not in MARKETS:
         raise ValueError("Unsupported market")
-    if symbol not in get_symbols(market):
-        raise ValueError("Unsupported symbol for this market's selected USDT universe")
+    if (
+        not isinstance(symbol, str)
+        or symbol != symbol.strip()
+        or symbol.count("/") != 1
+        or not symbol.split("/", 1)[0]
+        or symbol.split("/", 1)[1] != "USDT"
+        or symbol != symbol.upper()
+    ):
+        raise ValueError("symbol must be a canonical BASE/USDT market")
     if timeframe not in TIMEFRAMES:
         raise ValueError("Unsupported timeframe")
     if not isinstance(candles, list) or len(candles) < MIN_CANDLES:

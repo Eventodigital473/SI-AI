@@ -22,7 +22,8 @@ def get_market():
         "time": str(datetime.now())
     }
 
-print(get_market())
+if __name__ == "__main__":
+    print(get_market())
 
 
 
