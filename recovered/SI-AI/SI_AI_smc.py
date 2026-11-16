@@ -193,7 +193,19 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     and any(item["symbol"] == preferred_symbol for item in candidates)
                 ):
                     if len(selected_symbols) >= MAX_UNIVERSE_SIZE:
-                        selected_symbols[-1] = preferred_symbol
+                        # Replace the lowest-ranked non-priority asset. Do not
+                        # repeatedly overwrite the same final slot.
+                        replace_index = next(
+                            (
+                                index
+                                for index in range(len(selected_symbols) - 1, -1, -1)
+                                if selected_symbols[index].split("/", 1)[0]
+                                not in PRIORITY_BASES
+                            ),
+                            None,
+                        )
+                        if replace_index is not None:
+                            selected_symbols[replace_index] = preferred_symbol
                     else:
                         selected_symbols.append(preferred_symbol)
 
