@@ -299,3 +299,11 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Dataset save/load now validates canonical market/symbol/timeframe metadata and declared time bounds; corrupted or inconsistent metadata fails closed.
 - Added regression tests for partial end intervals and datasets outside declared windows.
 - Pending CI verification.
+
+
+### Historical delisted-market research compatibility (2026-11-17)
+
+- Historical downloader now accepts an explicitly identified inactive/delisted market when Binance still exposes its metadata and public OHLCV history. Unknown/missing active status is still rejected.
+- Live dynamic-universe selection continues to require active=true. Historical research is separated from current live eligibility to reduce survivorship bias.
+- Added regression test for known inactive historical markets.
+- Pending CI verification.

@@ -75,8 +75,10 @@ def _resolve_exchange_symbol(exchange, market: str, symbol: str) -> str:
     metadata = exchange.markets.get(candidate)
     if not isinstance(metadata, dict):
         raise ValueError(f"{symbol} is not listed on the selected Binance market")
-    if metadata.get("active") is not True or metadata.get("quote") != "USDT":
-        raise ValueError(f"{symbol} is not confirmed as an active USDT market")
+    # Historical research may include delisted markets to reduce survivorship
+    # bias, but the exchange must explicitly identify their status as boolean.
+    if not isinstance(metadata.get("active"), bool) or metadata.get("quote") != "USDT":
+        raise ValueError(f"{symbol} metadata does not confirm USDT quote and active/inactive status")
 
     if market == "SPOT" and metadata.get("spot") is not True:
         raise ValueError(f"{symbol} is not a Binance spot market")

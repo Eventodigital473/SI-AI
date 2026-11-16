@@ -108,3 +108,6 @@ python historical_backtest.py --dataset data/historical/spot/BTC-USDT_1h_START_E
 ```
 
 The runner saves a JSON report under `data/reports/` by default. Insufficient samples remain INCONCLUSIVE. Futures certification remains INCONCLUSIVE without historical funding and liquidation/maintenance-margin evidence. Synthetic test fixtures are used only to test report plumbing; they are not market-performance evidence.
+
+
+Historical-only downloads may include a currently inactive/delisted market when Binance still retains its market metadata and explicitly marks its status. Live coin-universe discovery remains stricter and includes only markets explicitly marked active. This separation helps avoid silently applying live eligibility rules to historical research.

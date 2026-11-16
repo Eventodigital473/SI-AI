@@ -111,12 +111,23 @@ class HistoricalDataTests(unittest.TestCase):
         rows = make_candles()
         exchange = FakeExchange("SPOT", rows)
         exchange.markets["BTC/USDT"]["active"] = None
-        with self.assertRaisesRegex(ValueError, "active USDT"):
+        with self.assertRaisesRegex(ValueError, "active/inactive status"):
             historical_data.download_ohlcv(
                 "SPOT", "BTC/USDT", "15m",
                 rows[0][0], rows[-1][0] + 900_000,
                 exchange=exchange, now_ms=rows[-1][0] + 900_000,
             )
+
+    def test_known_inactive_market_can_be_downloaded_for_historical_research(self):
+        rows = make_candles()
+        exchange = FakeExchange("SPOT", rows)
+        exchange.markets["BTC/USDT"]["active"] = False
+        result = historical_data.download_ohlcv(
+            "SPOT", "BTC/USDT", "15m",
+            rows[0][0], rows[-1][0] + 900_000,
+            exchange=exchange, now_ms=rows[-1][0] + 900_000,
+        )
+        self.assertEqual(len(result), len(rows))
 
     def test_pagination_non_progress_is_rejected(self):
         rows = make_candles()
