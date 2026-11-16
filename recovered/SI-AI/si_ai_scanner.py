@@ -20,7 +20,6 @@ LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "si_ai_scanner.log"
 
 EXPECTED_MARKETS = {"SPOT", "FUTURES"}
-EXPECTED_SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 EXPECTED_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
 STATE_VERSION = 1
 
@@ -31,13 +30,11 @@ def validate_config():
     if set(smc.MARKETS) != EXPECTED_MARKETS:
         raise RuntimeError("Unexpected MARKETS configuration")
 
-    if list(smc.SYMBOLS) != EXPECTED_SYMBOLS:
-        raise RuntimeError("Unexpected SYMBOLS configuration")
-
     if list(smc.TIMEFRAMES) != EXPECTED_TIMEFRAMES:
         raise RuntimeError("Unexpected TIMEFRAMES configuration")
 
-    for name in ("get_candles", "analyze_candles", "combine_timeframes"):
+    for name in ("get_candles", "analyze_candles", "combine_timeframes",
+                 "refresh_symbol_universe", "get_symbols"):
         if not callable(getattr(smc, name, None)):
             raise RuntimeError(f"Required engine function missing: {name}")
 
@@ -78,11 +75,7 @@ def acquire_lock():
 
 
 def allowed_state_keys():
-    return {
-        f"{market}|{symbol}"
-        for market in EXPECTED_MARKETS
-        for symbol in EXPECTED_SYMBOLS
-    }
+    return set()
 
 
 def load_state():
@@ -108,8 +101,14 @@ def load_state():
         raise RuntimeError("Invalid state file: last_signals must be an object")
 
     for key, value in signals.items():
-        if key not in allowed_state_keys():
-            raise RuntimeError(f"Unexpected saved state key: {key}")
+        parts = key.split("|", 1)
+        if (
+            len(parts) != 2
+            or parts[0] not in EXPECTED_MARKETS
+            or not parts[1].endswith("/USDT")
+            or parts[1].count("/") != 1
+        ):
+            raise RuntimeError(f"Invalid saved state key: {key}")
         if value not in ("BUY", "SELL", "WAIT"):
             raise RuntimeError(f"Invalid saved signal for {key}")
 
@@ -223,9 +222,11 @@ def confirm_signal(market, results, combined):
 
 
 def notification_id(market, symbol):
-    symbol_index = EXPECTED_SYMBOLS.index(symbol) + 1
-    market_index = 1 if market == "SPOT" else 2
-    return 1000 + market_index * 10 + symbol_index
+    # Stable across Python processes and independent of the dynamic list order.
+    import zlib
+    return 100000 + (
+        zlib.crc32(f"{market}|{symbol}".encode("utf-8")) % 900000
+    )
 
 
 def make_alert(market, symbol, signal, results):
@@ -300,8 +301,22 @@ def run_cycle(dry_run=False):
     if request_delay is None or request_delay < 0:
         request_delay = 0.35
 
+    try:
+        universe = smc.refresh_symbol_universe()
+    except Exception:
+        logger.exception("Coin-universe refresh failed; no scans performed")
+        return
+
     for market in smc.MARKETS:
-        for symbol in smc.SYMBOLS:
+        market_symbols = smc.get_symbols(market)
+        if len(market_symbols) < smc.MIN_ELIGIBLE_COINS:
+            logger.warning(
+                "%s has only %d eligible coins; minimum is %d. Market skipped.",
+                market, len(market_symbols), smc.MIN_ELIGIBLE_COINS
+            )
+            continue
+        logger.info("%s universe: %d eligible USDT coins", market, len(market_symbols))
+        for symbol in market_symbols:
             key = f"{market}|{symbol}"
             results = {}
             complete = True
@@ -407,7 +422,7 @@ def run_cycle(dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="SI-AI BTC/ETH signal scanner"
+        description="SI-AI dynamic Binance USDT signal scanner"
     )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
