@@ -307,3 +307,12 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Live dynamic-universe selection continues to require active=true. Historical research is separated from current live eligibility to reduce survivorship bias.
 - Added regression test for known inactive historical markets.
 - Pending CI verification.
+
+
+### Live-candle market-status and API signal-scope guard (2026-11-17)
+
+- Live `get_candles` now independently verifies active status, USDT quote, and the correct spot or linear USDT perpetual contract type before fetching data. This prevents a preserved last-known-good universe from scanning a market that has since become inactive.
+- Historical downloader remains separate and may use explicitly known inactive markets for historical research only.
+- Single-timeframe API responses are now labelled unconfirmed and explicitly require multi-timeframe confirmation; the scanner's confirmed 1h/4h alert process is unchanged.
+- Added tests for inactive live-market rejection, closed-candle return, and single-timeframe API scope.
+- Pending: latest CI verification.

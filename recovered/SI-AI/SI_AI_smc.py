@@ -331,10 +331,23 @@ def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
         if candidate in exchange.markets:
             exchange_symbol = candidate
 
-    if exchange_symbol not in exchange.markets:
+    metadata = exchange.markets.get(exchange_symbol)
+    if (
+        not isinstance(metadata, dict)
+        or metadata.get("active") is not True
+        or metadata.get("quote") != "USDT"
+    ):
         raise ValueError(
-            f"Symbol {symbol} is unavailable on {market} exchange"
+            f"Symbol {symbol} is not confirmed as an active USDT market"
         )
+    if market == "SPOT" and metadata.get("spot") is not True:
+        raise ValueError(f"Symbol {symbol} is not an active spot market")
+    if market == "FUTURES" and not (
+        metadata.get("swap") is True
+        and metadata.get("linear") is True
+        and metadata.get("settle") == "USDT"
+    ):
+        raise ValueError(f"Symbol {symbol} is not an active USDT perpetual market")
 
     raw = exchange.fetch_ohlcv(
         exchange_symbol,

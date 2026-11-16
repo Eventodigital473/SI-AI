@@ -72,6 +72,41 @@ class FakeExchange:
         return self._tickers
 
 
+class FakeCandleExchange:
+    def __init__(self, market, now_ms, active=True):
+        self.now_ms = now_ms
+        self.calls = 0
+        self.markets = {}
+        symbol = "BTC/USDT" if market == "SPOT" else "BTC/USDT:USDT"
+        self.markets[symbol] = {
+            "active": active,
+            "quote": "USDT",
+            "spot": market == "SPOT",
+            "swap": market == "FUTURES",
+            "linear": market == "FUTURES",
+            "settle": "USDT" if market == "FUTURES" else None,
+        }
+        interval = si.TIMEFRAME_MILLISECONDS["15m"]
+        current_open = now_ms - (now_ms % interval)
+        self.rows = [
+            [
+                current_open - (80 - index) * interval,
+                100.0, 101.0, 99.0, 100.0, 1000.0
+            ]
+            for index in range(81)
+        ]
+
+    def load_markets(self):
+        return self.markets
+
+    def milliseconds(self):
+        return self.now_ms
+
+    def fetch_ohlcv(self, symbol, timeframe, limit):
+        self.calls += 1
+        return self.rows[-limit:]
+
+
 class DynamicUniverseTests(unittest.TestCase):
     def setUp(self):
         self.original_market_symbols = {
@@ -219,6 +254,24 @@ class DynamicUniverseTests(unittest.TestCase):
         with patch.object(si, "validate_candle_freshness", None):
             with self.assertRaisesRegex(RuntimeError, "validate_candle_freshness"):
                 scanner.validate_config()
+
+    def test_live_candle_fetch_rejects_inactive_market_metadata(self):
+        now_ms = 1_800_000_000_000
+        fake = FakeCandleExchange("SPOT", now_ms, active=False)
+        with patch.dict(si.EXCHANGES, {"SPOT": fake}, clear=False):
+            with self.assertRaisesRegex(ValueError, "active USDT market"):
+                si.get_candles("SPOT", "BTC/USDT", "15m")
+        self.assertEqual(fake.calls, 0)
+
+    def test_live_candle_fetch_returns_only_closed_fresh_candles(self):
+        interval = si.TIMEFRAME_MILLISECONDS["15m"]
+        now_ms = 1_800_000_000_000
+        fake = FakeCandleExchange("SPOT", now_ms, active=True)
+        with patch.dict(si.EXCHANGES, {"SPOT": fake}, clear=False):
+            candles = si.get_candles("SPOT", "BTC/USDT", "15m")
+        self.assertEqual(len(candles), si.MIN_CANDLES)
+        self.assertLess(candles[-1][0], fake.rows[-1][0])
+        self.assertEqual(candles[-1][0] + interval, fake.rows[-1][0])
 
     def test_scanner_config_accepts_dynamic_coin_universe(self):
         scanner.validate_config()

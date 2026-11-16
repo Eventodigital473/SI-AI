@@ -119,6 +119,8 @@ def api_analyze():
 
         return jsonify({
             "success": True,
+            "analysis_scope": "single_timeframe_only",
+            "requires_multi_timeframe_confirmation": True,
             "analysis": result
         })
 

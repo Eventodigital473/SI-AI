@@ -60,6 +60,17 @@ class MainApiTests(unittest.TestCase):
         ):
             self.assertIn(key, analysis)
 
+    def test_single_timeframe_api_marks_signal_as_unconfirmed(self):
+        result = sample_result("1h")
+        with patch.object(main.smc, "analyze", return_value=result):
+            response = self.client.get(
+                "/api/analyze?market=FUTURES&symbol=BTC/USDT&timeframe=1h"
+            )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["analysis_scope"], "single_timeframe_only")
+        self.assertTrue(data["requires_multi_timeframe_confirmation"])
+
     def test_api_accepts_a_market_specific_dynamic_coin(self):
         result = sample_result("1h")
         result["symbol"] = "SOL/USDT"
