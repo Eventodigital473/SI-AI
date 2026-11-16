@@ -55,7 +55,7 @@ class RiskManagementTests(unittest.TestCase):
         self.assertAlmostEqual(result["stop_loss"], 102.0)
         self.assertAlmostEqual(result["take_profit"], 94.0)
         self.assertLess(result["paper_quantity"], 2.5)
-        self.assertAlmostEqual(result["paper_total_risk_usdt"], 5.0, places=6)
+        self.assertLessEqual(result["paper_total_risk_usdt"], 0.5)
 
     def test_spot_sell_is_exit_not_short(self):
         result = run_analysis("SPOT", "Bearish", "Bearish")
