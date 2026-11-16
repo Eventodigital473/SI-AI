@@ -261,7 +261,7 @@ COIN_NAMES = {
 
 def coin_display_name(symbol):
     base_asset = str(symbol).split("/", 1)[0].upper()
-    return COIN_NAMES.get(base_asset, base_asset)
+    return COIN_NAMES.get(base_asset, "Unknown asset")
 
 
 def make_alert(market, symbol, signal, results):
@@ -285,18 +285,49 @@ def make_alert(market, symbol, signal, results):
     ]
 
     if price is not None:
-        lines.append(f"Entry price (1h setup reference): {price:g}")
+        lines.append(f"Entry price reference (last closed 1h candle): {price:g}")
+        lines.append("Actual fill may differ; verify live price before manual entry.")
 
     if signal == "BUY" or market == "FUTURES":
         stop_loss = number(reference.get("stop_loss"))
         take_profit = number(reference.get("take_profit"))
         reward_risk = number(reference.get("reward_risk"))
+        risk_distance = (
+            abs(price - stop_loss)
+            if price is not None and stop_loss is not None
+            else None
+        )
 
-        lines.extend([
-            f"Stop Loss: {stop_loss:g}" if stop_loss is not None else "Stop Loss: unavailable",
-            f"Take Profit: {take_profit:g}" if take_profit is not None else "Take Profit: unavailable",
-            f"Reward/Risk: {reward_risk:.2f}:1" if reward_risk is not None else "Reward/Risk: unavailable",
-        ])
+        lines.append(
+            f"Stop Loss: {stop_loss:g}"
+            if stop_loss is not None else "Stop Loss: unavailable"
+        )
+        if (
+            price is not None and stop_loss is not None
+            and take_profit is not None and risk_distance is not None
+            and risk_distance > 0
+        ):
+            if signal == "BUY":
+                tp1 = price + risk_distance
+                tp2 = price + 1.5 * risk_distance
+            else:
+                tp1 = price - risk_distance
+                tp2 = price - 1.5 * risk_distance
+            lines.extend([
+                f"TP1 (1R reference): {tp1:g}",
+                f"TP2 (1.5R reference): {tp2:g}",
+                f"TP3 (engine target): {take_profit:g}",
+                "Targets are reference levels; no automatic partial exits.",
+            ])
+        else:
+            lines.append(
+                f"Take Profit: {take_profit:g}"
+                if take_profit is not None else "Take Profit: unavailable"
+            )
+        lines.append(
+            f"Reward/Risk: {reward_risk:.2f}:1"
+            if reward_risk is not None else "Reward/Risk: unavailable"
+        )
         if market == "FUTURES":
             leverage = number(reference.get("recommended_leverage"))
             margin = number(reference.get("paper_margin_required_usdt"))

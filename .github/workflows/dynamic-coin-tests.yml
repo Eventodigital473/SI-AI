@@ -1,18 +1,17 @@
 name: SI-AI Dynamic Coin Universe Tests
 
 on:
-  push:
-    branches:
-      - feature/dynamic-coin-universe
-    paths:
-      - recovered/SI-AI/**
-      - .github/workflows/dynamic-coin-tests.yml
   pull_request:
     branches:
       - recovery/restore-upload-zip
     paths:
       - recovered/SI-AI/**
       - .github/workflows/dynamic-coin-tests.yml
+
+# The open PR already tests every branch update. Avoid duplicate push + PR runs.
+concurrency:
+  group: si-ai-dynamic-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

@@ -194,7 +194,15 @@ def run_backtest(
             else:
                 stop_hit, target_hit = bar[2] >= stop, bar[3] <= target
             if stop_hit:
-                exit_raw, exit_reason, exit_index = stop, "STOP", j
+                # A stop-market exit can fill beyond its trigger after a gap.
+                # Model the opening price when it is already beyond the stop.
+                if side == "LONG" and bar[1] < stop:
+                    exit_raw, exit_reason = bar[1], "STOP_GAP"
+                elif side == "SHORT" and bar[1] > stop:
+                    exit_raw, exit_reason = bar[1], "STOP_GAP"
+                else:
+                    exit_raw, exit_reason = stop, "STOP"
+                exit_index = j
                 break
             if target_hit:
                 exit_raw, exit_reason, exit_index = target, "TARGET", j
@@ -286,7 +294,8 @@ def evaluate_chronological_validation(
         raise ValueError("Not enough candles for chronological train/holdout split")
     train = run_backtest(data[:split], market, symbol, timeframe, **backtest_options)
     oos_options = dict(backtest_options)
-    oos_options["start_index"] = split + 1
+    # First OOS entry is at split; its signal may use only candles before split.
+    oos_options["start_index"] = split
     holdout = run_backtest(data, market, symbol, timeframe, **oos_options)
     oos_trades = holdout["trades"]
     initial = _number(oos_options.get("initial_equity", si.PAPER_EQUITY_USDT), "initial_equity", 0.01)
@@ -335,7 +344,8 @@ def evaluate_walk_forward(
         test_end = len(data) if fold == folds - 1 else first_test + (fold + 1) * width
         options = dict(backtest_options)
         options["initial_equity"] = current_equity
-        options["start_index"] = test_start + 1
+        # The first fold entry is at test_start, using only prior candles.
+        options["start_index"] = test_start
         segment = run_backtest(
             data[:test_end], market, symbol, timeframe, **options
         )

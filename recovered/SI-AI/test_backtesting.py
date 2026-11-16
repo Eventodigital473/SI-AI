@@ -32,6 +32,19 @@ class BacktestingTests(unittest.TestCase):
         self.assertEqual(result["assumptions"]["same_bar_stop_and_target"], "stop first (conservative)")
         self.assertFalse(result["automatic_orders"])
 
+    def test_stop_gap_fills_at_worse_open_not_stop_trigger(self):
+        data = candles_with_bars()
+        data[81] = [82, 95.0, 96.0, 94.0, 95.0, 1000.0]
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=2, signal_fn=fixed_buy,
+        )
+        trade = result["trades"][0]
+        self.assertEqual(trade["exit_reason"], "STOP_GAP")
+        self.assertEqual(trade["exit_price"], 95.0)
+        self.assertLess(trade["exit_price"], trade["stop_loss"])
+
     def test_signal_callback_never_receives_future_candles(self):
         data = candles_with_bars(84)
         seen = []
@@ -62,22 +75,24 @@ class BacktestingTests(unittest.TestCase):
 
     def test_chronological_holdout_starts_signals_in_oos_period(self):
         data = candles_with_bars(120)
-        seen = []
-
         def callback(market, symbol, timeframe, history):
-            seen.append(history[-1][0])
-            return {"signal": "WAIT"}
+            return {"signal": "BUY", "stop_loss": 98.0, "take_profit": 104.0}
 
         result = backtesting.evaluate_chronological_validation(
             data, "FUTURES", "BTC/USDT", "15m",
             train_fraction=0.70, signal_fn=callback,
+            max_holding_bars=1, fee_rate=0.0, slippage_rate=0.0,
         )
-        self.assertEqual(result["split_timestamp"], data[result["split_index"]][0])
-        self.assertGreaterEqual(
-            min(seen[len(seen) // 2:]),
-            result["split_timestamp"],
+        split = result["split_index"]
+        self.assertEqual(result["split_timestamp"], data[split][0])
+        self.assertEqual(
+            result["out_of_sample_trades"][0]["signal_timestamp"],
+            data[split - 1][0],
         )
-        self.assertEqual(result["status"], "INCONCLUSIVE")
+        self.assertEqual(
+            result["out_of_sample_trades"][0]["entry_timestamp"],
+            data[split][0],
+        )
 
 
     def test_walk_forward_uses_multiple_sequential_oos_folds(self):

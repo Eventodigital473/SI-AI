@@ -150,3 +150,16 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Evidence artifact: si-ai-test-evidence-51, ID 14282005208; ZIP SHA-256 f768ecc976b78082aa7f5e3684d3a3dd8dbb7620767bb5a729bfa54802e95219.
 - CI includes the new $100 reference-wallet/20% margin cap, 1x conservative leverage, backtest sizing alignment, API risk-policy exposure, and updated sizing assertions.
 - This is software test evidence only. It does not validate real exchange liquidation or establish profitability. No automatic trading.
+
+
+## Reliability and alert/backtest corrections (2026-11-17)
+
+- Scanner alerts now show the coin name when it is in the curated asset map; unknown assets are explicitly labelled "Unknown asset" while retaining the exact Binance symbol rather than guessing a name.
+- Actionable BUY/FUTURES alerts now show SL, three clearly labelled reference targets (TP1 at 1R, TP2 at 1.5R, TP3 at the engine's validated final target), reward/risk, and the entry/confirmation timeframes. TP1/TP2 are reference levels only; SI-AI does not execute partial exits.
+- Entry price is labelled as the last closed 1h candle reference, with a warning that the manual fill may differ from the market price.
+- Corrected chronological holdout and walk-forward boundaries so the first OOS entry occurs on the first test candle using only pre-test candles to form the signal. This removes the boundary look-ahead identified during audit.
+- Improved stop-loss gap simulation: when a bar opens beyond the stop trigger, the backtest exits at the worse opening price (plus adverse slippage), not at the more favourable stop trigger.
+- CI workflow now runs on PR updates only, with concurrency cancellation, to avoid duplicate push + PR runs for the same change. The recovery branch's independent recovery workflow remains unchanged.
+- Added/updated regression tests for stop-gap fills and the first OOS signal/entry boundary.
+- Pending verification: run consolidated GitHub Actions suite on this commit; continue engine/scanner audit, exchange-specific funding/liquidation modelling, real historical-data evaluation, paper-trading evidence, and final Termux read-only validation.
+- No automatic orders. No claim of profitability. Main and PR merge status unchanged.
