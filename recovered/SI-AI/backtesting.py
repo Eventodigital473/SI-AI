@@ -103,6 +103,7 @@ def run_backtest(
     slippage_rate: float = si.PAPER_SLIPPAGE_RATE,
     max_holding_bars: int = 48,
     signal_fn: Optional[SignalFunction] = None,
+    start_index: int = si.MIN_CANDLES,
 ) -> Dict:
     """Run a single-position, next-open backtest over chronological OHLCV.
 
@@ -130,11 +131,13 @@ def run_backtest(
     if isinstance(max_holding_bars, bool) or not isinstance(max_holding_bars, int) or max_holding_bars < 1:
         raise ValueError("max_holding_bars must be a positive integer")
 
+    if isinstance(start_index, bool) or not isinstance(start_index, int) or start_index < si.MIN_CANDLES or start_index >= len(data) - 1:
+        raise ValueError("start_index must leave enough warm-up and at least one future candle")
     callback = signal_fn or si.analyze_candles
     initial = equity
     equity_curve = [equity]
     trades = []
-    i = si.MIN_CANDLES
+    i = start_index
 
     while i < len(data) - 1:
         history = data[:i]
@@ -157,6 +160,9 @@ def run_backtest(
         entry_bar_index = i
         entry_raw = data[entry_bar_index][1]
         entry = _cost_adjusted_fill(entry_raw, side, True, slippage)
+        if (side == "LONG" and not stop < entry < target) or (side == "SHORT" and not target < entry < stop):
+            i += 1
+            continue
         stop_distance = abs(entry - stop)
         round_trip_cost_per_unit = fee * (entry + stop) + slippage * (entry + stop)
         risk_per_unit = stop_distance + round_trip_cost_per_unit
@@ -255,32 +261,24 @@ def evaluate_chronological_validation(
     candles: list, market: str, symbol: str, timeframe: str, *,
     train_fraction: float = 0.70, **backtest_options,
 ) -> Dict:
-    """Chronological holdout; the out-of-sample segment is never shuffled."""
+    """Chronological holdout; OOS signals start at split with prior warm-up only."""
     data = validate_ohlcv(candles)
     fraction = _number(train_fraction, "train_fraction", 0.5)
     if fraction >= 0.9:
         raise ValueError("train_fraction must be below 0.9")
     split = int(len(data) * fraction)
-    warmup = si.MIN_CANDLES
-    if split < warmup + 2 or len(data) - split < 3:
+    if split < si.MIN_CANDLES or len(data) - split < 3:
         raise ValueError("Not enough candles for chronological train/holdout split")
     train = run_backtest(data[:split], market, symbol, timeframe, **backtest_options)
-    # Warm-up history is supplied, but no trade is evaluated until the holdout
-    # segment begins. This preserves indicators without using future candles.
-    holdout_data = data[:split] + data[split:]
-    holdout = run_backtest(
-        holdout_data, market, symbol, timeframe,
-        signal_fn=backtest_options.get("signal_fn"),
-        initial_equity=backtest_options.get("initial_equity", si.PAPER_EQUITY_USDT),
-        risk_percent=backtest_options.get("risk_percent", si.RISK_PER_TRADE_PERCENT),
-        fee_rate=backtest_options.get("fee_rate"),
-        slippage_rate=backtest_options.get("slippage_rate", si.PAPER_SLIPPAGE_RATE),
-        max_holding_bars=backtest_options.get("max_holding_bars", 48),
-    )
-    # OOS trades must have signal timestamps at or after the split boundary.
-    oos_trades = [t for t in holdout["trades"] if t["signal_timestamp"] >= data[split][0]]
-    oos_equity = [holdout["metrics"]["ending_equity_usdt"]]
-    oos_metrics = _metrics(oos_trades, oos_equity, holdout["metrics"]["ending_equity_usdt"] - sum(t["net_pnl_usdt"] for t in oos_trades))
+    oos_options = dict(backtest_options)
+    oos_options["start_index"] = split
+    holdout = run_backtest(data, market, symbol, timeframe, **oos_options)
+    oos_trades = holdout["trades"]
+    initial = _number(oos_options.get("initial_equity", si.PAPER_EQUITY_USDT), "initial_equity", 0.01)
+    curve = [initial]
+    for trade in oos_trades:
+        curve.append(max(0.0, curve[-1] + trade["net_pnl_usdt"]))
+    oos_metrics = _metrics(oos_trades, curve, initial)
     return {
         "split_index": split,
         "split_timestamp": data[split][0],
