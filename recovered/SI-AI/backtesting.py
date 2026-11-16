@@ -206,6 +206,7 @@ def run_backtest(
         if side == "SHORT":
             gross_pnl = (entry - exit_fill) * quantity
         fees = (entry + exit_fill) * quantity * fee
+        entry_notional = entry * quantity
         elapsed_ms = max(0, data[exit_index][0] - data[entry_bar_index][0])
         funding_periods = elapsed_ms // 28_800_000
         funding_cost = 0.0
@@ -213,7 +214,6 @@ def run_backtest(
             funding_cost = entry_notional * funding_rate * funding_periods * (1.0 if side == "LONG" else -1.0)
         net_pnl = gross_pnl - fees - funding_cost
         equity = max(0.0, equity + net_pnl)
-        entry_notional = entry * quantity
         trades.append({
             "side": side,
             "signal_timestamp": history[-1][0],
