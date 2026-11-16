@@ -104,6 +104,7 @@ def run_backtest(
     max_holding_bars: int = 48,
     signal_fn: Optional[SignalFunction] = None,
     start_index: int = si.MIN_CANDLES,
+    funding_rate_per_8h: Optional[float] = None,
 ) -> Dict:
     """Run a single-position, next-open backtest over chronological OHLCV.
 
@@ -128,6 +129,9 @@ def run_backtest(
     slippage = _number(slippage_rate, "slippage_rate", 0.0)
     if fee >= 0.05 or slippage >= 0.05:
         raise ValueError("Fee and slippage rates must each be below 5%")
+    funding_rate = None if funding_rate_per_8h is None else _number(funding_rate_per_8h, "funding_rate_per_8h")
+    if funding_rate is not None and abs(funding_rate) >= 0.05:
+        raise ValueError("Absolute funding rate per 8h must be below 5%")
     if isinstance(max_holding_bars, bool) or not isinstance(max_holding_bars, int) or max_holding_bars < 1:
         raise ValueError("max_holding_bars must be a positive integer")
 
@@ -202,7 +206,12 @@ def run_backtest(
         if side == "SHORT":
             gross_pnl = (entry - exit_fill) * quantity
         fees = (entry + exit_fill) * quantity * fee
-        net_pnl = gross_pnl - fees
+        elapsed_ms = max(0, data[exit_index][0] - data[entry_bar_index][0])
+        funding_periods = elapsed_ms // 28_800_000
+        funding_cost = 0.0
+        if market == "FUTURES" and funding_rate is not None:
+            funding_cost = entry_notional * funding_rate * funding_periods * (1.0 if side == "LONG" else -1.0)
+        net_pnl = gross_pnl - fees - funding_cost
         equity = max(0.0, equity + net_pnl)
         entry_notional = entry * quantity
         trades.append({
@@ -217,6 +226,7 @@ def run_backtest(
             "quantity": round(quantity, 10),
             "gross_pnl_usdt": round(gross_pnl, 8),
             "fees_usdt": round(fees, 8),
+            "funding_cost_usdt": round(funding_cost, 8),
             "net_pnl_usdt": round(net_pnl, 8),
             "return_on_entry_notional": net_pnl / entry_notional if entry_notional else 0.0,
             "exit_reason": exit_reason,
@@ -244,7 +254,9 @@ def run_backtest(
             "risk_percent_per_trade": risk_pct,
             "max_notional_equity_multiple": si.MAX_NOTIONAL_EQUITY_MULTIPLE,
             "max_holding_bars": max_holding_bars,
-            "funding_costs_included": False,
+            "funding_costs_included": market == "FUTURES" and funding_rate is not None,
+            "funding_rate_per_8h_assumption": funding_rate,
+            "funding_cost_method": "constant user-supplied rate proxy; not historical exchange funding" if funding_rate is not None else "excluded; supply a rate proxy or add historical funding series",
             "liquidation_modelled": False,
         },
         "metrics": metrics,
@@ -287,6 +299,66 @@ def evaluate_chronological_validation(
         "out_of_sample_trades": oos_trades,
         "status": "INCONCLUSIVE" if not oos_trades else (
             "OUT_OF_SAMPLE_PROFITABLE" if oos_metrics["profitable"] else "OUT_OF_SAMPLE_NOT_PROFITABLE"
+        ),
+        "automatic_orders": False,
+    }
+
+ 
+ 
+def evaluate_walk_forward(
+    candles: list, market: str, symbol: str, timeframe: str, *,
+    initial_train_fraction: float = 0.60, folds: int = 3, **backtest_options,
+) -> Dict:
+    """Evaluate sequential, non-overlapping OOS windows with expanding history."""
+    data = validate_ohlcv(candles)
+    fraction = _number(initial_train_fraction, "initial_train_fraction", 0.5)
+    if fraction >= 0.9:
+        raise ValueError("initial_train_fraction must be below 0.9")
+    if isinstance(folds, bool) or not isinstance(folds, int) or folds < 2:
+        raise ValueError("folds must be an integer >= 2")
+    first_test = int(len(data) * fraction)
+    width = (len(data) - first_test) // folds
+    if first_test < si.MIN_CANDLES or width < 3:
+        raise ValueError("Not enough candles for requested walk-forward folds")
+    current_equity = _number(
+        backtest_options.get("initial_equity", si.PAPER_EQUITY_USDT),
+        "initial_equity", 0.01,
+    )
+    all_trades = []
+    fold_reports = []
+    equity_curve = [current_equity]
+    for fold in range(folds):
+        test_start = first_test + fold * width
+        test_end = len(data) if fold == folds - 1 else first_test + (fold + 1) * width
+        options = dict(backtest_options)
+        options["initial_equity"] = current_equity
+        options["start_index"] = test_start + 1
+        segment = run_backtest(
+            data[:test_end], market, symbol, timeframe, **options
+        )
+        trades = segment["trades"]
+        for trade in trades:
+            current_equity = max(0.0, current_equity + trade["net_pnl_usdt"])
+            equity_curve.append(current_equity)
+        all_trades.extend(trades)
+        fold_reports.append({
+            "fold": fold + 1,
+            "test_start_timestamp": data[test_start][0],
+            "test_end_timestamp": data[test_end - 1][0],
+            "trade_count": len(trades),
+            "net_pnl_usdt": round(sum(t["net_pnl_usdt"] for t in trades), 8),
+            "ending_equity_usdt": round(current_equity, 8),
+        })
+    initial = _number(
+        backtest_options.get("initial_equity", si.PAPER_EQUITY_USDT),
+        "initial_equity", 0.01,
+    )
+    metrics = _metrics(all_trades, equity_curve, initial)
+    return {
+        "folds": fold_reports,
+        "metrics": metrics,
+        "status": "INCONCLUSIVE" if not all_trades else (
+            "WALK_FORWARD_POSITIVE" if metrics["profitable"] else "WALK_FORWARD_NOT_PROFITABLE"
         ),
         "automatic_orders": False,
     }
