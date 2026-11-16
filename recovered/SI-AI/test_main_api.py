@@ -88,6 +88,11 @@ class MainApiTests(unittest.TestCase):
         self.assertEqual(
             data["universe_policy"]["maximum_coins"], 100
         )
+        self.assertEqual(data["risk_policy"]["reference_wallet_usdt"], 100.0)
+        self.assertEqual(data["risk_policy"]["margin_allocation_percent"], 20.0)
+        self.assertEqual(data["risk_policy"]["margin_budget_usdt"], 20.0)
+        self.assertEqual(data["risk_policy"]["recommended_futures_leverage"], 1.0)
+        self.assertFalse(data["risk_policy"]["automatic_orders"])
 
     def test_invalid_timeframe_is_rejected(self):
         with patch.object(main.smc, "analyze") as mocked:
