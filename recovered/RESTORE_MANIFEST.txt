@@ -1,0 +1,15 @@
+SI-AI archive recovery manifest
+Archive Git blob SHA: c74988400c975a46504aed1e1310c50e14cb3016
+Recovered files: 11 (10 source files + upload instructions)
+
+8aea126f93efe63f0defda37edaed0b5e462baa7f7e884cd757c536702aee873  recovered/SI-AI/.gitignore
+c73f8b4812c50031384b89d2885b1294f1172d801e914b9438134cc0b1294267  recovered/SI-AI/README.md
+59c8cfa4ca586389c80b15c765e061154bad028e02c8162fb33a0510935cc23c  recovered/SI-AI/SI_AI_smc.py
+cffe93c5f388cb4bda6cd346ff570dfb3a479fb23e8014fbcaa8a888ef41f193  recovered/SI-AI/main.py
+3035049b8ee46964079c84506e14a07b5cd60f56144d4bf3ba209e673d075395  recovered/SI-AI/market.py
+6df05220dca1559fe6bed18899b6ced665a0ad5e6dec1354ea8652d5fecc190c  recovered/SI-AI/requirements.txt
+b6e44906e7e501d774a81c079412e35d2809ec9e88a960ee1cfdb87eb5dc217a  recovered/SI-AI/si_ai_scanner.py
+be4e6f4081aefefdad344f23301787d97db062ff2c799f8081a058c6c8326275  recovered/SI-AI/smc.py
+c8a57857f905e038799a3afa735ebc0eefcca448449441d342bfdd2f4d79d759  recovered/SI-AI/test_main_api.py
+700e4458d4b22ad9df04e3b838864ede3c511dca72487bc9f21637f13a5e8262  recovered/SI-AI/test_smc_risk.py
+a8d025b3c82e637c9ea9e2fb1392ea9470039589fcb0ade7a54b872b1b0f1ec8  recovered/UPLOAD_INSTRUCTIONS.txt
