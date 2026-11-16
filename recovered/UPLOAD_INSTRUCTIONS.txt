@@ -1,0 +1,8 @@
+SI-AI GitHub upload package
+
+Contains the 10 canonical project files under SI-AI/.
+No runtime state, logs, environment files, credentials, or historical backups are included.
+
+Upload this ZIP to the root of Eventodigital473/SI-AI. GitHub stores ZIP files without extracting them; after upload, tell ChatGPT and the source will be restored into a separate recovery branch before code changes.
+
+Notification preference: no Telegram integration. Keep alerts local to the Android/Termux device; implementation will be reviewed and adjusted after the source is restored.
