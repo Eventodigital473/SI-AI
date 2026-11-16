@@ -71,7 +71,7 @@ Run the offline tests with `python -m pytest -q`. These tests do not establish l
 
 `profitability_gate.py` is a separate fail-closed evidence gate. It requires at least 100 chronological out-of-sample trades, positive net P&L and expectancy after costs, profit factor of at least 1.20, maximum drawdown no greater than 15%, and three sequential walk-forward folds with at least 20 trades and positive net P&L each. These are minimum review thresholds, not performance promises.
 
-Missing metrics or insufficient samples return `INCONCLUSIVE`; observed threshold breaches return `FAIL`. Futures certification additionally requires timestamped historical funding events and an explicit liquidation/maintenance-margin model. The current backtester does not yet supply those two futures models, so futures profitability cannot be certified by this gate. No real historical profitability result is claimed. Run only the focused gate tests with `python -m pytest -q test_profitability_gate.py` when validating this addition; the previously completed 35-test evidence remains historical evidence for its original commit.
+Missing metrics or insufficient samples return `INCONCLUSIVE`; observed threshold breaches return `FAIL`. Missing or undersized walk-forward fold evidence also remains `INCONCLUSIVE`. Futures certification additionally requires timestamped historical funding events and an explicit liquidation/maintenance-margin model. The current backtester does not yet supply those two futures models, so futures profitability cannot be certified by this gate. No real historical profitability result is claimed. Run the full suite with `python -m pytest -q`.
 
 
 ## $100 reference wallet and 20% margin policy
@@ -81,5 +81,8 @@ Missing metrics or insufficient samples return `INCONCLUSIVE`; observed threshol
 - Risk budget: **0.5% = 0.50 USDT** maximum planned loss per trade before any unmodelled execution differences; actual position size is the lower of the risk-based size and the margin-cap size.
 - Futures leverage recommendation: **1x only** until historical funding, exchange maintenance-margin tiers, and liquidation modelling are validated. This deliberately avoids guessing higher leverage.
 - Spot: leverage is not applicable. Position notional is still capped by the 20 USDT allocation.
-- Alerts include BUY/SELL/WAIT, entry reference, SL, TP, reward/risk, leverage (futures only), and estimated margin usage. WAIT alerts are sent only when a previously actionable BUY/SELL state changes to WAIT, avoiding an initial flood of hundreds of WAIT notifications.
+- Alerts include the coin name when known plus exact Binance symbol, market, BUY/SELL/WAIT, 1h entry setup timeframe, 4h confirmation timeframe, last-closed-candle entry reference, SL, TP1/TP2/TP3 reference levels, reward/risk, futures leverage, and estimated margin usage. TP1 (1R) and TP2 (1.5R) are reference levels; TP3 is the engine target. SI-AI does not execute partial exits.
+- The entry reference is not a guaranteed fill; the user must check the live price before manual execution. Unknown coin names are labelled honestly as unknown while preserving the exact symbol. Spot SELL is an exit signal, never a short entry.
+- Stale/future-dated candles are rejected. Multi-timeframe API results are forced to WAIT if any requested timeframe fails; partial data is marked INCOMPLETE.
+- WAIT notifications are sent only when a previously actionable BUY/SELL state changes to WAIT, avoiding an initial flood of hundreds of WAIT notifications.
 - User manually decides and places trades. No automatic Binance order placement is implemented.

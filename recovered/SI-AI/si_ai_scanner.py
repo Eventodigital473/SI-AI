@@ -34,7 +34,8 @@ def validate_config():
         raise RuntimeError("Unexpected TIMEFRAMES configuration")
 
     for name in ("get_candles", "analyze_candles", "combine_timeframes",
-                 "refresh_symbol_universe", "get_symbols"):
+                 "refresh_symbol_universe", "get_symbols",
+                 "validate_candle_freshness"):
         if not callable(getattr(smc, name, None)):
             raise RuntimeError(f"Required engine function missing: {name}")
 
@@ -49,6 +50,16 @@ def validate_config():
         raise RuntimeError("Dynamic coin-universe limits are invalid")
     if not minimum_coins <= target_coins <= maximum_coins:
         raise RuntimeError("Target coin count must be between minimum and maximum")
+
+    risk_percent = number(getattr(smc, "RISK_PER_TRADE_PERCENT", None))
+    margin_percent = number(getattr(smc, "MARGIN_ALLOCATION_PERCENT", None))
+    leverage = number(getattr(smc, "RECOMMENDED_FUTURES_LEVERAGE", None))
+    if risk_percent is None or not math.isclose(risk_percent, 0.5, abs_tol=1e-9):
+        raise RuntimeError("Per-trade risk policy must remain at 0.5%")
+    if margin_percent is None or not math.isclose(margin_percent, 20.0, abs_tol=1e-9):
+        raise RuntimeError("Margin allocation cap must remain at 20%")
+    if leverage is None or not math.isclose(leverage, 1.0, abs_tol=1e-9):
+        raise RuntimeError("Futures leverage must remain at conservative 1x")
 
 
 def setup_logging():

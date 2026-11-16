@@ -210,6 +210,16 @@ class DynamicUniverseTests(unittest.TestCase):
             si.MARKET_UNIVERSE_STATUS["FUTURES"], "ready"
         )
 
+    def test_scanner_config_rejects_changed_risk_policy(self):
+        with patch.object(si, "RISK_PER_TRADE_PERCENT", 1.0):
+            with self.assertRaisesRegex(RuntimeError, "0.5%"):
+                scanner.validate_config()
+
+    def test_scanner_config_requires_stale_candle_guard(self):
+        with patch.object(si, "validate_candle_freshness", None):
+            with self.assertRaisesRegex(RuntimeError, "validate_candle_freshness"):
+                scanner.validate_config()
+
     def test_scanner_config_accepts_dynamic_coin_universe(self):
         scanner.validate_config()
 

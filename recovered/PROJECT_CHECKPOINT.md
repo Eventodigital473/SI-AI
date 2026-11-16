@@ -219,3 +219,11 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Fully successful requests are marked COMPLETE. Spot bearish signals are labelled SELL/EXIT only when the full requested timeframe set succeeded.
 - Added regression tests for incomplete-confluence WAIT behavior, complete responses, and duplicate timeframe rejection.
 - Pending: latest CI verification.
+
+
+### Scanner configuration safety and alert documentation (2026-11-17)
+
+- Scanner startup validation now verifies the stale-candle guard is present and enforces the user-confirmed 0.5% per-trade risk, 20% margin cap, and conservative 1x futures leverage.
+- Added tests to ensure a changed risk policy or missing freshness guard prevents scanner startup.
+- Updated README with the exact alert fields, entry/confirmation timeframe meaning, TP reference-level caveat, manual-fill warning, spot exit-only behavior, stale-candle handling, and incomplete multi-timeframe WAIT behavior.
+- Pending: latest consolidated CI and remaining end-to-end review.
