@@ -18,8 +18,8 @@ def validate_market_symbol(data):
     if market not in smc.MARKETS:
         raise ValueError("Unsupported market. Use FUTURES or SPOT.")
 
-    if symbol not in smc.SYMBOLS:
-        raise ValueError("Unsupported symbol. Check /api/config.")
+    if symbol not in smc.get_symbols(market):
+        raise ValueError("Unsupported symbol for this market's selected USDT universe. Refresh /api/config.")
 
     return market, symbol
 
@@ -59,9 +59,26 @@ def status():
 
 @app.route("/api/config")
 def api_config():
+    try:
+        smc.refresh_symbol_universe()
+    except Exception:
+        # The endpoint can still report the last-known-good universe.
+        pass
     return jsonify({
         "markets": smc.MARKETS,
         "symbols": smc.SYMBOLS,
+        "symbols_by_market": {
+            market: smc.get_symbols(market) for market in smc.MARKETS
+        },
+        "universe_policy": {
+            "minimum_eligible_coins": smc.MIN_ELIGIBLE_COINS,
+            "target_coins": smc.TARGET_UNIVERSE_SIZE,
+            "maximum_coins": smc.MAX_UNIVERSE_SIZE,
+            "refresh_seconds": smc.UNIVERSE_REFRESH_SECONDS,
+            "spot_min_quote_volume_usdt": smc.MIN_SPOT_QUOTE_VOLUME_USDT,
+            "futures_min_quote_volume_usdt": smc.MIN_FUTURES_QUOTE_VOLUME_USDT,
+            "maximum_spread_percent": smc.MAX_SPREAD_PERCENT
+        },
         "timeframes": smc.TIMEFRAMES,
         "default_market": "FUTURES",
         "default_symbol": "BTC/USDT",
