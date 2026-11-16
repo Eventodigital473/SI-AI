@@ -76,6 +76,15 @@ def api_config():
             market: smc.MARKET_UNIVERSE_STATUS.get(market, "unknown")
             for market in smc.MARKETS
         },
+        "risk_policy": {
+            "reference_wallet_usdt": smc.PAPER_EQUITY_USDT,
+            "margin_allocation_percent": smc.MARGIN_ALLOCATION_PERCENT,
+            "margin_budget_usdt": smc.PAPER_EQUITY_USDT * smc.MARGIN_ALLOCATION_PERCENT / 100.0,
+            "risk_per_trade_percent": smc.RISK_PER_TRADE_PERCENT,
+            "recommended_futures_leverage": smc.RECOMMENDED_FUTURES_LEVERAGE,
+            "leverage_status": "conservative_1x_only_until_liquidation_model_is_validated",
+            "automatic_orders": False
+        },
         "universe_policy": {
             "minimum_eligible_coins": smc.MIN_ELIGIBLE_COINS,
             "target_coins": smc.TARGET_UNIVERSE_SIZE,
