@@ -271,7 +271,7 @@ def evaluate_chronological_validation(
         raise ValueError("Not enough candles for chronological train/holdout split")
     train = run_backtest(data[:split], market, symbol, timeframe, **backtest_options)
     oos_options = dict(backtest_options)
-    oos_options["start_index"] = split
+    oos_options["start_index"] = split + 1
     holdout = run_backtest(data, market, symbol, timeframe, **oos_options)
     oos_trades = holdout["trades"]
     initial = _number(oos_options.get("initial_equity", si.PAPER_EQUITY_USDT), "initial_equity", 0.01)
