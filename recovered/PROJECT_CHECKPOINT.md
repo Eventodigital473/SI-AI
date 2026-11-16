@@ -78,3 +78,21 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 **Remaining validation:** live public Binance discovery has not yet been smoke-tested from Termux. The 5m/10m quote-volume and 0.15% spread thresholds are initial screening settings and must be reviewed against live eligible-market counts. The offline tests do not prove current market liquidity, data quality, signal profitability, or live execution conditions.
 
 **Next step:** run one controlled read-only live-universe smoke test from Termux, verify actual eligible counts and SOL/BNB inclusion, then review and mark the PR ready before merging into the recovery branch. Do not merge to `main` without separate explicit approval.
+
+
+## Profitability-evidence framework checkpoint (2026-11-17)
+
+**Working branch:** `feature/dynamic-coin-universe`
+
+- Added `recovered/SI-AI/backtesting.py` with deterministic offline OHLCV backtesting.
+- Signal callbacks see only the historical prefix through the signal candle close; simulated entries occur at the next candle open.
+- Intrabar ambiguity is handled conservatively: if stop and target are both touched, stop is recorded first.
+- Added configurable taker fees and adverse slippage, risk-based sizing, max-notional cap, trade ledger, data SHA-256, win rate, profit factor, net P&L, expectancy, max drawdown, and trade-based Sharpe.
+- Added chronological holdout and expanding-window walk-forward evaluators.
+- Added optional constant per-8-hour futures funding-rate proxy. This is explicitly not historical funding data; actual historical funding series integration remains pending. Liquidation is not modelled.
+- Added `test_backtesting.py` for next-open entry, conservative same-bar stop handling, no future-candle access, spot short blocking, chronological holdout, walk-forward folds, funding proxy, malformed data, and reproducible report metadata.
+- No automatic order placement or private exchange access added.
+
+**Validation status:** New tests have been committed but GitHub Actions evidence for this new head has not yet been retrieved. Do not report these tests as passed until the workflow run is confirmed. No backtest profitability result exists yet because no verified historical dataset has been evaluated.
+
+**Remaining work:** confirm CI on the latest commit; review and correct any failures; add historical funding data support and stronger performance gates; inspect existing SMC/risk logic and duplicate legacy modules; add paper-trading evidence capture; update PR description and final checkpoint. Termux/live Binance validation remains last, as requested.
