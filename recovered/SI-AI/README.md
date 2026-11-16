@@ -1,6 +1,18 @@
 # SI-AI
 
-SI-AI is a market-analysis and signal-generation project. It uses public Binance market data through `ccxt`, analyzes BTC/USDT and ETH/USDT across configured timeframes, and exposes a Flask API plus a Termux scanner.
+SI-AI is a market-analysis and signal-generation project. It uses public Binance market data through `ccxt`, dynamically discovers eligible USDT spot and USD-M perpetual markets, analyzes selected coins across configured timeframes, and exposes a Flask API plus a Termux scanner.
+
+## Dynamic coin universe
+
+- Discovers each market independently from Binance's active USDT-quoted spot and linear USD-M perpetual markets.
+- Selects up to 100 coins per market, with a 15-coin minimum required before the scanner will scan that market. The target universe size is 50.
+- Ranks candidates by 24-hour quote volume; minimum quote-volume filters are 5 million USDT for spot and 10 million USDT for futures.
+- Rejects markets with a spread above 0.15%, missing bid/ask/volume data, inactive market metadata, stablecoin base assets, wrapped assets, and leveraged-token naming patterns.
+- SOL, BNB, BTC, and ETH are prioritized only if they pass the same eligibility filters.
+- Refreshes the universe every 15 minutes. A failed refresh preserves the last-known-good list; a market with fewer than 15 eligible coins is skipped rather than padded with unqualified symbols.
+- The `/api/config` endpoint reports selected symbols by market, eligibility status, and filter settings.
+
+These are initial configurable screening thresholds, not a guarantee of liquidity or profitable execution. Public market data is used only; no private keys or order endpoints are required.
 
 ## Safety model
 
@@ -11,11 +23,11 @@ SI-AI is a market-analysis and signal-generation project. It uses public Binance
 
 ## Project files
 
-- `SI_AI_smc.py` — market data, indicators, SMC analysis, and paper risk calculations.
+- `SI_AI_smc.py` — market discovery, public market data, indicators, SMC analysis, and paper risk calculations.
 - `si_ai_scanner.py` — multi-timeframe scanner and Termux notifications.
 - `main.py` — Flask API.
 - `market.py`, `smc.py` — additional source modules retained from the supplied project.
-- `test_smc_risk.py`, `test_main_api.py` — risk and API tests.
+- `test_smc_risk.py`, `test_main_api.py`, `test_dynamic_universe.py` — risk, API, and dynamic-universe tests.
 
 ## Dependencies
 
