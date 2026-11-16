@@ -1,0 +1,92 @@
+name: Restore uploaded SI-AI archive
+
+on:
+  push:
+    branches:
+      - recovery/restore-upload-zip
+    paths:
+      - .github/workflows/restore-upload-archive.yml
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out recovery branch
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/restore-upload-zip
+
+      - name: Verify and safely extract archive
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import pathlib
+          import subprocess
+          import zipfile
+
+          archive = pathlib.Path("SI-AI_GITHUB_UPLOAD.zip")
+          if not archive.is_file():
+              raise SystemExit("Archive missing from repository root")
+
+          data = archive.read_bytes()
+          git_blob = hashlib.sha1(
+              b"blob " + str(len(data)).encode() + b"\\0" + data
+          ).hexdigest()
+          expected = "c74988400c975a46504aed1e1310c50e14cb3016"
+          if git_blob != expected:
+              raise SystemExit(f"Archive Git blob SHA mismatch: {git_blob}")
+
+          destination = pathlib.Path("recovered/SI-AI")
+          if destination.exists():
+              raise SystemExit("Refusing to overwrite an existing recovery directory")
+
+          with zipfile.ZipFile(archive) as zf:
+              entries = [i for i in zf.infolist() if not i.is_dir()]
+              if len(entries) != 10:
+                  raise SystemExit(f"Expected 10 files, found {len(entries)}")
+
+              for info in entries:
+                  name = pathlib.PurePosixPath(info.filename)
+                  if name.is_absolute() or ".." in name.parts:
+                      raise SystemExit(f"Unsafe archive path: {info.filename}")
+                  if not name.parts or name.parts[0] != "SI-AI":
+                      raise SystemExit(f"Unexpected archive root: {info.filename}")
+                  if info.external_attr >> 16 & 0o170000 == 0o120000:
+                      raise SystemExit(f"Symlink rejected: {info.filename}")
+
+              for info in entries:
+                  relative = pathlib.PurePosixPath(info.filename).relative_to("SI-AI")
+                  target = destination.joinpath(*relative.parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(zf.read(info))
+
+          files = sorted(p for p in destination.rglob("*") if p.is_file())
+          if len(files) != 10:
+              raise SystemExit(f"Post-extraction count mismatch: {len(files)}")
+
+          manifest = pathlib.Path("recovered/RESTORE_MANIFEST.txt")
+          manifest.parent.mkdir(parents=True, exist_ok=True)
+          lines = [
+              "SI-AI archive recovery manifest",
+              f"Archive Git blob SHA: {git_blob}",
+              f"Extracted files: {len(files)}",
+              "",
+          ]
+          for path in files:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              lines.append(f"{digest}  {path.as_posix()}")
+          manifest.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+          print("\\n".join(lines))
+          PY
+
+      - name: Commit recovered source on recovery branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add recovered/SI-AI recovered/RESTORE_MANIFEST.txt
+          git commit -m "Restore archived SI-AI source into recovery directory"
+          git push origin HEAD:recovery/restore-upload-zip
