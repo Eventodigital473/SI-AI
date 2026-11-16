@@ -13,11 +13,32 @@ from typing import Dict, List, Optional, Tuple
 import ccxt
 
 # ----------------------------- CONFIGURATION -----------------------------
-SYMBOLS = ["BTC/USDT", "ETH/USDT"]
+# Dynamic Binance USDT universe. Symbols are canonical BASE/USDT strings.
+# The discovery layer selects liquid, actively traded markets independently for
+# SPOT and USD-M perpetual FUTURES. No order endpoints or credentials are used.
 TIMEFRAMES = ["15m", "1h", "4h", "1d"]
 CANDLE_LIMIT = 250
 MIN_CANDLES = 80
 REQUEST_DELAY_SECONDS = 0.35
+
+MIN_ELIGIBLE_COINS = 15
+TARGET_UNIVERSE_SIZE = 50
+MAX_UNIVERSE_SIZE = 100
+UNIVERSE_REFRESH_SECONDS = 900
+MIN_SPOT_QUOTE_VOLUME_USDT = 5_000_000.0
+MIN_FUTURES_QUOTE_VOLUME_USDT = 10_000_000.0
+MAX_SPREAD_PERCENT = 0.15
+PRIORITY_BASES = ("BTC", "ETH", "BNB", "SOL")
+EXCLUDED_BASES = {
+    "USDC", "FDUSD", "TUSD", "USDP", "DAI", "USDE", "USDS",
+    "BUSD", "USDD", "USD1", "UST", "USTC", "EUR", "TRY",
+    "WBTC", "WETH", "STETH", "WSTETH", "CBETH", "BETH",
+}
+LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
+MARKET_SYMBOLS = {"FUTURES": ["BTC/USDT", "ETH/USDT"],
+                  "SPOT": ["BTC/USDT", "ETH/USDT"]}
+SYMBOLS = ["BTC/USDT", "ETH/USDT"]
+_UNIVERSE_LAST_REFRESH = 0.0
 
 # Futures is intentionally analysed first. Both exchanges use public endpoints.
 MARKETS = ["FUTURES", "SPOT"]
@@ -50,6 +71,152 @@ def make_exchange(market: str):
 
 
 EXCHANGES = {market: make_exchange(market) for market in MARKETS}
+
+
+def get_symbols(market: str) -> List[str]:
+    """Return the latest selected canonical USDT symbols for one market."""
+    if market not in MARKETS:
+        raise ValueError("Unsupported market")
+    return list(MARKET_SYMBOLS.get(market, []))
+
+
+def _finite_number(value):
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _eligible_base(base: str) -> bool:
+    base = str(base or "").upper()
+    if not base or base in EXCLUDED_BASES:
+        return False
+    if base.endswith(LEVERAGED_SUFFIXES):
+        return False
+    if any(tag in base for tag in ("2L", "2S", "3L", "3S", "5L", "5S")):
+        return False
+    return True
+
+
+def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
+    """
+    Discover liquid Binance USDT spot and USD-M perpetual markets.
+    Failed refreshes preserve the last-known-good list; no synthetic symbols
+    are added to reach the minimum. A market with fewer than 15 qualifiers
+    is reported as undersized and the scanner will fail closed for that market.
+    """
+    global SYMBOLS, _UNIVERSE_LAST_REFRESH
+    now = time.monotonic()
+    if not force and _UNIVERSE_LAST_REFRESH and (
+        now - _UNIVERSE_LAST_REFRESH < UNIVERSE_REFRESH_SECONDS
+    ):
+        return {market: get_symbols(market) for market in MARKETS}
+
+    failures = []
+    refreshed_any = False
+    for market in MARKETS:
+        exchange = EXCHANGES[market]
+        try:
+            exchange.load_markets()
+            tickers = exchange.fetch_tickers()
+            candidates = []
+            minimum_volume = (
+                MIN_FUTURES_QUOTE_VOLUME_USDT
+                if market == "FUTURES"
+                else MIN_SPOT_QUOTE_VOLUME_USDT
+            )
+
+            for exchange_symbol, metadata in exchange.markets.items():
+                if not isinstance(metadata, dict):
+                    continue
+                if metadata.get("active") is False:
+                    continue
+                if metadata.get("quote") != "USDT":
+                    continue
+                if not _eligible_base(metadata.get("base")):
+                    continue
+
+                if market == "SPOT":
+                    if metadata.get("spot") is not True:
+                        continue
+                else:
+                    if not (
+                        metadata.get("swap") is True
+                        and metadata.get("linear") is True
+                        and metadata.get("settle") == "USDT"
+                    ):
+                        continue
+
+                canonical = f"{metadata['base']}/USDT"
+                ticker = tickers.get(exchange_symbol) or tickers.get(canonical)
+                if not isinstance(ticker, dict):
+                    continue
+
+                quote_volume = _finite_number(ticker.get("quoteVolume"))
+                bid = _finite_number(ticker.get("bid"))
+                ask = _finite_number(ticker.get("ask"))
+                if quote_volume is None or quote_volume < minimum_volume:
+                    continue
+                if bid is None or ask is None or bid <= 0 or ask < bid:
+                    continue
+
+                midpoint = (bid + ask) / 2.0
+                if midpoint <= 0:
+                    continue
+                spread_percent = (ask - bid) / midpoint * 100.0
+                if spread_percent > MAX_SPREAD_PERCENT:
+                    continue
+
+                candidates.append({
+                    "symbol": canonical,
+                    "base": metadata["base"],
+                    "quote_volume": quote_volume,
+                })
+
+            candidates.sort(
+                key=lambda item: item["quote_volume"], reverse=True
+            )
+            selected = candidates[:MAX_UNIVERSE_SIZE]
+            selected_symbols = [item["symbol"] for item in selected]
+
+            # Keep the named core assets in the candidate universe when they
+            # pass the same liquidity/spread/market filters.
+            for preferred in PRIORITY_BASES:
+                preferred_symbol = f"{preferred}/USDT"
+                if (
+                    preferred_symbol not in selected_symbols
+                    and any(item["symbol"] == preferred_symbol for item in candidates)
+                ):
+                    if len(selected_symbols) >= MAX_UNIVERSE_SIZE:
+                        selected_symbols[-1] = preferred_symbol
+                    else:
+                        selected_symbols.append(preferred_symbol)
+
+            MARKET_SYMBOLS[market] = list(dict.fromkeys(selected_symbols))
+            refreshed_any = True
+
+        except Exception as exc:
+            failures.append(f"{market}: {type(exc).__name__}: {exc}")
+            # Keep the last known good universe if the exchange is temporarily
+            # unavailable. An empty initial universe remains empty (fail closed).
+
+    if refreshed_any:
+        union = []
+        for market in MARKETS:
+            for symbol in MARKET_SYMBOLS.get(market, []):
+                if symbol not in union:
+                    union.append(symbol)
+        SYMBOLS = union
+        _UNIVERSE_LAST_REFRESH = now
+
+    if failures and not any(MARKET_SYMBOLS.get(market) for market in MARKETS):
+        raise RuntimeError("Coin-universe discovery failed: " + "; ".join(failures))
+
+    return {market: get_symbols(market) for market in MARKETS}
+
+
+
 
 
 # ----------------------------- DATA SAFETY -------------------------------
@@ -264,8 +431,8 @@ def validate_analysis_inputs(market: str, symbol: str,
                              timeframe: str, candles: list) -> None:
     if market not in MARKETS:
         raise ValueError("Unsupported market")
-    if symbol not in SYMBOLS:
-        raise ValueError("Unsupported symbol")
+    if symbol not in get_symbols(market):
+        raise ValueError("Unsupported symbol for this market's selected USDT universe")
     if timeframe not in TIMEFRAMES:
         raise ValueError("Unsupported timeframe")
     if not isinstance(candles, list) or len(candles) < MIN_CANDLES:
