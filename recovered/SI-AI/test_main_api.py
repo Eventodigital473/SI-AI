@@ -60,6 +60,35 @@ class MainApiTests(unittest.TestCase):
         ):
             self.assertIn(key, analysis)
 
+    def test_api_accepts_a_market_specific_dynamic_coin(self):
+        result = sample_result("1h")
+        result["symbol"] = "SOL/USDT"
+
+        with patch.object(
+            main.smc, "get_symbols", return_value=["SOL/USDT"]
+        ), patch.object(main.smc, "analyze", return_value=result):
+            response = self.client.get(
+                "/api/analyze?market=FUTURES&symbol=SOL/USDT&timeframe=1h"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["analysis"]["symbol"], "SOL/USDT")
+
+    def test_api_config_exposes_dynamic_universe_policy(self):
+        with patch.object(main.smc, "refresh_symbol_universe"):
+            response = self.client.get("/api/config")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertIn("symbols_by_market", data)
+        self.assertIn("universe_status_by_market", data)
+        self.assertEqual(
+            data["universe_policy"]["minimum_eligible_coins"], 15
+        )
+        self.assertEqual(
+            data["universe_policy"]["maximum_coins"], 100
+        )
+
     def test_invalid_timeframe_is_rejected(self):
         with patch.object(main.smc, "analyze") as mocked:
             response = self.client.get(
