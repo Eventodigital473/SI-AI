@@ -170,6 +170,20 @@ def api_multi_timeframe():
                 "error": "Duplicate timeframes are not allowed."
             }), 400
 
+        required_timeframes = list(smc.TIMEFRAMES)
+        if (
+            len(timeframes) != len(required_timeframes)
+            or set(timeframes) != set(required_timeframes)
+        ):
+            return jsonify({
+                "success": False,
+                "error": (
+                    "Actionable multi-timeframe analysis requires all production "
+                    "timeframes: " + ", ".join(required_timeframes)
+                ),
+                "required_timeframes": required_timeframes,
+            }), 400
+
         results = []
         errors = []
 
