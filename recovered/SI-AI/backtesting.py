@@ -180,13 +180,18 @@ def run_backtest(
         # A gap can materially worsen the signal-close R:R even when all
         # levels remain on the correct side of entry.
         actual_reward_risk = si.calculate_net_reward_risk(
-            entry, stop, target, side, market
+            entry, stop, target, side, market,
+            fee_rate=fee,
+            slippage_rate=slippage,
+            entry_slippage_included=True,
         )
         if actual_reward_risk < si.MIN_REWARD_RISK:
             i += 1
             continue
         stop_distance = abs(entry - stop)
-        round_trip_cost_per_unit = fee * (entry + stop) + slippage * (entry + stop)
+        # Entry slippage is already embedded in entry; only stop-exit
+        # slippage remains to be reserved in the per-unit loss estimate.
+        round_trip_cost_per_unit = fee * (entry + stop) + slippage * stop
         risk_per_unit = stop_distance + round_trip_cost_per_unit
         if risk_per_unit <= 0 or not math.isfinite(risk_per_unit):
             i += 1
