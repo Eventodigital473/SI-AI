@@ -60,6 +60,8 @@ class SignalAlertTests(unittest.TestCase):
         self.assertIn("Risk policy: 0.50% of 100.00 USDT reference equity", content)
         self.assertIn("Estimated round-trip fees: 0.0171 USDT", content)
         self.assertIn("Liquidation price: NOT MODELLED/NOT CERTIFIED", content)
+        self.assertIn("amount precision/minimum quantity/minimum notional: NOT", content)
+        self.assertIn("round quantity DOWN only", content)
 
     def test_futures_sell_targets_are_below_entry(self):
         self.results["1h"].update({
