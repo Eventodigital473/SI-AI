@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import si_ai_scanner as scanner
 
@@ -62,6 +63,43 @@ class SignalAlertTests(unittest.TestCase):
         self.assertEqual(
             scanner.coin_display_name("UNKNOWN/USDT"), "Unknown asset"
         )
+
+    def test_buy_notification_uses_green_led_and_high_priority(self):
+        command = scanner.notification_command(
+            "FUTURES", "BTC/USDT", "BUY", "test"
+        )
+        self.assertIn("--title", command)
+        self.assertIn("🟢 BUY", command[command.index("--title") + 1])
+        self.assertEqual(command[command.index("--led-color") + 1], "00C853")
+        self.assertEqual(command[command.index("--priority") + 1], "high")
+        self.assertIn("--sound", command)
+
+    def test_sell_notification_uses_red_led_and_distinct_vibration(self):
+        command = scanner.notification_command(
+            "FUTURES", "BTC/USDT", "SELL", "test"
+        )
+        self.assertIn("🔴 SELL", command[command.index("--title") + 1])
+        self.assertEqual(command[command.index("--led-color") + 1], "FF1744")
+        self.assertEqual(command[command.index("--priority") + 1], "high")
+        self.assertEqual(
+            command[command.index("--vibrate") + 1], "0,350,100,350"
+        )
+
+    def test_wait_notification_is_neutral_without_sound_or_led(self):
+        command = scanner.notification_command(
+            "FUTURES", "BTC/USDT", "WAIT", "test"
+        )
+        self.assertIn("⚪ WAIT", command[command.index("--title") + 1])
+        self.assertNotIn("--led-color", command)
+        self.assertNotIn("--sound", command)
+        self.assertEqual(command[command.index("--priority") + 1], "default")
+
+    @patch.object(scanner.subprocess, "run")
+    @patch.object(scanner.shutil, "which", return_value=None)
+    def test_missing_termux_api_has_clear_error(self, _which, run_mock):
+        with self.assertRaisesRegex(RuntimeError, "Termux:API"):
+            scanner.send_notification("FUTURES", "BTC/USDT", "BUY", "test")
+        run_mock.assert_not_called()
 
 
 if __name__ == "__main__":
