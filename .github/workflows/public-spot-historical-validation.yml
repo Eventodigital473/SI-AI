@@ -58,6 +58,8 @@ jobs:
           exchange = smc.EXCHANGES[market]
           # Binance documents this host for unauthenticated public market data.
           exchange.urls["api"]["public"] = "https://data-api.binance.vision/api/v3"
+          # Avoid CCXT loading restricted linear/inverse market metadata for a Spot-only run.
+          exchange.options["fetchMarkets"] = ["spot"]
           paths = []
           manifests = []
 
