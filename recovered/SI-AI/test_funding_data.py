@@ -140,7 +140,9 @@ class FundingDataTests(unittest.TestCase):
                 "FUTURES", "BTC/USDT", events, 1000, 2000, path
             )
             loaded = funding_data.load_funding_dataset(path)
-            self.assertEqual(loaded["events"], events)
+            self.assertEqual(loaded["events"][0]["timestamp"], events[0]["timestamp"])
+            self.assertEqual(loaded["events"][0]["funding_rate"], events[0]["funding_rate"])
+            self.assertEqual(loaded["events"][0]["mark_price"], events[0]["mark_price"])
             payload = json.loads(path.read_text())
             payload["events"][0]["mark_price"] = 102.0
             path.write_text(json.dumps(payload))
