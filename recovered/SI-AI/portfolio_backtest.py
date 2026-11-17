@@ -88,7 +88,9 @@ def simulate_spot_portfolio(
             skipped_overlap += 1
             continue
 
-        round_trip_cost_per_unit = (fee + slippage) * (entry + stop)
+        # Entry prices already include adverse entry slippage in the source
+        # backtest; reserve only the stop-exit slippage here.
+        round_trip_cost_per_unit = fee * (entry + stop) + slippage * stop
         risk_per_unit = (entry - stop) + round_trip_cost_per_unit
         if risk_per_unit <= 0 or not math.isfinite(risk_per_unit):
             skipped_invalid += 1
