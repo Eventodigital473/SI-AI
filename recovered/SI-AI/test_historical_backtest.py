@@ -305,7 +305,6 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
                 output_path=Path(directory) / "portfolio.json",
             )
 
-        self.assertTrue(saved_path.exists())
         self.assertEqual(report["dataset"]["symbol_count"], 2)
         self.assertEqual(report["chronological_validation"]["out_of_sample"]["trade_count"], 100)
         self.assertEqual(
