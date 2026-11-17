@@ -56,6 +56,8 @@ jobs:
           end_ms = int(time.time() * 1000)
           start_ms = end_ms - days * 24 * 60 * 60 * 1000
           exchange = smc.EXCHANGES[market]
+          # Binance documents this host for unauthenticated public market data.
+          exchange.urls["api"]["public"] = "https://data-api.binance.vision/api/v3"
           paths = []
           manifests = []
 
