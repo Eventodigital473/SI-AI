@@ -119,7 +119,7 @@ The lower-level funding downloader is also available:
 python funding_data.py --market FUTURES --symbol BTC/USDT --start-ms START_MS --end-ms END_MS --output data/historical/funding/BTC-USDT.json
 ```
 
-The lower-level multi-timeframe runner accepts the verified dataset with `--funding-dataset PATH`. Funding events exactly tied to a trade's entry or exit timestamp are conservatively charged without assuming a funding credit and are flagged as ambiguous; any such ambiguity blocks profitability certification.
+The lower-level multi-timeframe runner accepts the verified dataset with `--funding-dataset PATH`. Funding events exactly tied to a trade's entry or exit timestamp are conservatively charged without assuming a funding credit and are flagged as ambiguous. Because OHLCV cannot reveal the exact intrabar exit time, settlements inside a stop/target exit candle are also conservatively included without assuming a credit and flagged as ambiguous. TIME_EXIT includes settlements through candle close; open-time exits stop at the candle open. Any such ambiguity blocks profitability certification.
 
 **Important remaining limitation:** exchange-specific maintenance-margin tiers and liquidation-price/liquidation-fee modelling are not yet implemented. Therefore the profitability gate must remain **INCONCLUSIVE** for Futures, even if net historical metrics look positive. Funding costs are now included, but position sizing still follows the configured 0.5% stop-risk budget and does not guarantee a maximum loss under gaps, funding changes, liquidation, or exchange execution. Do not treat a report as a profitability guarantee or permission for live trading.
 
