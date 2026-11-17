@@ -91,6 +91,22 @@ def validate_bracket_snapshot(snapshot, *, symbol, now=None):
     for previous, current_tier in zip(tiers, tiers[1:]):
         if previous["notional_cap"] != current_tier["notional_floor"]:
             raise ValueError("Maintenance tiers must be contiguous and non-overlapping")
+        if current_tier["maintenance_margin_rate"] < previous["maintenance_margin_rate"]:
+            raise ValueError("Maintenance margin rate must not decrease at higher tiers")
+        if current_tier["max_leverage"] > previous["max_leverage"]:
+            raise ValueError("Maximum leverage must not increase at higher tiers")
+        boundary = previous["notional_cap"]
+        previous_maintenance = (
+            boundary * previous["maintenance_margin_rate"]
+            - previous["maintenance_amount"]
+        )
+        current_maintenance = (
+            boundary * current_tier["maintenance_margin_rate"]
+            - current_tier["maintenance_amount"]
+        )
+        tolerance = max(1e-8, abs(previous_maintenance) * 1e-8)
+        if abs(previous_maintenance - current_maintenance) > tolerance:
+            raise ValueError("Maintenance tiers are not continuous at their shared boundary")
     if tiers[-1]["notional_cap"] is not None:
         raise ValueError("Final maintenance tier must have an open-ended cap")
     return tiers
