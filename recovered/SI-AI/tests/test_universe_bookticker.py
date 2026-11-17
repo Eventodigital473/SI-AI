@@ -156,3 +156,73 @@ def test_boolean_market_data_numbers_are_rejected(value):
     assert smc._finite_number(value) is None
     assert smc._book_ticker_prices({"bid": value, "ask": 101.0}) == (None, 101.0)
     assert smc._spread_percent(value, 101.0) is None
+
+
+@pytest.mark.parametrize("column", range(6))
+def test_candle_cleaner_rejects_boolean_ohlcv_values(column):
+    candles = []
+    start = 1_700_000_000_000
+    for index in range(smc.MIN_CANDLES + 1):
+        candles.append([
+            start + index * 60_000,
+            100.0,
+            101.0,
+            99.0,
+            100.5,
+            10.0,
+        ])
+    candles[0][column] = True
+    with pytest.raises(ValueError):
+        smc.validate_candles(candles)
+
+
+def test_candle_cleaner_rejects_fractional_timestamps():
+    candles = []
+    start = 1_700_000_000_000
+    for index in range(smc.MIN_CANDLES + 1):
+        candles.append([
+            start + index * 60_000,
+            100.0,
+            101.0,
+            99.0,
+            100.5,
+            10.0,
+        ])
+    candles[0][0] += 0.5
+    with pytest.raises(ValueError):
+        smc.validate_candles(candles)
+
+
+@pytest.mark.parametrize("column", range(6))
+def test_analysis_input_validator_rejects_boolean_ohlcv_values(column):
+    candles = []
+    start = 1_700_000_000_000
+    for index in range(smc.MIN_CANDLES):
+        candles.append([
+            start + index * 60_000,
+            100.0,
+            101.0,
+            99.0,
+            100.5,
+            10.0,
+        ])
+    candles[0][column] = True
+    with pytest.raises(ValueError, match="finite numbers"):
+        smc.validate_analysis_inputs("FUTURES", "BTC/USDT", "1h", candles)
+
+
+def test_analysis_input_validator_rejects_fractional_timestamps():
+    candles = []
+    start = 1_700_000_000_000
+    for index in range(smc.MIN_CANDLES):
+        candles.append([
+            start + index * 60_000,
+            100.0,
+            101.0,
+            99.0,
+            100.5,
+            10.0,
+        ])
+    candles[0][0] += 0.5
+    with pytest.raises(ValueError, match="integer milliseconds"):
+        smc.validate_analysis_inputs("FUTURES", "BTC/USDT", "1h", candles)
