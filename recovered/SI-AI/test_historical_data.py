@@ -83,7 +83,7 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_continuity_validator_rejects_wrong_timeframe_spacing(self):
         rows = make_candles()
-        with self.assertRaisesRegex(ValueError, "expected 900000 ms"):
+        with self.assertRaisesRegex(ValueError, "expected 3600000 ms"):
             historical_data.smc.validate_candle_continuity(rows, "1h")
 
     def test_incomplete_current_candle_is_excluded(self):
