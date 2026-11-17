@@ -148,3 +148,11 @@ def test_futures_universe_accepts_raw_binance_bookticker_keyed_by_market_id(monk
         "candidate_count": 1,
         "selected_count": 1,
     }
+
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_boolean_market_data_numbers_are_rejected(value):
+    assert smc._finite_number(value) is None
+    assert smc._book_ticker_prices({"bid": value, "ask": 101.0}) == (None, 101.0)
+    assert smc._spread_percent(value, 101.0) is None
