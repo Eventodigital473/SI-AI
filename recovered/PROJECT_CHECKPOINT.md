@@ -663,3 +663,35 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - No PR merges; `main` and Termux checkout remain untouched.
 
 **Safety policy unchanged:** Futures-only, signal provider, manual Binance execution; 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R. No automatic order placement.
+
+---
+
+## SI-AI isolated liquidation calculator checkpoint — 2026-11-18
+
+**Branch:** `feat/binance-isolated-liquidation-model-2026-11-18`  
+**Implementation commits:** `457f073a03b193a45016ceb27bb5d1eb08ff2a89` through `e12fc252fad0e2b05bddfb9a4dfc2c2c673d76f5`  
+**Latest implementation head before this checkpoint:** `e12fc252fad0e2b05bddfb9a4dfc2c2c673d76f5`  
+**CI:** pending; implementation is not accepted until CI passes.
+
+### Why this was necessary
+- The previous project had no liquidation calculation at all. Binance USD-M liquidation depends on the isolated/cross wallet balance, position side/size/entry, maintenance-margin rate and maintenance amount for the correct notional tier. Binance's official formula and tier-recalculation note are documented at https://www.binance.com/en/support/faq/detail/b3c689c1f50a44cabb3a84e663b81d93.
+- Cross-margin liquidation also depends on other positions and wallet-wide maintenance margin. A generic leverage-only formula would be unsafe.
+
+### Implemented
+- Added `liquidation_model.py`: Binance USD-M one-way isolated formula; maintenance tier resolved against liquidation notional; leverage maximum checked against entry tier.
+- Requires a symbol-specific Binance tier snapshot no older than 24 hours, with exact source tag, timezone-aware timestamp, contiguous tiers, MMR, maintenance amount, notional bounds and max leverage. Missing/stale/wrong-symbol/invalid snapshots fail closed.
+- Scanner alerts now read `data/liquidation_brackets/BASE-USDT.json` when supplied and display an isolated estimate only when the tier snapshot and paper inputs validate. Otherwise the alert explicitly remains NOT CERTIFIED.
+- 1x long cases with no positive threshold are labelled as such, not reported as a fabricated positive price.
+- The model scope is explicitly isolated one-way. It does not claim to model cross margin, hedge mode, other positions, auto-add margin, fees/funding adjustments, ADL, or mark-price execution.
+- Added README instructions for supplying exact Binance symbol tier data; no fake/default MMR values are bundled.
+- Added tests for long/short formula, tier resolution, stale/future/wrong-symbol snapshots, invalid/non-contiguous tiers, leverage caps, insufficient isolated margin, and 1x no-positive-threshold behavior.
+- Found and fixed an adjacent scanner bug: a brand-new state file previously omitted `last_notified_at`, which could cause a KeyError after the schema-v2 alert lifecycle change. Fresh state now initializes both maps and has a regression test.
+
+### Still not complete
+- This calculator is not yet a full historical liquidation backtest. Historical mark-price candles and time-matched historical maintenance-tier snapshots are not present; liquidation event handling is not implemented in the backtest engine.
+- Profitability certification must remain **INCONCLUSIVE** until historical mark-price and tier data, liquidation event simulation, and validation are complete.
+- No actual Binance bracket snapshot is included; operators must supply exact current symbol-specific values. No private account endpoint, API key, or order permission has been added.
+- CI and all new regression tests are pending.
+- No PR merge, no Termux command, and no change to `main` or the user's device.
+
+**Safety policy unchanged:** Futures-only signal provider; manual Binance execution only; 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R. No automatic orders.
