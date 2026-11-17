@@ -145,8 +145,8 @@ def run_backtest(
         raise ValueError("Absolute funding rate per 8h must be below 5%")
     if funding_events is not None and funding_rate is not None:
         raise ValueError("Use timestamped funding events or the constant funding proxy, not both")
-    if funding_events is not None and not isinstance(funding_events, list):
-        raise ValueError("funding_events must be a list of verified funding events")
+    if funding_events is not None:
+        funding_events = funding_data.validate_normalized_funding_events(funding_events)
     if isinstance(max_holding_bars, bool) or not isinstance(max_holding_bars, int) or max_holding_bars < 1:
         raise ValueError("max_holding_bars must be a positive integer")
 
