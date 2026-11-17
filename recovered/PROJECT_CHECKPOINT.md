@@ -793,3 +793,18 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - Remaining external/device validation: live Futures universe/bookTicker eligibility (previous diagnosis had 182 volume-qualified contracts), exchange amount/price precision and minimum quantity/notional, 180-day public Futures backtest, actual Termux install/preflight/dry-run, Android notification test and permissions/LED behavior.
 - No Termux commands issued; no changes to user's phone. No Binance credentials/order permissions; no automatic orders. Risk policy unchanged: 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, 2:1 minimum R:R.
 - Exact next step: complete source audit for exchange filters and report consistency; then decide whether to add archived-tier snapshot simulation (only if data validity can be proven). After code/CI is frozen, provide the single safe Termux validation sequence. User must run device-dependent checks; assistant cannot truthfully mark them passed remotely.
+
+
+---
+
+## Merge and GitHub backup checkpoint — 2026-11-18
+
+- PR #16 successfully merged into its existing base branch `feature/dynamic-coin-universe`; merge commit: `dc17bf100dc11e430c2a91bf8cdb00520d84a0a5`.
+- PR #16 is closed and merged. This was **not** a merge to `main`; default branch remains untouched.
+- Pre-merge safety backup branch: `backup/si-ai-premerge-2026-11-18`, pinned to exact pre-merge head `5c452cea745d7a336908ef8243516bf78800c9e3`.
+- Integrated snapshot backup branch: `backup/si-ai-integrated-2026-11-18`, pinned to merge commit `dc17bf100dc11e430c2a91bf8cdb00520d84a0a5`.
+- Latest pre-merge CI for exact PR head: run `44202737874`, success. Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax/idempotence, Python compilation and test suite all passed. Earlier inspected test count was 196 passed and 4 subtests passed.
+- PR #16 was 216 commits ahead and 0 behind its base branch at merge time. The consolidated integration branch remained diverged from `main` (347 ahead, 4 behind); do not merge into `main` until those four commits are reviewed.
+- Exact next resume point: continue from `feature/dynamic-coin-universe` at merge commit `dc17bf100dc11e430c2a91bf8cdb00520d84a0a5`; first review main-branch divergence, then continue exchange precision/sizing audit, liquidation-history feasibility, 180-day Futures backtest and Termux device validation.
+- Critical limitations remain unchanged: historical liquidation events are not modelled, historical maintenance-tier snapshots are not certified, profitability gate remains INCONCLUSIVE, live Futures contract filters and phone-side tests are pending. Not certified for live trading.
+- Safety unchanged: Futures-only signal provider, manual execution, no automatic orders, no private API credentials, Spot excluded, 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R.
