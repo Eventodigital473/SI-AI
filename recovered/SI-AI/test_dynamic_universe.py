@@ -25,6 +25,8 @@ class FakeExchange:
 
         # These must be excluded by base/volume/spread rules.
         self._add("USDC", 90_000_000.0)
+        self._add("RLUSD", 90_000_000.0)
+        self._add("XUSD", 90_000_000.0)
         self._add("TOKENUP", 90_000_000.0)
         self._add("TOKEN3L", 90_000_000.0)
         self._add("LOWVOL", 1_000_000.0)
@@ -146,6 +148,8 @@ class DynamicUniverseTests(unittest.TestCase):
             self.assertIn("SOL/USDT", symbols)
             self.assertIn("BNB/USDT", symbols)
             self.assertNotIn("USDC/USDT", symbols)
+            self.assertNotIn("RLUSD/USDT", symbols)
+            self.assertNotIn("XUSD/USDT", symbols)
             self.assertNotIn("TOKENUP/USDT", symbols)
             self.assertNotIn("TOKEN3L/USDT", symbols)
             self.assertNotIn("LOWVOL/USDT", symbols)
