@@ -1,3 +1,4 @@
+import bisect
 """Run production-equivalent multi-timeframe SI-AI backtests on saved datasets."""
 from __future__ import annotations
 
@@ -104,6 +105,13 @@ def build_production_signal_callback(datasets: Dict[str, Dict]):
         timeframe: dataset["candles"]
         for timeframe, dataset in datasets.items()
     }
+    close_times_by_timeframe = {
+        timeframe: [
+            row[0] + smc.TIMEFRAME_MILLISECONDS[timeframe]
+            for row in candles
+        ]
+        for timeframe, candles in candles_by_timeframe.items()
+    }
 
     def callback(callback_market, callback_symbol, callback_timeframe, history):
         if callback_market != market or callback_symbol != symbol:
@@ -119,12 +127,10 @@ def build_production_signal_callback(datasets: Dict[str, Dict]):
             if timeframe == "1h":
                 timeframe_history = history[-smc.CANDLE_LIMIT:]
             else:
-                interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
-                closed_history = [
-                    row for row in candles_by_timeframe[timeframe]
-                    if row[0] + interval_ms <= signal_close_ms
-                ]
-                timeframe_history = closed_history[-smc.CANDLE_LIMIT:]
+                close_times = close_times_by_timeframe[timeframe]
+                end_index = bisect.bisect_right(close_times, signal_close_ms)
+                start_index = max(0, end_index - smc.CANDLE_LIMIT)
+                timeframe_history = candles_by_timeframe[timeframe][start_index:end_index]
 
             if len(timeframe_history) < smc.MIN_CANDLES:
                 return {"signal": "WAIT"}
