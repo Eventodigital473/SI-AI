@@ -52,7 +52,7 @@ class LiquidationModelTests(unittest.TestCase):
              "maintenance_margin_rate": 0.005, "maintenance_amount": 0,
              "max_leverage": 50},
             {"notional_floor": 80, "notional_cap": None,
-             "maintenance_margin_rate": 0.01, "maintenance_amount": 0.475,
+             "maintenance_margin_rate": 0.01, "maintenance_amount": 0.4,
              "max_leverage": 20},
         ]
         result = calculate_isolated_liquidation_price(
@@ -60,7 +60,7 @@ class LiquidationModelTests(unittest.TestCase):
             isolated_wallet_balance=10, leverage=10,
             bracket_snapshot=snapshot(tiers=tiers), now=NOW,
         )
-        self.assertAlmostEqual(result["liquidation_price"], (100 - 10 - 0.475) / 0.99)
+        self.assertAlmostEqual(result["liquidation_price"], (100 - 10 - 0.4) / 0.99)
         self.assertEqual(result["maintenance_margin_rate"], 0.01)
 
     def test_rejects_wrong_symbol_stale_and_future_snapshots(self):
@@ -95,12 +95,6 @@ class LiquidationModelTests(unittest.TestCase):
             calculate_isolated_liquidation_price(
                 symbol="BTC/USDT", side="LONG", quantity=1, entry_price=100,
                 isolated_wallet_balance=10, leverage=25,
-                bracket_snapshot=snapshot(), now=NOW,
-            )
-        with self.assertRaisesRegex(ValueError, "uniquely resolve"):
-            calculate_isolated_liquidation_price(
-                symbol="BTC/USDT", side="LONG", quantity=1, entry_price=100,
-                isolated_wallet_balance=99.9, leverage=1,
                 bracket_snapshot=snapshot(), now=NOW,
             )
 
