@@ -164,7 +164,7 @@ def save_mark_price_dataset(symbol, timeframe, candles, *, output_path=None,
     interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
     if interval_ms is None:
         raise ValueError("Unsupported timeframe")
-    normalized = [_normalize_row(row, i, interval_ms) for i, row in enumerate(candles)]
+    normalized = [historical_data._normalize_candle(row, i) for i, row in enumerate(candles)]
     if not normalized:
         raise ValueError("Cannot save an empty mark-price dataset")
     for i in range(1, len(normalized)):
@@ -226,7 +226,7 @@ def load_mark_price_dataset(path):
     candles = payload.get("candles")
     if not isinstance(candles, list) or not candles:
         raise ValueError("Mark-price dataset is empty")
-    normalized = [_normalize_row(row, i, interval_ms) for i, row in enumerate(candles)]
+    normalized = [historical_data._normalize_candle(row, i) for i, row in enumerate(candles)]
     smc.validate_candle_continuity(normalized, timeframe)
     start = _timestamp(payload.get("start_ms"), "dataset start_ms")
     end = _timestamp(payload.get("end_ms"), "dataset end_ms")
