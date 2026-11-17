@@ -156,6 +156,30 @@ def calculate_isolated_liquidation_price(
         if in_tier:
             candidates.append((price, tier, liquidation_notional))
 
+    if not candidates:
+        # At very low leverage an ideal isolated long can have no positive
+        # liquidation threshold in the linear USDT price domain. This is not
+        # equivalent to a guarantee against liquidation or exchange adjustments.
+        return {
+            "status": "NO_POSITIVE_LIQUIDATION_PRICE_IN_MODEL",
+            "symbol": symbol,
+            "side": side,
+            "liquidation_price": None,
+            "entry_price": entry,
+            "quantity": qty,
+            "entry_notional_usdt": round(entry_notional, 8),
+            "isolated_wallet_balance_usdt": wallet,
+            "leverage": lev,
+            "margin_mode": "ISOLATED",
+            "position_mode": "ONE_WAY",
+            "bracket_snapshot_retrieved_at": bracket_snapshot["retrieved_at"],
+            "automatic_orders": False,
+            "limitations": [
+                "The model produced no positive liquidation threshold under the supplied isolated-margin assumptions.",
+                "This is not a guarantee against liquidation; fees, funding, margin adjustments and exchange rules can change the result.",
+                "Recheck Binance's displayed liquidation price and margin ratio before manual execution.",
+            ],
+        }
     if len(candidates) != 1:
         raise ValueError(
             "Could not uniquely resolve liquidation tier from this snapshot; "
