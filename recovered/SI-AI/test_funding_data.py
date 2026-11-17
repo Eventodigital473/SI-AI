@@ -138,6 +138,43 @@ class FundingDataTests(unittest.TestCase):
         self.assertEqual(result["funding_boundary_ambiguities"], 2)
         self.assertAlmostEqual(result["funding_cost_usdt"], 3.0)
 
+    def test_intrabar_exit_candle_settlement_is_charged_conservatively(self):
+        events = [
+            {"timestamp": 2500, "funding_rate": 0.01, "mark_price": 100.0},
+            {"timestamp": 2600, "funding_rate": -0.01, "mark_price": 100.0},
+        ]
+        result = funding_data.funding_cost_for_trade(
+            events, "LONG", 1, 1000, 2000,
+            exit_window_end_timestamp=3000, exit_timing="intrabar",
+        )
+        self.assertEqual(result["funding_event_count"], 2)
+        self.assertEqual(result["funding_boundary_ambiguities"], 2)
+        self.assertAlmostEqual(result["funding_cost_usdt"], 1.0)
+
+    def test_time_exit_charges_settlements_until_candle_close(self):
+        events = [
+            {"timestamp": 2500, "funding_rate": -0.01, "mark_price": 100.0},
+            {"timestamp": 3000, "funding_rate": -0.01, "mark_price": 100.0},
+        ]
+        result = funding_data.funding_cost_for_trade(
+            events, "LONG", 1, 1000, 2000,
+            exit_window_end_timestamp=3000, exit_timing="close",
+        )
+        self.assertEqual(result["funding_event_count"], 2)
+        self.assertEqual(result["funding_boundary_ambiguities"], 1)
+        self.assertAlmostEqual(result["funding_cost_usdt"], -1.0)
+
+    def test_open_time_exit_excludes_settlements_after_exit_open(self):
+        events = [
+            {"timestamp": 2000, "funding_rate": 0.01, "mark_price": 100.0},
+            {"timestamp": 2500, "funding_rate": 0.01, "mark_price": 100.0},
+        ]
+        result = funding_data.funding_cost_for_trade(
+            events, "LONG", 1, 1000, 2000, exit_timing="open"
+        )
+        self.assertEqual(result["funding_event_count"], 1)
+        self.assertEqual(result["funding_boundary_ambiguities"], 1)
+
     def test_dataset_round_trip_and_checksum_tampering(self):
         events = [{"timestamp": 1000, "funding_rate": 0.001, "mark_price": 101.0}]
         with tempfile.TemporaryDirectory() as directory:
