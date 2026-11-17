@@ -15,6 +15,7 @@ import SI_AI_smc as smc
 import backtesting
 import historical_data
 import funding_data
+import mark_price_data
 import profitability_gate
 import si_ai_scanner as scanner
 
@@ -160,6 +161,7 @@ def run_dataset_backtest(
     output_path: Optional[str | Path] = None,
     initial_equity: float = 100.0,
     funding_dataset_path: Optional[str | Path] = None,
+    mark_price_dataset_path: Optional[str | Path] = None,
 ) -> tuple[Dict, Path]:
     datasets = _load_timeframe_datasets(dataset_paths)
     market = datasets["1h"]["market"]
@@ -178,6 +180,23 @@ def run_dataset_backtest(
         if funding_dataset["start_ms"] > required_start or funding_dataset["end_ms"] < required_end:
             raise ValueError("Funding dataset must cover the complete primary 1h OHLCV time range")
         funding_events = funding_dataset["events"]
+
+    mark_dataset = None
+    if mark_price_dataset_path is not None:
+        mark_dataset = mark_price_data.load_mark_price_dataset(mark_price_dataset_path)
+        if mark_dataset.get("market") != market or mark_dataset.get("symbol") != symbol:
+            raise ValueError("Mark-price dataset market/symbol must match OHLCV datasets")
+        if mark_dataset.get("timeframe") != "1h":
+            raise ValueError("Mark-price dataset must use the primary 1h timeframe")
+        required_start = primary_candles[0][0]
+        required_end = primary_candles[-1][0] + smc.TIMEFRAME_MILLISECONDS["1h"]
+        if mark_dataset["start_ms"] > required_start or mark_dataset["end_ms"] < required_end:
+            raise ValueError("Mark-price dataset must cover the complete primary 1h OHLCV time range")
+        if (
+            mark_dataset["candles"][0][0] > required_start
+            or mark_dataset["candles"][-1][0] + smc.TIMEFRAME_MILLISECONDS["1h"] < required_end
+        ):
+            raise ValueError("Mark-price candles do not cover the complete primary 1h OHLCV time range")
 
     options = {
         "initial_equity": initial_equity,
@@ -240,6 +259,14 @@ def run_dataset_backtest(
             "primary_timeframe": "1h",
             "timeframes": timeframe_manifest,
             "combined_data_sha256": combined_hash,
+            "mark_price": ({
+                "source": mark_dataset["source"],
+                "timeframe": mark_dataset["timeframe"],
+                "candle_count": mark_dataset["candle_count"],
+                "data_sha256": mark_dataset["data_sha256"],
+                "start_ms": mark_dataset["start_ms"],
+                "end_ms": mark_dataset["end_ms"],
+            } if mark_dataset is not None else None),
             "funding": ({
                 "event_count": funding_dataset["event_count"],
                 "data_sha256": funding_dataset["data_sha256"],
@@ -265,7 +292,9 @@ def run_dataset_backtest(
         "limitations": [
             "Historical results do not guarantee future returns.",
             "No automatic orders are placed.",
-            ("Timestamped Binance funding events and event-specific settlement mark prices are included; exchange-specific liquidation/maintenance-margin modelling is still required." if funding_dataset is not None else "Futures certification remains INCONCLUSIVE until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are included."),
+            ("Timestamped Binance funding events and event-specific settlement mark prices are included." if funding_dataset is not None else "Timestamped historical funding data is not supplied."),
+            ("Historical Binance mark-price OHLC is archived for the primary 1h timeframe, but liquidation events are not simulated until timestamp-matched historical maintenance-tier snapshots and conservative intrabar liquidation ordering are available." if mark_dataset is not None else "Historical mark-price candles are not supplied; liquidation events are not simulated."),
+            "Futures profitability certification remains INCONCLUSIVE until exchange-specific historical liquidation and maintenance-margin modelling is validated.",
             "Signals are evaluated only when all required timeframe histories are available and closed by the 1h signal close.",
         ],
     }
