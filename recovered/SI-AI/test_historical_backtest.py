@@ -237,6 +237,72 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
 
 
 
+    def test_runner_records_verified_historical_mark_price_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dataset_paths = self._save_datasets(directory)
+            primary = make_dataset_payloads()["1h"]
+            rows = primary["candles"]
+            mark_dataset = {
+                "source": "BINANCE_USDM_MARK_PRICE_KLINES",
+                "market": "FUTURES",
+                "symbol": "BTC/USDT",
+                "timeframe": "1h",
+                "start_ms": rows[0][0],
+                "end_ms": rows[-1][0] + historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"],
+                "candles": rows,
+                "candle_count": len(rows),
+                "data_sha256": "c" * 64,
+            }
+            chronological, walk_forward = self._reports()
+            with patch.object(
+                historical_backtest.mark_price_data, "load_mark_price_dataset",
+                return_value=mark_dataset,
+            ), patch.object(
+                historical_backtest.backtesting, "evaluate_chronological_validation",
+                return_value=chronological,
+            ), patch.object(
+                historical_backtest.backtesting, "evaluate_walk_forward",
+                return_value=walk_forward,
+            ):
+                report, _ = historical_backtest.run_dataset_backtest(
+                    dataset_paths,
+                    output_path=Path(directory) / "mark-report.json",
+                    mark_price_dataset_path=Path(directory) / "mark.json",
+                )
+            self.assertEqual(
+                report["dataset"]["mark_price"]["source"],
+                "BINANCE_USDM_MARK_PRICE_KLINES",
+            )
+            self.assertEqual(report["dataset"]["mark_price"]["candle_count"], len(rows))
+            self.assertEqual(report["profitability_gate"]["status"], "INCONCLUSIVE")
+
+    def test_runner_rejects_mark_price_dataset_for_wrong_symbol(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dataset_paths = self._save_datasets(directory)
+            primary = make_dataset_payloads()["1h"]
+            rows = primary["candles"]
+            mark_dataset = {
+                "source": "BINANCE_USDM_MARK_PRICE_KLINES",
+                "market": "FUTURES",
+                "symbol": "ETH/USDT",
+                "timeframe": "1h",
+                "start_ms": rows[0][0],
+                "end_ms": rows[-1][0] + historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"],
+                "candles": rows,
+                "candle_count": len(rows),
+                "data_sha256": "c" * 64,
+            }
+            with patch.object(
+                historical_backtest.mark_price_data, "load_mark_price_dataset",
+                return_value=mark_dataset,
+            ):
+                with self.assertRaisesRegex(ValueError, "market/symbol"):
+                    historical_backtest.run_dataset_backtest(
+                        dataset_paths,
+                        output_path=Path(directory) / "wrong-symbol.json",
+                        mark_price_dataset_path=Path(directory) / "mark.json",
+                    )
+
     def test_runner_requires_all_four_timeframes(self):
         with tempfile.TemporaryDirectory() as directory:
             dataset_paths = self._save_datasets(directory)
