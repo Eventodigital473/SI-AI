@@ -410,6 +410,22 @@ TIMEFRAME_MILLISECONDS = {
 }
 
 
+def validate_candle_continuity(candles: List[list], timeframe: str) -> None:
+    """Fail closed when any expected timeframe candle is missing."""
+    interval_ms = TIMEFRAME_MILLISECONDS.get(timeframe)
+    if interval_ms is None:
+        raise ValueError(f"Unsupported timeframe for continuity check: {timeframe}")
+    if not candles:
+        raise ValueError("Cannot validate continuity of an empty candle series")
+    for index in range(1, len(candles)):
+        delta = int(candles[index][0]) - int(candles[index - 1][0])
+        if delta != interval_ms:
+            raise ValueError(
+                f"Missing or irregular {timeframe} candle between "
+                f"rows {index - 1} and {index}: expected {interval_ms} ms, got {delta} ms"
+            )
+
+
 def validate_candle_freshness(candles: List[list], timeframe: str, now_ms: int) -> None:
     """Reject stale or implausibly future-dated closed candles."""
     interval_ms = TIMEFRAME_MILLISECONDS.get(timeframe)
@@ -466,6 +482,7 @@ def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
         limit=CANDLE_LIMIT
     )
     candles = validate_candles(raw)
+    validate_candle_continuity(candles, timeframe)
     validate_candle_freshness(candles, timeframe, exchange.milliseconds())
     return candles
 
