@@ -210,36 +210,61 @@ def download_funding_history(
     return events
 
 
-def funding_cost_for_trade(events, side, quantity, entry_timestamp, exit_timestamp):
+def funding_cost_for_trade(
+    events, side, quantity, entry_timestamp, exit_timestamp,
+    *, exit_window_end_timestamp=None, exit_timing="open",
+):
     """Return signed funding cost; positive means paid, negative means received.
 
-    Exact timestamp ties at entry/exit are charged without assuming a funding
-    credit and flagged ambiguous. The profitability gate will not certify a
-    report containing such a tie until its position-snapshot ordering is resolved.
+    Candle OHLCV cannot reveal the exact time of an intrabar stop/target fill.
+    For an intrabar exit, settlements in that exit candle are therefore included
+    conservatively (costs charged, credits not assumed) and flagged ambiguous.
+    TIME_EXIT is modelled at candle close; an event exactly at that close is
+    also ambiguous. Open-time exits only include events at/before that open.
     """
     if side not in ("LONG", "SHORT"):
         raise ValueError("side must be LONG or SHORT")
+    if exit_timing not in ("open", "intrabar", "close"):
+        raise ValueError("exit_timing must be open, intrabar, or close")
     qty = _finite(quantity, "quantity")
     if qty <= 0:
         raise ValueError("quantity must be positive")
     entry = _timestamp(entry_timestamp, "entry_timestamp")
     exit_ = _timestamp(exit_timestamp, "exit_timestamp")
-    if exit_ < entry:
-        raise ValueError("exit_timestamp cannot precede entry_timestamp")
+    window_end = _timestamp(
+        exit_ if exit_window_end_timestamp is None else exit_window_end_timestamp,
+        "exit_window_end_timestamp",
+    )
+    if exit_ < entry or window_end < exit_:
+        raise ValueError("Exit timestamps cannot precede entry or each other")
+    if exit_timing == "open" and window_end != exit_:
+        raise ValueError("Open-time exits cannot extend beyond their exit timestamp")
+
     cost = 0.0
     count = 0
     ambiguous = 0
     for event in events:
         timestamp = _timestamp(event.get("timestamp"), "funding timestamp")
-        if not entry <= timestamp <= exit_:
+        if timestamp < entry or timestamp > window_end:
             continue
         rate = _finite(event.get("funding_rate"), "funding rate")
         mark = _finite(event.get("mark_price"), "funding mark price")
         if mark <= 0:
             raise ValueError("Funding mark price must be positive")
         signed_cost = qty * mark * rate * (1.0 if side == "LONG" else -1.0)
-        if timestamp in (entry, exit_):
+
+        boundary_tie = timestamp == entry
+        if exit_timing == "open":
+            boundary_tie = boundary_tie or timestamp == exit_
+        elif exit_timing == "intrabar":
+            boundary_tie = boundary_tie or timestamp >= exit_
+        elif exit_timing == "close":
+            boundary_tie = boundary_tie or timestamp == window_end
+
+        if boundary_tie:
             ambiguous += 1
+            # No assumed funding credits when the position's exact status at
+            # settlement cannot be reconstructed from candle-level data.
             signed_cost = max(0.0, signed_cost)
         cost += signed_cost
         count += 1
