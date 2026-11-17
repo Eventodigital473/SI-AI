@@ -769,3 +769,13 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - PR #16 remains open and mergeable, targeting `feature/dynamic-coin-universe`; no merge has been performed and `main` remains untouched.
 - Termux execution instructions are in `recovered/SI-AI/TERMUX_FINAL_TEST_RUNBOOK.md`. They use a new validation clone folder and preserve the user's existing checkout.
 - Release/testing decision: suitable for user-side **dry-run and paper research validation only** after the runbook checks. Not certified for live trading or profitability because historical liquidation events/maintenance-tier history, live contract precision checks, and phone-side smoke tests are outstanding.
+
+
+---
+
+## Latest liquidation-data integrity validation — 2026-11-18
+
+- Added an exact timestamp-alignment gate: archived 1h Binance mark-price candles must match the primary 1h last-trade OHLCV candle timestamps one-for-one. Coverage alone is insufficient for any future liquidation event simulation.
+- Added a regression test proving a continuous but shifted mark-price series is rejected even when its declared date range covers the backtest.
+- Latest CI on code/test head `3abaf3a2296524048f995ce52fb22bc8b110d5a5`: run [44202144226](https://github.com/Eventodigital473/SI-AI/actions/runs/44202144226), **196 passed, 4 subtests passed**. Dependency checks, Termux CCXT profile, Widget shell validation, Python compilation and tests all passed.
+- This still archives mark-price data only; historical liquidation events remain unmodelled without time-matched maintenance-tier history. Profitability remains INCONCLUSIVE.
