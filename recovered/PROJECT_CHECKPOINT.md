@@ -379,3 +379,40 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 
 
 - Initial CI for production multi-timeframe runner had 80 passing tests and one assertion failure caused only by case-sensitive test wording. Updated the expected error text to match the actual fail-closed message; rerun pending.
+
+
+## Session checkpoint — SMC entry/exit and net R:R correction (2026-11-17)
+
+**Working branch:** `feature/dynamic-coin-universe`  
+**Verified code head:** `2dda0a7427cc3577627fc03b58179dcf54a30a4e`
+
+### Corrections committed
+- `SI_AI_smc.py`: BOS now checks the corresponding confirmed swing level independently; a missing opposite-side pivot no longer suppresses a valid directional BOS.
+- `SI_AI_smc.py`: CHOCH is treated as the classification of a counter-trend BOS and is no longer added as a second independent structure-break score.
+- `si_ai_scanner.py`: confirmed scanner entries require the 1h setup to have a matching directional BOS; the 4h direction and weighted multi-timeframe agreement remain required. Spot bearish confirmation remains exit-only.
+- `SI_AI_smc.py`: added shared fee/slippage-aware net reward/risk calculation for long and short setups.
+- `backtesting.py`: after next-candle-open execution and adverse entry slippage, actual-fill net R:R is recalculated. Trades below 2:1 are rejected before entry.
+- `backtesting.py` and `portfolio_backtest.py`: entry slippage already embedded in the entry fill is no longer charged a second time in stop-risk sizing; both-side fees and stop-exit slippage remain reserved.
+- Added a small numerical tolerance at the exact 2:1 boundary to avoid rejecting valid trades due solely to floating-point representation.
+- Added regression coverage for independent BOS pivots, BOS/CHOCH double counting, long/short net R:R, adverse entry gaps, favorable gaps, actual-fill R:R reporting, 1h BOS gating, and Spot exit-only behavior.
+
+### Verified tests
+- GitHub Actions PR run [#44085941561](https://github.com/Eventodigital473/SI-AI/actions/runs/44085941561) succeeded on the exact code head above.
+- Python 3.12 dependency installation and `python -m compileall -q .`: passed.
+- Full offline suite: **103 passed, 4 subtests passed in 1.77s**.
+- Evidence artifact: `si-ai-test-evidence-111`, artifact ID `14329282352`, SHA-256 `cef0a469afbabfcbe3df4b375c43a813aaa4865e84e53f253d077477508e6583`, expires 2026-12-17.
+- An earlier intermediate test run failed due to a missing local direction variable in the new helper; it was fixed. The next run exposed a floating-point boundary rejection; that was fixed too. The successful run above verifies the final code head.
+
+### Historical backtest status
+- Public Spot historical validation workflow [#44085934783](https://github.com/Eventodigital473/SI-AI/actions/runs/44085934783) is running on the same code head.
+- Its full offline regression step passed; the bounded 180-day, 50-symbol Spot history download and shared-wallet portfolio backtest are still in progress. No result from this run is claimed yet.
+- Previous observed portfolio baseline remains: 25 OOS trades, 16% win rate, PF 0.35, net -4.61 USDT per 100 USDT; walk-forward 45 trades, net -4.52 USDT; 54 overlapping opportunities skipped. These are the pre-correction results and must not be represented as results of the corrected code.
+- The earlier universe run had 50 selected Spot symbols and 34 complete 180-day datasets. The current workflow must report its own verified symbol count and dataset hashes.
+
+### Exact next step
+1. Retrieve workflow #44085934783 when it completes; inspect its dataset manifest, checksums, OOS ledger, walk-forward folds, skipped-overlap count, and profitability-gate result.
+2. Compare corrected results against the pre-correction baseline. Do not tune parameters to this same holdout or claim profitability from an undersized sample.
+3. If the workflow fails or data is incomplete, diagnose only the reported failure and preserve the existing verified code/tests.
+4. Keep Futures certification INCONCLUSIVE until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are validated; then paper observation and final read-only Termux/Binance smoke checks remain.
+
+**Safety/state:** SI-AI remains a signal provider only. User manually executes any trade. No automatic order placement, private API keys, Telegram, or deployment added. `main` remains untouched. PR #1 remains open, draft and unmerged.
