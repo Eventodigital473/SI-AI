@@ -400,6 +400,7 @@ def evaluate_walk_forward(
             "trade_count": len(trades),
             "net_pnl_usdt": round(sum(t["net_pnl_usdt"] for t in trades), 8),
             "ending_equity_usdt": round(current_equity, 8),
+            "trades": trades,
         })
     initial = _number(
         backtest_options.get("initial_equity", si.PAPER_EQUITY_USDT),
