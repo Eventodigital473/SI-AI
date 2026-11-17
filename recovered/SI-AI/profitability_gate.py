@@ -42,8 +42,8 @@ def evaluate_profitability_evidence(
     FAIL. Futures cannot pass until historical funding and liquidation risk
     are explicitly modelled in the supplied evidence assumptions.
     """
-    if market not in ("SPOT", "FUTURES"):
-        raise ValueError("market must be SPOT or FUTURES")
+    if market != "FUTURES":
+        raise ValueError("Profitability certification supports FUTURES only")
     rules = dict(DEFAULT_POLICY)
     if policy:
         unknown = set(policy) - set(rules)
@@ -131,8 +131,6 @@ def evaluate_profitability_evidence(
               "Futures evidence must include timestamped historical funding events.")
         check("liquidation_model", liquidation_ok, liquidation_ok,
               "Futures evidence must model liquidation and maintenance margin.")
-    else:
-        check("spot_market_scope", True, True, "Spot long-only evaluation.")
 
     status = "FAIL" if failed else "INCONCLUSIVE" if inconclusive else "PASS"
     return {
