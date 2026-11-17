@@ -122,6 +122,11 @@ def calculate_isolated_liquidation_price(
     tiers = validate_bracket_snapshot(bracket_snapshot, symbol=symbol, now=now)
 
     entry_notional = qty * entry
+    required_initial_margin = entry_notional / lev
+    if wallet + max(1e-9, required_initial_margin * 1e-9) < required_initial_margin:
+        raise ValueError(
+            "Isolated wallet balance is below the required initial margin for the selected leverage"
+        )
     entry_tier = next(
         (tier for tier in tiers
          if entry_notional >= tier["notional_floor"]
