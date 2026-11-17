@@ -16,7 +16,7 @@ class SignalAlertTests(unittest.TestCase):
                 "take_profit": 151.5,
                 "reward_risk": 2.0,
                 "recommended_leverage": 1.0,
-                "paper_margin_required_usdt": 12.0,
+                "paper_margin_required_usdt": 17.1,
                 "paper_margin_budget_usdt": 20.0,
                 "paper_quantity": 0.12,
                 "paper_notional_usdt": 17.1,
@@ -48,7 +48,7 @@ class SignalAlertTests(unittest.TestCase):
         self.assertIn("TP2 (1.5R reference): 149.25", content)
         self.assertIn("TP3 (engine target): 151.5", content)
         self.assertIn("Recommended leverage: 1x", content)
-        self.assertIn("Estimated margin: 12.00 USDT / 20.00 USDT budget", content)
+        self.assertIn("Estimated margin: 17.10 USDT / 20.00 USDT budget", content)
 
     def test_alert_includes_position_size_risk_costs_and_liquidation_warning(self):
         _, content = scanner.make_alert(
@@ -181,4 +181,35 @@ def test_missing_state_initializes_notification_timestamp_map(tmp_path, monkeypa
         "last_signals": {},
         "last_notified_at": {},
     }
+\n
+
+def test_alert_uses_recent_symbol_specific_isolated_bracket_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(scanner, "BASE_DIR", tmp_path)
+    bracket_dir = tmp_path / "data" / "liquidation_brackets"
+    bracket_dir.mkdir(parents=True)
+    snapshot = {
+        "source": "BINANCE_USDM_LEVERAGE_BRACKET",
+        "symbol": "BTC/USDT",
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "tiers": [{
+            "notional_floor": 0,
+            "notional_cap": None,
+            "maintenance_margin_rate": 0.01,
+            "maintenance_amount": 0,
+            "max_leverage": 20,
+        }],
+    }
+    (bracket_dir / "BTC-USDT.json").write_text(
+        json.dumps(snapshot), encoding="utf-8"
+    )
+    _, content = scanner.make_alert(
+        "FUTURES", "BTC/USDT", "BUY", {
+            "1h": {**SignalAlertTests().results["1h"],
+                   "paper_margin_required_usdt": 17.1},
+            "4h": {"signal": "BUY"},
+        }
+    )
+    assert "Isolated liquidation price: no positive threshold" in content
+    assert "Binance USD-M tier formula" in content
+    assert "Model scope: isolated one-way only" in content
 \n
