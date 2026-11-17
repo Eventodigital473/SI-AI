@@ -89,3 +89,29 @@ class ProfitabilityGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_boolean_metrics_are_not_treated_as_numbers(self):
+        oos, wf = reports()
+        oos["out_of_sample"]["trade_count"] = True
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+
+    def test_boolean_policy_override_is_rejected(self):
+        oos, wf = reports()
+        with self.assertRaises(ValueError):
+            evaluate_profitability_evidence(
+                oos, wf, market="FUTURES",
+                policy={"minimum_oos_trades": True},
+            )
+
+    def test_invalid_walk_forward_policy_relationship_is_rejected(self):
+        oos, wf = reports()
+        with self.assertRaises(ValueError):
+            evaluate_profitability_evidence(
+                oos, wf, market="FUTURES",
+                policy={
+                    "required_walk_forward_folds": 2,
+                    "minimum_positive_walk_forward_folds": 3,
+                },
+            )
