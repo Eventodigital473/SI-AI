@@ -44,6 +44,10 @@ MARKET_UNIVERSE_STATUS = {
     "FUTURES": "not_refreshed",
     "SPOT": "not_refreshed",
 }
+MARKET_UNIVERSE_DIAGNOSTICS = {
+    "FUTURES": {},
+    "SPOT": {},
+}
 SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 _UNIVERSE_LAST_REFRESH = 0.0
 
@@ -111,6 +115,59 @@ def _eligible_base(base: str) -> bool:
     return True
 
 
+def _index_book_tickers(book_tickers: dict) -> Dict[str, dict]:
+    """Index unified and raw Binance bookTicker aliases without guessing prices."""
+    indexed = {}
+    if not isinstance(book_tickers, dict):
+        return indexed
+
+    for key, ticker in book_tickers.items():
+        if not isinstance(ticker, dict):
+            continue
+        info = ticker.get("info")
+        info = info if isinstance(info, dict) else {}
+        aliases = (
+            key,
+            ticker.get("symbol"),
+            ticker.get("id"),
+            info.get("symbol"),
+        )
+        for alias in aliases:
+            if alias is not None and str(alias).strip():
+                indexed[str(alias).strip()] = ticker
+    return indexed
+
+
+def _find_book_ticker(indexed: dict, exchange_symbol: str,
+                      canonical: str, metadata: dict):
+    """Resolve CCXT unified symbols and Binance market IDs to one quote."""
+    aliases = (
+        exchange_symbol,
+        canonical,
+        metadata.get("symbol"),
+        metadata.get("id"),
+    )
+    for alias in aliases:
+        if alias is not None:
+            ticker = indexed.get(str(alias).strip())
+            if isinstance(ticker, dict):
+                return ticker
+    return None
+
+
+def _book_ticker_prices(ticker: dict):
+    """Read normalized CCXT bid/ask or raw Binance bidPrice/askPrice."""
+    if not isinstance(ticker, dict):
+        return None, None
+    bid = _finite_number(
+        ticker.get("bid", ticker.get("bidPrice", ticker.get("bid_price")))
+    )
+    ask = _finite_number(
+        ticker.get("ask", ticker.get("askPrice", ticker.get("ask_price")))
+    )
+    return bid, ask
+
+
 def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
     """
     Discover liquid Binance USDT spot and USD-M perpetual markets.
@@ -151,6 +208,18 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                         "Futures bulk bookTicker response is empty or invalid"
                     )
             candidates = []
+            diagnostics = {
+                "markets_seen": 0,
+                "volume_qualified": 0,
+                "book_ticker_matched": 0,
+                "valid_bid_ask": 0,
+                "spread_qualified": 0,
+            }
+            book_ticker_index = (
+                _index_book_tickers(book_tickers)
+                if market == "FUTURES"
+                else {}
+            )
             minimum_volume = (
                 MIN_FUTURES_QUOTE_VOLUME_USDT
                 if market == "FUTURES"
@@ -158,6 +227,7 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
             )
 
             for exchange_symbol, metadata in exchange.markets.items():
+                diagnostics["markets_seen"] += 1
                 if not isinstance(metadata, dict):
                     continue
                 # Require an explicit active flag; unknown status is not eligible.
@@ -185,27 +255,33 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     continue
 
                 quote_volume = _finite_number(ticker.get("quoteVolume"))
+                if quote_volume is None or quote_volume < minimum_volume:
+                    continue
+                diagnostics["volume_qualified"] += 1
+
                 book_ticker = ticker
                 if market == "FUTURES":
-                    book_ticker = (
-                        book_tickers.get(exchange_symbol)
-                        or book_tickers.get(canonical)
+                    book_ticker = _find_book_ticker(
+                        book_ticker_index, exchange_symbol, canonical, metadata
                     )
                 if not isinstance(book_ticker, dict):
                     continue
-                bid = _finite_number(book_ticker.get("bid"))
-                ask = _finite_number(book_ticker.get("ask"))
-                if quote_volume is None or quote_volume < minimum_volume:
-                    continue
+                if market == "FUTURES":
+                    diagnostics["book_ticker_matched"] += 1
+
+                bid, ask = _book_ticker_prices(book_ticker)
                 if bid is None or ask is None or bid <= 0 or ask < bid:
                     continue
+                diagnostics["valid_bid_ask"] += 1
 
                 midpoint = (bid + ask) / 2.0
                 if midpoint <= 0:
                     continue
-                spread_percent = (ask - bid) / midpoint * 100.0
+                # Algebraic relative spread: 100 * (ask-bid) / midpoint.
+                spread_percent = 200.0 * (ask - bid) / (ask + bid)
                 if spread_percent > MAX_SPREAD_PERCENT:
                     continue
+                diagnostics["spread_qualified"] += 1
 
                 candidates.append({
                     "symbol": canonical,
@@ -244,6 +320,11 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     else:
                         selected_symbols.append(preferred_symbol)
 
+            MARKET_UNIVERSE_DIAGNOSTICS[market] = {
+                **diagnostics,
+                "candidate_count": len(candidates),
+                "selected_count": len(set(selected_symbols)),
+            }
             MARKET_SYMBOLS[market] = list(dict.fromkeys(selected_symbols))
             MARKET_UNIVERSE_STATUS[market] = (
                 "ready"
