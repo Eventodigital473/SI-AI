@@ -38,7 +38,7 @@ def collect_preflight(project_dir=None, shortcuts_dir=None, command_lookup=None,
         termux_prefix or "PREFIX is not set; this does not look like a standard Termux shell",
     ))
 
-    for module_name in ("ccxt", "flask"):
+    for module_name in ("ccxt", "requests", "certifi", "cryptography", "typing_extensions", "flask"):
         try:
             module = importlib.import_module(module_name)
             version = getattr(module, "__version__", "version unavailable")
