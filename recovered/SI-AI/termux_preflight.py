@@ -48,9 +48,18 @@ def collect_preflight(project_dir=None, shortcuts_dir=None, command_lookup=None,
 
     try:
         smc = importlib.import_module("SI_AI_smc")
-        scanner = importlib.import_module("si_ai_scanner")
-        scanner.validate_config()
-        checks.append(_check("scanner_config", "PASS", "scanner.validate_config() passed"))
+    except Exception as exc:
+        smc = None
+        checks.append(_check("scanner_config", "FAIL", f"{type(exc).__name__}: {exc}"))
+
+    if smc is not None:
+        try:
+            scanner = importlib.import_module("si_ai_scanner")
+            scanner.validate_config()
+            checks.append(_check("scanner_config", "PASS", "scanner.validate_config() passed"))
+        except Exception as exc:
+            checks.append(_check("scanner_config", "FAIL", f"{type(exc).__name__}: {exc}"))
+
         checks.append(_check(
             "futures_only",
             "PASS" if list(smc.MARKETS) == ["FUTURES"] else "FAIL",
@@ -61,20 +70,21 @@ def collect_preflight(project_dir=None, shortcuts_dir=None, command_lookup=None,
             "PASS" if list(smc.TIMEFRAMES) == ["15m", "1h", "4h", "1d"] else "FAIL",
             f"TIMEFRAMES={list(smc.TIMEFRAMES)}",
         ))
-        policy_ok = (
-            float(smc.PAPER_EQUITY_USDT) == 100.0
-            and float(smc.RISK_PER_TRADE_PERCENT) == 0.5
-            and float(smc.MARGIN_ALLOCATION_PERCENT) == 20.0
-            and float(smc.RECOMMENDED_FUTURES_LEVERAGE) == 1.0
-            and float(smc.MIN_REWARD_RISK) >= 2.0
-        )
+        try:
+            policy_ok = (
+                float(smc.PAPER_EQUITY_USDT) == 100.0
+                and float(smc.RISK_PER_TRADE_PERCENT) == 0.5
+                and float(smc.MARGIN_ALLOCATION_PERCENT) == 20.0
+                and float(smc.RECOMMENDED_FUTURES_LEVERAGE) == 1.0
+                and float(smc.MIN_REWARD_RISK) >= 2.0
+            )
+        except (TypeError, ValueError, AttributeError):
+            policy_ok = False
         checks.append(_check(
             "risk_policy",
             "PASS" if policy_ok else "FAIL",
             "equity=100 USDT; risk=0.5%; margin cap=20%; leverage=1x; minimum R:R=2:1",
         ))
-    except Exception as exc:
-        checks.append(_check("scanner_config", "FAIL", f"{type(exc).__name__}: {exc}"))
 
     scanner_file = project / "si_ai_scanner.py"
     checks.append(_check(
