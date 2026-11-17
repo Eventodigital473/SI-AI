@@ -63,6 +63,27 @@ class FundingDataTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "BASE/USDT"):
             funding_data.download_funding_history("FUTURES", "BTC/BUSD", 1000, 2000, exchange=exchange)
 
+    def test_wrong_contract_symbol_is_rejected(self):
+        wrong = event(1000, "0.001")
+        wrong["info"]["symbol"] = "ETHUSDT"
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            funding_data.download_funding_history(
+                "FUTURES", "BTC/USDT", 1000, 2000,
+                exchange=FakeExchange([wrong]),
+            )
+
+    def test_normalized_series_rejects_duplicate_and_nonpositive_mark_price(self):
+        duplicate = [
+            {"timestamp": 1000, "funding_rate": 0.001, "mark_price": 100},
+            {"timestamp": 1000, "funding_rate": 0.001, "mark_price": 100},
+        ]
+        with self.assertRaisesRegex(ValueError, "strictly increasing"):
+            funding_data.validate_normalized_funding_events(duplicate)
+        with self.assertRaisesRegex(ValueError, "outside supported bounds"):
+            funding_data.validate_normalized_funding_events([
+                {"timestamp": 1000, "funding_rate": 0.001, "mark_price": 0}
+            ])
+
     def test_missing_raw_mark_price_is_rejected(self):
         row = event(1000, "0.001")
         del row["info"]["markPrice"]
