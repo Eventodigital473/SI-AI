@@ -118,6 +118,8 @@ class MainApiTests(unittest.TestCase):
         results = {
             "15m": sample_result("15m"),
             "1h": sample_result("1h"),
+            "4h": sample_result("4h"),
+            "1d": sample_result("1d"),
         }
 
         with patch.object(
@@ -136,7 +138,7 @@ class MainApiTests(unittest.TestCase):
                 json={
                     "market": "FUTURES",
                     "symbol": "BTC/USDT",
-                    "timeframes": ["15m", "1h"],
+                    "timeframes": ["15m", "1h", "4h", "1d"],
                 },
             )
 
@@ -144,7 +146,7 @@ class MainApiTests(unittest.TestCase):
 
         data = response.get_json()
         self.assertTrue(data["success"])
-        self.assertEqual(data["timeframe_count"], 2)
+        self.assertEqual(data["timeframe_count"], 4)
         self.assertTrue(data["complete"])
         self.assertEqual(
             data["multi_timeframe"]["analysis_status"], "COMPLETE"
@@ -183,7 +185,7 @@ class MainApiTests(unittest.TestCase):
                 json={
                     "market": "FUTURES",
                     "symbol": "BTC/USDT",
-                    "timeframes": ["15m", "1h"],
+                    "timeframes": ["15m", "1h", "4h", "1d"],
                 },
             )
 
@@ -200,6 +202,20 @@ class MainApiTests(unittest.TestCase):
         self.assertEqual(
             data["multi_timeframe"]["analysis_status"], "INCOMPLETE"
         )
+
+    def test_incomplete_production_timeframes_are_rejected(self):
+        with patch.object(main.smc, "analyze") as mocked:
+            response = self.client.post(
+                "/api/multi-timeframe",
+                json={
+                    "market": "FUTURES",
+                    "symbol": "BTC/USDT",
+                    "timeframes": ["15m", "1h"],
+                },
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("requires all production timeframes", response.get_json()["error"])
+        mocked.assert_not_called()
 
     def test_duplicate_timeframes_are_rejected(self):
         with patch.object(main.smc, "analyze") as mocked:
@@ -225,7 +241,7 @@ class MainApiTests(unittest.TestCase):
                 json={
                     "market": "FUTURES",
                     "symbol": "BTC/USDT",
-                    "timeframes": ["15m", "1h"],
+                    "timeframes": ["15m", "1h", "4h", "1d"],
                 },
             )
 
