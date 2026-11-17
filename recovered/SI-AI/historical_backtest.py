@@ -1,7 +1,7 @@
-import bisect
 """Run production-equivalent multi-timeframe SI-AI backtests on saved datasets."""
 from __future__ import annotations
 
+import bisect
 import argparse
 import hashlib
 import json
