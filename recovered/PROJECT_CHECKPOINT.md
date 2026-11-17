@@ -598,3 +598,35 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - Confirmed the only active exchange constructors found in the engine/helper modules are `ccxt.binanceusdm()`; the old `smc.py` Spot constructor has been removed and replaced by the Futures-only compatibility shim.
 - The API binds to `127.0.0.1` with Flask debug mode disabled. The legacy high-leverage planner raises immediately and cannot build a plan.
 - This was a source-text/static review, not a formal security audit or proof against every possible indirect behavior. No credentials were added and no live orders were sent.
+
+
+---
+
+## SI-AI candle-continuity audit checkpoint — 2026-11-18
+
+**Branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Source and regression-test head:** `e7c7e14fc6c0b1dfa37782debc3a71b9c8704ea7`  
+**Successful CI run for that exact source/test head:** https://github.com/Eventodigital473/SI-AI/actions/runs/44197545144
+
+### Additional data-integrity defect fixed
+- Found that live and historical OHLCV validators enforced strictly increasing timestamps but did not reject missing candles between otherwise valid rows.
+- Added `SI_AI_smc.validate_candle_continuity(candles, timeframe)`; live Futures candle retrieval now checks exact 15m/1h/4h/1d spacing before analysis.
+- Historical OHLCV downloads, dataset saves, and dataset loads now enforce the same exact timeframe spacing.
+- Added regression tests for missing intermediate candles during download/save and wrong timeframe spacing.
+- README documents the new fail-closed behavior.
+- No risk settings, scoring thresholds, trade rules, order execution, or leverage behavior changed.
+
+### Verification
+- Exact source/test head `e7c7e14fc6c0b1dfa37782debc3a71b9c8704ea7`: **166 passed, 3 warnings, 4 subtests passed**.
+- Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax, and Python compilation all passed in the same run.
+- One initial test-only assertion expected the wrong interval value (900,000 ms instead of the correct 3,600,000 ms for 1h); corrected the assertion and reran the full suite successfully.
+- README-only documentation commit after the tested code: `f6636f227f643febdbe7b0942a3fab80287e18b6`; its CI is being checked separately.
+
+### Still pending
+- Continue source audit for symbol amount/price precision, minimum order constraints in user-facing paper sizing, and any remaining historical/backtest assumptions.
+- Fresh live Binance USD-M Futures universe/bookTicker verification in Termux is still required. The earlier 182 volume-qualified contracts issue remains unresolved until that device evidence is reviewed; PR #2 must not be merged before then.
+- Android notification delivery/LED, Termux startup/stop behavior, and final 180-day multi-timeframe backtest are device checks still pending.
+- No PRs merged; `main` and the user's Termux checkout remain untouched.
+- Liquidation/maintenance-margin modelling is absent; profitability certification remains **INCONCLUSIVE**.
+
+**Safety policy unchanged:** Futures-only, signal provider, manual user execution; 100 USDT reference equity, 0.5% risk per trade, 20% maximum margin allocation, 1x recommendation, minimum 2:1 R:R.
