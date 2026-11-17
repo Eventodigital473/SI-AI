@@ -92,7 +92,7 @@ Open `http://127.0.0.1:5000/status` and `http://127.0.0.1:5000/api/config` local
 
 ## Futures historical backtesting
 
-The runner downloads public Binance USD-M OHLCV history for 15m, 1h, 4h, and 1d, verifies each saved dataset, then evaluates the production multi-timeframe signal logic using chronological holdout and walk-forward windows.
+The runner downloads public Binance USD-M OHLCV history for 15m, 1h, 4h, and 1d, verifies each saved dataset, then evaluates the production multi-timeframe signal logic using chronological holdout and walk-forward windows. Live and saved candle series are also required to have exact timeframe spacing; missing or irregular candles are rejected before analysis/backtesting.
 
 ```bash
 python run_public_futures_backtest.py --days 180 --symbol BTC/USDT
