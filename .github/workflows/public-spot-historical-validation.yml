@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: si-ai-public-history-${{ github.ref }}
+  group: si-ai-public-history-250bar-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
