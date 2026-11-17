@@ -176,6 +176,15 @@ def run_backtest(
         if (side == "LONG" and not stop < entry < target) or (side == "SHORT" and not target < entry < stop):
             i += 1
             continue
+        # Revalidate the minimum net R:R against the actual next-open fill.
+        # A gap can materially worsen the signal-close R:R even when all
+        # levels remain on the correct side of entry.
+        actual_reward_risk = si.calculate_net_reward_risk(
+            entry, stop, target, side, market
+        )
+        if actual_reward_risk < si.MIN_REWARD_RISK:
+            i += 1
+            continue
         stop_distance = abs(entry - stop)
         round_trip_cost_per_unit = fee * (entry + stop) + slippage * (entry + stop)
         risk_per_unit = stop_distance + round_trip_cost_per_unit
@@ -270,6 +279,7 @@ def run_backtest(
             "exit_price": round(exit_fill, 10),
             "stop_loss": round(stop, 10),
             "take_profit": round(target, 10),
+            "actual_net_reward_risk": round(actual_reward_risk, 6),
             "quantity": round(quantity, 10),
             "gross_pnl_usdt": round(gross_pnl, 8),
             "fees_usdt": round(fees, 8),
