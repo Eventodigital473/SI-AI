@@ -758,3 +758,14 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - CI after notification test addition: run [44201759094](https://github.com/Eventodigital473/SI-AI/actions/runs/44201759094), **195 passed, 4 subtests passed**. Python compilation, dependency consistency, minimal synchronous Termux CCXT profile and Widget shell checks passed.
 - README/runbook-only final commits are being rechecked by CI; the latest successful code/test head above includes all executable code changes.
 - No Termux device commands have been run by the assistant. The runbook requires the user to execute the phone-side checks and return outputs for sign-off.
+
+
+---
+
+## Final consolidated branch verification — 2026-11-18
+
+- Final branch head before this checkpoint update: `3c3c056f43811cbc61adb0b336ed015ad4c74223`.
+- Full CI rerun on that exact branch head: [44201894649](https://github.com/Eventodigital473/SI-AI/actions/runs/44201894649) — **195 passed, 4 subtests passed**. Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell validation, Python compilation, and test suite all passed.
+- PR #16 remains open and mergeable, targeting `feature/dynamic-coin-universe`; no merge has been performed and `main` remains untouched.
+- Termux execution instructions are in `recovered/SI-AI/TERMUX_FINAL_TEST_RUNBOOK.md`. They use a new validation clone folder and preserve the user's existing checkout.
+- Release/testing decision: suitable for user-side **dry-run and paper research validation only** after the runbook checks. Not certified for live trading or profitability because historical liquidation events/maintenance-tier history, live contract precision checks, and phone-side smoke tests are outstanding.
