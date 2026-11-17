@@ -5,18 +5,25 @@ SOURCE_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 DEST_DIR="$HOME/.shortcuts"
 mkdir -p "$DEST_DIR"
 
-for name in "SI-AI Start" "SI-AI Stop" "SI-AI Dry Run" "SI-AI Check"; do
-    if [ -e "$DEST_DIR/$name" ]; then
-        printf 'Refusing to overwrite existing shortcut: %s\n' "$DEST_DIR/$name" >&2
-        printf 'Move or rename that file yourself, then rerun this installer.\n' >&2
-        exit 1
+install_if_missing() {
+    source_file="$1"
+    shortcut_name="$2"
+    destination="$DEST_DIR/$shortcut_name"
+
+    if [ -e "$destination" ]; then
+        printf 'Preserved existing shortcut: %s\n' "$destination"
+        printf 'Move/rename it yourself if you want to replace it with the bundled version.\n'
+        return 0
     fi
-done
 
-install -m 700 "$SOURCE_DIR/si-ai-start" "$DEST_DIR/SI-AI Start"
-install -m 700 "$SOURCE_DIR/si-ai-stop" "$DEST_DIR/SI-AI Stop"
-install -m 700 "$SOURCE_DIR/si-ai-dry-run" "$DEST_DIR/SI-AI Dry Run"
-install -m 700 "$SOURCE_DIR/si-ai-check" "$DEST_DIR/SI-AI Check"
+    install -m 700 "$source_file" "$destination"
+    printf 'Installed: %s\n' "$destination"
+}
 
-printf 'Installed four SI-AI shortcuts in %s\n' "$DEST_DIR"
-printf 'Open Termux:Widget and refresh its shortcut list if needed.\n'
+install_if_missing "$SOURCE_DIR/si-ai-start" "SI-AI Start"
+install_if_missing "$SOURCE_DIR/si-ai-stop" "SI-AI Stop"
+install_if_missing "$SOURCE_DIR/si-ai-dry-run" "SI-AI Dry Run"
+install_if_missing "$SOURCE_DIR/si-ai-check" "SI-AI Check"
+
+printf 'SI-AI shortcut installation check complete in %s\n' "$DEST_DIR"
+printf 'Existing shortcuts were preserved; open/refresh Termux:Widget if needed.\n'
