@@ -514,17 +514,26 @@ def detect_order_block(candles: List[list], atr: float, scan: int = 25) -> Dict:
 
 def calculate_net_reward_risk(
     entry: float, stop_loss: float, take_profit: float,
-    side: str, market: str,
+    side: str, market: str, *,
+    fee_rate: Optional[float] = None,
+    slippage_rate: Optional[float] = None,
+    entry_slippage_included: bool = False,
 ) -> float:
-    """Return fee/slippage-adjusted reward-to-risk for the actual fill prices."""
+    """Return fee/slippage-adjusted reward-to-risk for the supplied fill prices."""
     if market not in PAPER_TAKER_FEE_RATES:
         raise ValueError("Unsupported market for reward/risk calculation")
     values = [_finite_number(value) for value in (entry, stop_loss, take_profit)]
     if any(value is None or value <= 0 for value in values):
         raise ValueError("Entry, stop-loss and take-profit must be finite positive prices")
     entry_price, stop_price, target_price = values
-    direction = str(side).upper()
-    cost_rate = PAPER_TAKER_FEE_RATES[market] + PAPER_SLIPPAGE_RATE
+    fee = PAPER_TAKER_FEE_RATES[market] if fee_rate is None else _finite_number(fee_rate)
+    slippage = PAPER_SLIPPAGE_RATE if slippage_rate is None else _finite_number(slippage_rate)
+    if fee is None or slippage is None or not 0 <= fee < 0.05 or not 0 <= slippage < 0.05:
+        raise ValueError("Fee and slippage rates must be finite values in [0, 5%)")
+    entry_cost = fee * entry_price
+    if not entry_slippage_included:
+        entry_cost += slippage * entry_price
+    cost_rate = fee + slippage
     if direction == "LONG":
         if not stop_price < entry_price < target_price:
             raise ValueError("Long levels must satisfy stop < entry < target")
@@ -537,8 +546,8 @@ def calculate_net_reward_risk(
         gross_reward = entry_price - target_price
     else:
         raise ValueError("side must be LONG or SHORT")
-    net_risk = gross_risk + cost_rate * (entry_price + stop_price)
-    net_reward = gross_reward - cost_rate * (entry_price + target_price)
+    net_risk = gross_risk + entry_cost + cost_rate * stop_price
+    net_reward = gross_reward - entry_cost - cost_rate * target_price
     if net_risk <= 0 or net_reward <= 0:
         return 0.0
     return net_reward / net_risk
