@@ -172,6 +172,11 @@ class DynamicUniverseTests(unittest.TestCase):
             self.assertNotIn("UNKNOWNACTIVE/USDT", symbols)
             self.assertNotIn("WBNB/USDT", symbols)
 
+    def test_ccxt_futures_exchange_exposes_bulk_bid_ask_method(self):
+        self.assertTrue(
+            callable(getattr(si.EXCHANGES["FUTURES"], "fetch_bids_asks", None))
+        )
+
     def test_futures_universe_uses_bulk_book_tickers_without_24h_bid_ask(self):
         fake_futures = FakeExchange("FUTURES")
         fake_spot = FakeExchange("SPOT")
