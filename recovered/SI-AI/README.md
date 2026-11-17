@@ -28,6 +28,8 @@ The scanner uses 15m, 1h, 4h, and 1d closed candles. The 1h timeframe supplies t
 
 ## Install in Termux
 
+For the complete safe clone, install, CI/device smoke-test, notification, and 180-day Futures backtest sequence, follow [`TERMUX_FINAL_TEST_RUNBOOK.md`](TERMUX_FINAL_TEST_RUNBOOK.md). The runbook uses a separate validation folder and preserves the existing checkout.
+
 Install Termux and its Android companion app from trusted sources, then run:
 
 ```bash
