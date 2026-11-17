@@ -526,6 +526,7 @@ def calculate_net_reward_risk(
     if any(value is None or value <= 0 for value in values):
         raise ValueError("Entry, stop-loss and take-profit must be finite positive prices")
     entry_price, stop_price, target_price = values
+    direction = str(side).upper()
     fee = PAPER_TAKER_FEE_RATES[market] if fee_rate is None else _finite_number(fee_rate)
     slippage = PAPER_SLIPPAGE_RATE if slippage_rate is None else _finite_number(slippage_rate)
     if fee is None or slippage is None or not 0 <= fee < 0.05 or not 0 <= slippage < 0.05:
