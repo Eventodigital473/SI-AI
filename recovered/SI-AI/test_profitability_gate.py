@@ -41,6 +41,17 @@ class ProfitabilityGateTests(unittest.TestCase):
         check = next(item for item in result["checks"] if item["name"] == "funding_mark_price")
         self.assertEqual(check["status"], "INCONCLUSIVE")
 
+    def test_funding_settlement_boundary_ambiguity_blocks_certification(self):
+        oos, wf = reports()
+        oos["assumptions"]["funding_settlement_boundary_ambiguities"] = 1
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+        check = next(
+            item for item in result["checks"]
+            if item["name"] == "funding_settlement_boundary_ordering"
+        )
+        self.assertEqual(check["status"], "INCONCLUSIVE")
+
     def test_insufficient_trades_is_inconclusive(self):
         oos, wf = reports()
         oos["out_of_sample"]["trade_count"] = 10
