@@ -14,6 +14,7 @@ from statistics import mean, pstdev
 from typing import Callable, Dict, List, Optional
 
 import SI_AI_smc as si
+import funding_data
 
 
 SignalFunction = Callable[[str, str, str, List[list]], Dict]
@@ -114,6 +115,7 @@ def run_backtest(
     signal_fn: Optional[SignalFunction] = None,
     start_index: int = si.MIN_CANDLES,
     funding_rate_per_8h: Optional[float] = None,
+    funding_events: Optional[List[Dict]] = None,
 ) -> Dict:
     """Run a single-position, next-open backtest over chronological OHLCV.
 
@@ -141,6 +143,10 @@ def run_backtest(
     funding_rate = None if funding_rate_per_8h is None else _number(funding_rate_per_8h, "funding_rate_per_8h")
     if funding_rate is not None and abs(funding_rate) >= 0.05:
         raise ValueError("Absolute funding rate per 8h must be below 5%")
+    if funding_events is not None and funding_rate is not None:
+        raise ValueError("Use timestamped funding events or the constant funding proxy, not both")
+    if funding_events is not None and not isinstance(funding_events, list):
+        raise ValueError("funding_events must be a list of verified funding events")
     if isinstance(max_holding_bars, bool) or not isinstance(max_holding_bars, int) or max_holding_bars < 1:
         raise ValueError("max_holding_bars must be a positive integer")
 
@@ -150,6 +156,8 @@ def run_backtest(
     initial = equity
     equity_curve = [equity]
     trades = []
+    funding_event_count_total = 0
+    funding_boundary_ambiguities_total = 0
     i = start_index
 
     while i < len(data) - 1:
@@ -267,7 +275,19 @@ def run_backtest(
             data[entry_bar_index][0], data[exit_index][0]
         )
         funding_cost = 0.0
-        if market == "FUTURES" and funding_rate is not None:
+        funding_event_count = 0
+        funding_boundary_ambiguities = 0
+        if market == "FUTURES" and funding_events is not None:
+            funding_result = funding_data.funding_cost_for_trade(
+                funding_events, side, quantity,
+                data[entry_bar_index][0], data[exit_index][0],
+            )
+            funding_cost = funding_result["funding_cost_usdt"]
+            funding_event_count = funding_result["funding_event_count"]
+            funding_boundary_ambiguities = funding_result["funding_boundary_ambiguities"]
+            funding_event_count_total += funding_event_count
+            funding_boundary_ambiguities_total += funding_boundary_ambiguities
+        elif market == "FUTURES" and funding_rate is not None:
             funding_cost = entry_notional * funding_rate * funding_periods * (1.0 if side == "LONG" else -1.0)
         net_pnl = gross_pnl - fees - funding_cost
         equity = max(0.0, equity + net_pnl)
@@ -285,6 +305,8 @@ def run_backtest(
             "gross_pnl_usdt": round(gross_pnl, 8),
             "fees_usdt": round(fees, 8),
             "funding_cost_usdt": round(funding_cost, 8),
+            "funding_event_count": funding_event_count,
+            "funding_boundary_ambiguities": funding_boundary_ambiguities,
             "net_pnl_usdt": round(net_pnl, 8),
             "return_on_entry_notional": net_pnl / entry_notional if entry_notional else 0.0,
             "exit_reason": exit_reason,
@@ -315,11 +337,13 @@ def run_backtest(
             "recommended_futures_leverage": si.RECOMMENDED_FUTURES_LEVERAGE,
             "max_notional_equity_multiple": si.MAX_NOTIONAL_EQUITY_MULTIPLE,
             "max_holding_bars": max_holding_bars,
-            "funding_costs_included": market == "FUTURES" and funding_rate is not None,
-            # A constant proxy is not a timestamped historical funding series.
-            "historical_funding_series_included": False,
+            "funding_costs_included": market == "FUTURES" and (funding_rate is not None or funding_events is not None),
+            "historical_funding_series_included": funding_events is not None,
+            "funding_mark_price_exact": funding_events is not None,
+            "funding_event_count": funding_event_count_total,
+            "funding_settlement_boundary_ambiguities": funding_boundary_ambiguities_total,
             "funding_rate_per_8h_assumption": funding_rate,
-            "funding_cost_method": "constant user-supplied rate at each UTC 00:00/08:00/16:00 boundary; entry notional held constant; not historical exchange funding" if funding_rate is not None else "excluded; supply a rate proxy or add historical funding series",
+            "funding_cost_method": ("timestamped Binance funding events; each cashflow uses the event-specific exchange markPrice and position quantity" if funding_events is not None else "constant user-supplied rate proxy at UTC 8-hour boundaries; not historical exchange funding" if funding_rate is not None else "excluded; provide a verified Binance funding dataset"),
             "liquidation_modelled": False,
         },
         "metrics": metrics,
