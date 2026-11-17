@@ -55,13 +55,17 @@ def _normalize_row(row, index, interval_ms):
     return [timestamp, op, high, low, close, 0.0]
 
 
-def mark_price_sha256(candles):
+def mark_price_sha256(candles, timeframe):
+    interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
+    if interval_ms is None:
+        raise ValueError("Unsupported timeframe")
     normalized = [
-        _normalize_row(row, index, _infer_interval(candles))
+        _normalize_row(row, index, interval_ms)
         for index, row in enumerate(candles)
     ]
     if not normalized:
         raise ValueError("Cannot hash an empty mark-price dataset")
+    smc.validate_candle_continuity(normalized, timeframe)
     payload = json.dumps(normalized, separators=(",", ":"), allow_nan=False).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
