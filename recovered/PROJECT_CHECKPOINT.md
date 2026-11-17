@@ -670,8 +670,8 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 
 **Branch:** `feat/binance-isolated-liquidation-model-2026-11-18`  
 **Implementation commits:** `457f073a03b193a45016ceb27bb5d1eb08ff2a89` through `e12fc252fad0e2b05bddfb9a4dfc2c2c673d76f5`  
-**Latest implementation head before this checkpoint:** `e12fc252fad0e2b05bddfb9a4dfc2c2c673d76f5`  
-**CI:** pending; implementation is not accepted until CI passes.
+**Latest implementation/test correction head:** `0746bdfb0d6f721cfe83fe4c98c1602a8a573748`  
+**CI:** first run `44198892931` failed at Python compilation because a test file contained a literal escaped newline; corrected in `0746bdfb0d6f721cfe83fe4c98c1602a8a573748`. A fresh full CI run is still required.
 
 ### Why this was necessary
 - The previous project had no liquidation calculation at all. Binance USD-M liquidation depends on the isolated/cross wallet balance, position side/size/entry, maintenance-margin rate and maintenance amount for the correct notional tier. Binance's official formula and tier-recalculation note are documented at https://www.binance.com/en/support/faq/detail/b3c689c1f50a44cabb3a84e663b81d93.
@@ -691,7 +691,7 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - This calculator is not yet a full historical liquidation backtest. Historical mark-price candles and time-matched historical maintenance-tier snapshots are not present; liquidation event handling is not implemented in the backtest engine.
 - Profitability certification must remain **INCONCLUSIVE** until historical mark-price and tier data, liquidation event simulation, and validation are complete.
 - No actual Binance bracket snapshot is included; operators must supply exact current symbol-specific values. No private account endpoint, API key, or order permission has been added.
-- CI and all new regression tests are pending.
+- Initial CI run `44198892931` stopped at compilation before running tests; exact cause was a literal escaped newline in `test_scanner_alerts.py`. Corrected and pushed at `0746bdfb0d6f721cfe83fe4c98c1602a8a573748`; full corrected-head CI remains pending.
 - No PR merge, no Termux command, and no change to `main` or the user's device.
 
 **Safety policy unchanged:** Futures-only signal provider; manual Binance execution only; 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R. No automatic orders.
