@@ -70,3 +70,13 @@
 4. Keep all data and source backups. Only propose deletion after proving a file is redundant and a verified backup exists.
 5. Prepare a single timestamped Termux backup/deployment procedure only after the reviewed feature branch passes validation.
 6. Run device checks for Android notification permission, sound, and vibration. Keep SI-AI signal-only/manual execution.
+
+## Binance high-leverage mode — experimental paper planner (2026-11-17)
+- User requested confirmed BUY/SELL signals to use high leverage on Binance, with a 10% total-wallet risk budget per trade and maximum available leverage.
+- Added `recovered/SI-AI/binance_high_leverage.py`: standalone paper-only sizing helper. It sizes from a 10% wallet risk budget including assumed round-trip fee/slippage, caps notional at the supplied Binance bracket ceiling, selects the bracket's maximum initial leverage, and rejects plans if the estimated isolated-margin liquidation price is not beyond the stop plus a 0.5% buffer.
+- The helper requires a verified Binance USD-M leverage bracket snapshot no older than 60 seconds. It does not call Binance, read credentials, or place orders. Liquidation is explicitly an estimate and excludes dynamic funding/mark-price/fee/tier effects.
+- Added `recovered/SI-AI/test_binance_high_leverage.py` covering long/short sizing, 10% budget, tier cap, invalid inputs, missing/malformed brackets, stale bracket data, and liquidation-buffer rejection.
+- Validation for commit `d810b505898de71821186a181ed87e6285db99b5`: GitHub Actions Dynamic Coin Universe Tests run #119 (`44090350240`) completed success. Job logs show compile success and **111 passed, 4 subtests passed**. Evidence artifact `si-ai-test-evidence-119` is attached to that run.
+- IMPORTANT integration boundary: current SI-AI scanner still uses its existing conservative 0.5% risk / 20% margin / 1x Futures settings and does not call this helper. No high-leverage alert is activated yet. Binance's leverage-bracket endpoint is USER_DATA and requires a signed API request; no account-specific bracket can be verified from public market data alone. Do not ask the user to paste API secrets into chat. Until a secure local read-only bracket source and end-to-end tests exist, keep current scanner settings and do not advertise live high-leverage sizing as active.
+- The historical Spot profitability gate remains FAIL as documented above. No live trades, leverage changes, or order placement occurred.
+- Main branch remains untouched; PR #1 remains open and unmerged.
