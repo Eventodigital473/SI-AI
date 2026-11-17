@@ -32,6 +32,27 @@ class PublicFuturesBacktestRunnerTests(unittest.TestCase):
         ), patch.object(
             runner.historical_data, "DATA_DIR", Path(directory)
         ), patch.object(
+            runner.mark_price_data, "download_mark_price_ohlcv", return_value=[
+                [1_700_000_000_000 + i * 3_600_000, 100.0, 101.0, 99.0, 100.0, 0.0]
+                for i in range(100)
+            ],
+        ) as mark_download, patch.object(
+            runner.mark_price_data, "DATA_DIR", Path(directory) / "mark_price"
+        ), patch.object(
+            runner.mark_price_data, "save_mark_price_dataset",
+            side_effect=lambda *args, **kwargs: Path(directory) / "mark_price.json",
+        ), patch.object(
+            runner.mark_price_data, "load_mark_price_dataset",
+            return_value={
+                "data_sha256": "c" * 64,
+                "candles": [
+                    [1_700_000_000_000 + i * 3_600_000, 100.0, 101.0, 99.0, 100.0, 0.0]
+                    for i in range(100)
+                ],
+            },
+        ), patch.object(
+            runner.mark_price_data, "mark_price_sha256", return_value="c" * 64
+        ), patch.object(
             runner.funding_data, "download_funding_history",
             return_value=[{"timestamp": 1_790_000_000_000, "funding_rate": 0.001, "mark_price": 100.0}],
         ) as funding_download, patch.dict(
@@ -55,6 +76,7 @@ class PublicFuturesBacktestRunnerTests(unittest.TestCase):
 
         self.assertEqual(download.call_count, 4)
         funding_download.assert_called_once()
+        mark_download.assert_called_once()
         self.assertEqual(summary["market"], "FUTURES")
         self.assertEqual(summary["certification"], "INCONCLUSIVE")
         self.assertEqual(summary["results"][0]["profitability_gate"], "INCONCLUSIVE")
