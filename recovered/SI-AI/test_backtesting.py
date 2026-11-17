@@ -297,3 +297,20 @@ def test_backtesting_numeric_parser_rejects_booleans():
         backtesting._number(True, "risk_percent")
     with pytest.raises(ValueError, match="not boolean"):
         backtesting._number(False, "initial_equity")
+
+
+def test_backtesting_ohlcv_rejects_fractional_timestamps():
+    candles = []
+    start = 1_700_000_000_000
+    for index in range(backtesting.si.MIN_CANDLES + 2):
+        candles.append([
+            start + index * 60_000,
+            100.0,
+            101.0,
+            99.0,
+            100.5,
+            10.0,
+        ])
+    candles[0][0] += 0.5
+    with pytest.raises(ValueError, match="integer milliseconds"):
+        backtesting.validate_ohlcv(candles)
