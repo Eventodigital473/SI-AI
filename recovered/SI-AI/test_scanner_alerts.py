@@ -16,6 +16,12 @@ class SignalAlertTests(unittest.TestCase):
                 "recommended_leverage": 1.0,
                 "paper_margin_required_usdt": 12.0,
                 "paper_margin_budget_usdt": 20.0,
+                "paper_quantity": 0.12,
+                "paper_notional_usdt": 17.1,
+                "paper_risk_usdt": 0.42,
+                "paper_total_risk_usdt": 0.49,
+                "paper_estimated_fees_usdt": 0.0171,
+                "paper_estimated_slippage_usdt": 0.00684,
                 "reasons": ["Bullish structure"],
             },
             "4h": {"signal": "BUY"},
@@ -41,6 +47,16 @@ class SignalAlertTests(unittest.TestCase):
         self.assertIn("TP3 (engine target): 151.5", content)
         self.assertIn("Recommended leverage: 1x", content)
         self.assertIn("Estimated margin: 12.00 USDT / 20.00 USDT budget", content)
+
+    def test_alert_includes_position_size_risk_costs_and_liquidation_warning(self):
+        _, content = scanner.make_alert(
+            "FUTURES", "BTC/USDT", "BUY", self.results
+        )
+        self.assertIn("Position size (paper estimate): 0.12 BTC", content)
+        self.assertIn("Position notional (paper estimate): 17.1000 USDT", content)
+        self.assertIn("Estimated stop risk: 0.4900 USDT incl. estimated costs", content)
+        self.assertIn("Estimated round-trip fees: 0.0171 USDT", content)
+        self.assertIn("Liquidation price: NOT MODELLED/NOT CERTIFIED", content)
 
     def test_futures_sell_targets_are_below_entry(self):
         self.results["1h"].update({
