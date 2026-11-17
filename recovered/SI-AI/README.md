@@ -90,6 +90,26 @@ python main.py
 
 Open `http://127.0.0.1:5000/status` and `http://127.0.0.1:5000/api/config` locally.
 
+## Liquidation-price model (isolated one-way estimate)
+
+The project includes a fail-closed Binance USD-M isolated liquidation-price calculator in `liquidation_model.py`. It uses Binance's one-way liquidation formula with the symbol's maintenance-margin rate and maintenance amount, and resolves the maintenance tier using the calculated liquidation notional. It refuses stale (over 24 hours), future-dated, wrong-symbol, incomplete, overlapping, or non-contiguous tier snapshots, and rejects leverage above the selected entry tier maximum.
+
+To calculate a live alert estimate, place a current, verified, symbol-specific maintenance bracket snapshot at:
+
+`data/liquidation_brackets/BASE-USDT.json` (for example, the filename for BTC/USDT is `BTC-USDT.json`).
+
+The JSON object must contain:
+- `source`: exactly `BINANCE_USDM_LEVERAGE_BRACKET`
+- `symbol`: canonical symbol such as `BTC/USDT`
+- `retrieved_at`: timezone-aware ISO-8601 UTC timestamp
+- `tiers`: ordered tier objects with `notional_floor`, `notional_cap` (null only for the final tier), `maintenance_margin_rate`, `maintenance_amount`, and `max_leverage`
+
+Copy the exact current tier values for that contract from Binance's USD-M Futures leverage/margin information. Do not reuse BTC values for another contract or invent a generic maintenance rate. Refresh the snapshot at least every 24 hours. If no valid snapshot is present, the alert explicitly says liquidation is NOT CERTIFIED rather than guessing.
+
+**Scope limitation:** this calculator is for one-way isolated margin only. It uses the paper margin estimate as isolated wallet balance; the actual Binance isolated wallet balance, margin mode, leverage, mark price, funding/fee adjustments and exchange display must be checked manually. Cross margin, hedge mode, other positions, auto-add margin and liquidation fees are not modelled. A 1x long may have no positive liquidation threshold in the idealized formula; that is not a guarantee against liquidation.
+
+Historical backtests still do not model liquidation events because the project does not yet have historical mark-price candles and time-matched maintenance-tier snapshots. The profitability gate must remain INCONCLUSIVE until those inputs and liquidation-event handling are validated. No private API key, account endpoint or order permission is added by this calculator.
+
 ## Futures historical backtesting
 
 The runner downloads public Binance USD-M OHLCV history for 15m, 1h, 4h, and 1d, verifies each saved dataset, then evaluates the production multi-timeframe signal logic using chronological holdout and walk-forward windows. Live and saved candle series are also required to have exact timeframe spacing; missing or irregular candles are rejected before analysis/backtesting.
