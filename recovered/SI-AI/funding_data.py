@@ -96,8 +96,8 @@ def normalize_funding_event(row, index=0):
 
 
 def validate_normalized_funding_events(events):
-    if not isinstance(events, list):
-        raise ValueError("funding events must be a list")
+    if not isinstance(events, list) or not events:
+        raise ValueError("funding events must be a non-empty list")
     clean = []
     previous = None
     for index, event in enumerate(events):
