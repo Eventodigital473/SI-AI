@@ -10,6 +10,7 @@ def sample_result(timeframe, signal="BUY"):
         "symbol": "BTC/USDT",
         "timeframe": timeframe,
         "signal": signal,
+        "bos": "Bullish" if signal == "BUY" else "Bearish" if signal == "SELL" else "None",
         "score": 4.5,
         "price": 100.0,
         "stop_loss": 98.0,
@@ -157,6 +158,63 @@ class MainApiTests(unittest.TestCase):
             self.assertIn("paper_total_risk_usdt", result)
             self.assertIn("stop_loss", result)
 
+
+    def test_multi_timeframe_api_uses_scanner_confirmation(self):
+        results = {
+            "15m": sample_result("15m"),
+            "1h": sample_result("1h"),
+            "4h": sample_result("4h"),
+            "1d": sample_result("1d"),
+        }
+        with patch.object(
+            main.smc, "analyze",
+            side_effect=lambda market, symbol, tf: results[tf]
+        ), patch.object(
+            main.smc, "combine_timeframes",
+            return_value={"weighted_score": 4.5, "overall_signal": "BUY"}
+        ), patch.object(main.time, "sleep"):
+            response = self.client.post(
+                "/api/multi-timeframe",
+                json={
+                    "market": "FUTURES",
+                    "symbol": "BTC/USDT",
+                    "timeframes": ["15m", "1h", "4h", "1d"],
+                },
+            )
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["multi_timeframe"]["weighted_signal"], "BUY")
+        self.assertEqual(data["multi_timeframe"]["overall_signal"], "BUY")
+        self.assertEqual(data["multi_timeframe"]["confirmation_status"], "CONFIRMED")
+
+    def test_multi_timeframe_api_returns_wait_without_entry_bos(self):
+        results = {
+            "15m": sample_result("15m"),
+            "1h": sample_result("1h"),
+            "4h": sample_result("4h"),
+            "1d": sample_result("1d"),
+        }
+        results["1h"]["bos"] = "None"
+        with patch.object(
+            main.smc, "analyze",
+            side_effect=lambda market, symbol, tf: results[tf]
+        ), patch.object(
+            main.smc, "combine_timeframes",
+            return_value={"weighted_score": 4.5, "overall_signal": "BUY"}
+        ), patch.object(main.time, "sleep"):
+            response = self.client.post(
+                "/api/multi-timeframe",
+                json={
+                    "market": "FUTURES",
+                    "symbol": "BTC/USDT",
+                    "timeframes": ["15m", "1h", "4h", "1d"],
+                },
+            )
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["multi_timeframe"]["weighted_signal"], "BUY")
+        self.assertEqual(data["multi_timeframe"]["overall_signal"], "WAIT")
+        self.assertEqual(data["multi_timeframe"]["confirmation_status"], "WAIT")
 
     def test_spot_market_is_rejected(self):
         response = self.client.get(
