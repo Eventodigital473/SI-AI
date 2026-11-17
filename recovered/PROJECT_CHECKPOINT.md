@@ -718,3 +718,31 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - Historical liquidation event simulation remains incomplete: historical mark-price candles and timestamp-matched maintenance-tier snapshots are still required. Profitability remains INCONCLUSIVE.
 - Live Termux Futures universe/bookTicker validation, Android notifications, and final device/backtest smoke tests remain pending.
 - No merge into `main`, no Termux commands, and no changes to the user's device.
+
+
+---
+
+## Final validation continuation — 2026-11-18
+
+**Integration branch:** `integration/si-ai-consolidated-2026-11-18`
+
+### New work
+- Added `mark_price_data.py` for public Binance USD-M `GET /fapi/v1/markPriceKlines` ingestion, closed-candle filtering, strict OHLC/close-time checks, pagination, continuity validation, atomic JSON storage, and SHA-256 verification.
+- Public Futures backtest runner now downloads and archives the 1h mark-price candles alongside the 15m/1h/4h/1d last-trade OHLCV and timestamped funding datasets.
+- Backtest reports now include the mark-price dataset source, timeframe, candle count, range, and SHA-256 manifest.
+- Added mark-price downloader/storage regression tests and backtest manifest validation tests.
+- README now accurately distinguishes historical mark-price capture from actual liquidation-event simulation.
+- Spot trading/backtesting remains excluded from active SI-AI. Old portfolio experiment checkpoints are historical records only.
+
+### CI / bugs found and corrected
+- Intermediate CI caught two mark-price dataset serialization failures: save/load initially expected raw 12-field Binance rows instead of the normalized 6-field internal candle rows. Corrected save/load to validate normalized rows.
+- Intermediate CI caught the public runner test attempting a real Binance call; added deterministic mocks for mark-price fetch/save/load/hash.
+- Latest successful CI on this branch head: run [44201424671](https://github.com/Eventodigital473/SI-AI/actions/runs/44201424671), **194 passed, 4 subtests passed**. Python compilation, dependency consistency, minimal synchronous Termux CCXT profile, and Termux Widget shell syntax also passed.
+- A duplicate run on the same head was still running at checkpoint time; the successful run is sufficient evidence for the current tested head.
+
+### Still not certified / pending
+- Historical liquidation event simulation is **not implemented yet**. The 1h mark-price dataset is now archived, but time-matched historical Binance maintenance-tier snapshots are not available from the public mark-price endpoint. Do not apply today's tier values retrospectively. The isolated calculator is still an estimate only; cross margin, fee/funding/liquidation execution mechanics and historical tier changes remain out of scope.
+- Profitability gate correctly remains **INCONCLUSIVE** until liquidation simulation and its required historical tier inputs are validated.
+- Live Futures universe/bookTicker eligibility validation (including the earlier 182 volume-qualified contracts) must be run from the user's Termux phone.
+- Actual Termux runtime, Android notification permission/LED behavior, and 180-day live public-data backtest remain device tests.
+- No automatic orders, no private API keys, no Spot scanning, no changes to `main`, and no changes to the user's Termux device.
