@@ -358,6 +358,9 @@ def evaluate_chronological_validation(
         "split_timestamp": data[split][0],
         "train": train["metrics"],
         "out_of_sample": oos_metrics,
+        # Preserve the execution/cost assumptions used by the OOS backtest so
+        # downstream evidence gates inspect the actual holdout configuration.
+        "assumptions": dict(holdout["assumptions"]),
         "out_of_sample_trades": oos_trades,
         "status": "INCONCLUSIVE" if not oos_trades else (
             "OUT_OF_SAMPLE_PROFITABLE" if oos_metrics["profitable"] else "OUT_OF_SAMPLE_NOT_PROFITABLE"
