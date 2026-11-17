@@ -65,6 +65,7 @@ def build_paper_plan(
     stop_loss: float,
     side: str,
     leverage_brackets: List[Dict],
+    bracket_snapshot_age_seconds: float,
     fee_rate: float = DEFAULT_FEE_RATE,
     slippage_rate: float = DEFAULT_SLIPPAGE_RATE,
     liquidation_buffer_percent: float = DEFAULT_LIQUIDATION_BUFFER_PERCENT,
@@ -95,6 +96,12 @@ def build_paper_plan(
         raise ValueError("Stop-loss is on the wrong side of entry")
     if not isinstance(leverage_brackets, list) or not leverage_brackets:
         raise ValueError("Verified Binance leverage brackets are required")
+    try:
+        bracket_age = float(bracket_snapshot_age_seconds)
+    except (TypeError, ValueError):
+        raise ValueError("A fresh Binance leverage-bracket timestamp is required")
+    if not math.isfinite(bracket_age) or not 0 <= bracket_age <= 60:
+        raise ValueError("Binance leverage brackets are stale or invalid (maximum age: 60 seconds)")
 
     risk_budget = equity * TARGET_RISK_PERCENT / 100.0
     round_trip_cost_per_unit = (fee + slip) * (entry + stop)
