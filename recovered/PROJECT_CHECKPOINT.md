@@ -637,7 +637,8 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 
 **Branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
 **Latest code/test head:** `876ee80532750dd84697d830bf3e51b0bf067a7c`  
-**CI for this new head:** pending retrieval; do not call these changes verified until CI passes.
+**Checkpoint commit CI:** successful GitHub Actions run [44198176446](https://github.com/Eventodigital473/SI-AI/actions/runs/44198176446).  
+**Exact tested code/test head:** `876ee80532750dd84697d830bf3e51b0bf067a7c`.
 
 ### New source-audit findings and changes
 - Scanner duplicate suppression previously remembered only BUY/SELL/WAIT, with no timestamp. A previously notified BUY/SELL could therefore remain suppressed indefinitely, even after a long scanner outage.
@@ -650,7 +651,8 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 
 ### Latest verification status
 - Previous exact head `2e69e8292fa0e6b044298feb29c1560a167a36a7` passed CI: **166 passed, 3 warnings, 4 subtests passed**; dependency profile, Widget shell syntax and Python compilation passed.
-- The scanner lifecycle and sizing-disclosure changes above are newer and still require a full CI run before acceptance.
+- Exact CI for the checkpoint commit completed successfully: **173 passed, 3 warnings, 4 subtests passed**. Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax, and Python compilation also passed.
+- CI warning: three existing Flask `__version__` deprecation warnings in preflight tests; no test failures.
 
 ### Remaining blockers
 - Actual Binance amount/price precision and minimum order filters are not yet machine-validated in the scanner; alerts explicitly disclose this limitation.
