@@ -19,6 +19,12 @@ LOG_DIR="$PROJECT_DIR/logs"
 PID_FILE="$LOG_DIR/si_ai_widget.pid"
 mkdir -p "$LOG_DIR"
 
+if [ ! -f "$PROJECT_DIR/termux_preflight.py" ]; then
+    command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI preflight file missing"
+    exit 1
+fi
+python -u "$PROJECT_DIR/termux_preflight.py" >> "$LOG_DIR/si_ai_preflight.log" 2>&1
+
 if [ -f "$PID_FILE" ]; then
     OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
     if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
