@@ -35,6 +35,16 @@ def make_candles(count=7, start=1_700_000_000_000, interval=900_000):
 
 
 class HistoricalDataTests(unittest.TestCase):
+    def test_spot_market_is_rejected(self):
+        rows = make_candles()
+        exchange = FakeExchange("FUTURES", rows)
+        with self.assertRaisesRegex(ValueError, "FUTURES only"):
+            historical_data.download_ohlcv(
+                "SPOT", "BTC/USDT", "15m",
+                rows[0][0], rows[-1][0] + 900_000,
+                exchange=exchange, now_ms=rows[-1][0] + 900_000,
+            )
+
     def test_download_paginates_and_uses_exclusive_end(self):
         rows = make_candles()
         exchange = FakeExchange("FUTURES", rows)
@@ -112,7 +122,7 @@ class HistoricalDataTests(unittest.TestCase):
     def test_known_inactive_market_can_be_downloaded_for_historical_research(self):
         rows = make_candles()
         exchange = FakeExchange("FUTURES", rows)
-        exchange.markets["BTC/USDT"]["active"] = False
+        exchange.markets["BTC/USDT:USDT"]["active"] = False
         result = historical_data.download_ohlcv(
             "FUTURES", "BTC/USDT", "15m",
             rows[0][0], rows[-1][0] + 900_000,
