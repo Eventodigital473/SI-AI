@@ -1,8 +1,8 @@
-"""Download public Binance USD-M Futures history and run SI-AI backtests.
+"""Download public Binance USD-M Futures OHLCV and funding history for backtests.
 
-Historical funding events and liquidation/maintenance-margin modelling are not
-currently integrated. Reports therefore remain INCONCLUSIVE for profitability
-certification until those required Futures costs and risks are modelled.
+Funding cashflows use Binance's timestamped funding events and associated
+settlement mark prices. Exchange-specific liquidation/maintenance-margin
+modelling is still required for profitability certification.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from pathlib import Path
 import SI_AI_smc as smc
 import historical_backtest
 import historical_data
+import funding_data
 
 
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
@@ -69,12 +70,26 @@ def run_public_futures_backtest(*, symbols=("BTC/USDT",), days=180,
                 raise RuntimeError(f"Dataset integrity check failed: {symbol} {timeframe}")
             dataset_paths.append(path)
 
+        funding_events = funding_data.download_funding_history(
+            "FUTURES", symbol, start_ms, end_ms, exchange=exchange,
+        )
+        funding_path = historical_data.DATA_DIR / "funding" / (
+            f"{symbol.replace('/', '-')}_{start_ms}_{end_ms}.json"
+        )
+        funding_data.save_funding_dataset(
+            "FUTURES", symbol, funding_events, start_ms, end_ms, funding_path,
+        )
+        verified_funding = funding_data.load_funding_dataset(funding_path)
+        if verified_funding["data_sha256"] != funding_data.funding_events_sha256(verified_funding["events"]):
+            raise RuntimeError(f"Funding dataset integrity check failed: {symbol}")
+
         safe_symbol = symbol.replace("/", "-")
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         report_path = REPORT_DIR / f"futures_{safe_symbol}_{days}d_{stamp}.json"
         report, saved_path = historical_backtest.run_dataset_backtest(
             dataset_paths, output_path=report_path,
             initial_equity=initial_equity,
+            funding_dataset_path=funding_path,
         )
         chronological = report.get("chronological_validation", {})
         assumptions = chronological.get("assumptions", {})
@@ -87,6 +102,11 @@ def run_public_futures_backtest(*, symbols=("BTC/USDT",), days=180,
             "profitability_gate": report["profitability_gate"]["status"],
             "funding_series_included": assumptions.get(
                 "historical_funding_series_included", False
+            ),
+            "funding_event_count": assumptions.get("funding_event_count", 0),
+            "funding_mark_price_exact": assumptions.get("funding_mark_price_exact", False),
+            "funding_boundary_ambiguities": assumptions.get(
+                "funding_settlement_boundary_ambiguities", 0
             ),
             "liquidation_modelled": assumptions.get(
                 "liquidation_modelled", False
@@ -103,7 +123,7 @@ def run_public_futures_backtest(*, symbols=("BTC/USDT",), days=180,
         "results": results,
         "certification": "INCONCLUSIVE",
         "limitations": [
-            "Timestamped historical Binance funding events are not yet integrated.",
+            "Funding events with exact associated settlement mark prices are included; exact entry/exit settlement timestamp ties are flagged and block certification.",
             "Exchange-specific maintenance-margin and liquidation modelling is not implemented.",
             "Per-symbol reports use separate reference equity; results are not a shared-wallet portfolio simulation.",
             "Historical results do not guarantee future performance.",
