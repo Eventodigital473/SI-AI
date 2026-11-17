@@ -514,3 +514,9 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 6. Only after final integration and explicit go-ahead should the existing Termux checkout at `~/SI-AI_FINAL/recovered/SI-AI` be updated safely and tested.
 
 **Safety remains unchanged:** Futures-only, signal-only, manual Binance execution, no private credentials or automatic orders; 100 USDT reference equity, 0.5% risk, 20% margin allocation, recommended 1x, minimum 2:1 R:R.
+
+
+### Additional Spot-removal correction — 2026-11-18
+- Independent source-tree audit found an unreferenced legacy `recovered/SI-AI/smc.py` that still instantiated `ccxt.binance` and exposed an old Spot scanner. No active modules imported it, but shipping it contradicted the explicit Futures-only requirement.
+- Removed the obsolete `smc.py` file and added `test_futures_only_repository.py`, which asserts the active exchange registry contains only Binance USD-M Futures and the obsolete Spot engine is absent.
+- This change is on PR #13 and is **pending fresh CI**; it is not considered verified until that run passes.
