@@ -17,6 +17,7 @@ import SI_AI_smc as smc
 import historical_backtest
 import historical_data
 import funding_data
+import mark_price_data
 
 
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
@@ -83,6 +84,27 @@ def run_public_futures_backtest(*, symbols=("BTC/USDT",), days=180,
         if verified_funding["data_sha256"] != funding_data.funding_events_sha256(verified_funding["events"]):
             raise RuntimeError(f"Funding dataset integrity check failed: {symbol}")
 
+        mark_candles = mark_price_data.download_mark_price_ohlcv(
+            symbol, "1h", start_ms, end_ms,
+        )
+        if len(mark_candles) < smc.MIN_CANDLES:
+            raise RuntimeError(
+                f"{symbol} 1h mark-price dataset has only {len(mark_candles)} closed candles; "
+                f"at least {smc.MIN_CANDLES} required"
+            )
+        mark_price_path = mark_price_data.DATA_DIR / (
+            f"{symbol.replace('/', '-')}_1h_{start_ms}_{end_ms}.json"
+        )
+        mark_price_data.save_mark_price_dataset(
+            symbol, "1h", mark_candles, output_path=mark_price_path,
+            start_ms=start_ms, end_ms=end_ms,
+        )
+        verified_mark = mark_price_data.load_mark_price_dataset(mark_price_path)
+        if verified_mark["data_sha256"] != mark_price_data.mark_price_sha256(
+            verified_mark["candles"], "1h"
+        ):
+            raise RuntimeError(f"Mark-price dataset integrity check failed: {symbol}")
+
         safe_symbol = symbol.replace("/", "-")
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         report_path = REPORT_DIR / f"futures_{safe_symbol}_{days}d_{stamp}.json"
@@ -90,6 +112,7 @@ def run_public_futures_backtest(*, symbols=("BTC/USDT",), days=180,
             dataset_paths, output_path=report_path,
             initial_equity=initial_equity,
             funding_dataset_path=funding_path,
+            mark_price_dataset_path=mark_price_path,
         )
         chronological = report.get("chronological_validation", {})
         assumptions = chronological.get("assumptions", {})
@@ -108,6 +131,7 @@ def run_public_futures_backtest(*, symbols=("BTC/USDT",), days=180,
             "funding_boundary_ambiguities": assumptions.get(
                 "funding_settlement_boundary_ambiguities", 0
             ),
+            "historical_mark_price_data_included": report["dataset"].get("mark_price") is not None,
             "liquidation_modelled": assumptions.get(
                 "liquidation_modelled", False
             ),
@@ -124,7 +148,7 @@ def run_public_futures_backtest(*, symbols=("BTC/USDT",), days=180,
         "certification": "INCONCLUSIVE",
         "limitations": [
             "Funding events with exact associated settlement mark prices are included; exact entry/exit settlement timestamp ties are flagged and block certification.",
-            "Exchange-specific maintenance-margin and liquidation modelling is not implemented.",
+            "Historical mark-price OHLC is archived for research, but liquidation events are not yet simulated because timestamp-matched historical maintenance-tier snapshots are unavailable.",
             "Per-symbol reports use separate reference equity; results are not a shared-wallet portfolio simulation.",
             "Historical results do not guarantee future performance.",
         ],
