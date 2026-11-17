@@ -6,6 +6,7 @@ prerequisites. It does not contact Binance, read credentials, or place orders.
 from __future__ import annotations
 
 import importlib
+from importlib.metadata import PackageNotFoundError, version as distribution_version
 import os
 import platform
 import shutil
@@ -40,8 +41,12 @@ def collect_preflight(project_dir=None, shortcuts_dir=None, command_lookup=None,
 
     for module_name in ("ccxt", "requests", "certifi", "cryptography", "typing_extensions", "flask"):
         try:
-            module = importlib.import_module(module_name)
-            version = getattr(module, "__version__", "version unavailable")
+            importlib.import_module(module_name)
+            distribution_name = {"typing_extensions": "typing-extensions"}.get(module_name, module_name)
+            try:
+                version = distribution_version(distribution_name)
+            except PackageNotFoundError:
+                version = "version metadata unavailable"
             checks.append(_check(f"dependency_{module_name}", "PASS", version))
         except Exception as exc:
             checks.append(_check(f"dependency_{module_name}", "FAIL", f"{type(exc).__name__}: {exc}"))
