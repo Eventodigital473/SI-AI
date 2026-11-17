@@ -204,5 +204,34 @@ class BacktestingTests(unittest.TestCase):
         self.assertIsNone(result["metrics"]["profit_factor"])
 
 
+    def test_adverse_entry_gap_below_minimum_net_rr_is_rejected(self):
+        data = candles_with_bars()
+        # Signal is generated at 100, but the next-open fill gaps to 103.5.
+        # The target at 104 is still above entry, but actual net R:R is far
+        # below 2:1 and must not be accepted.
+        data[80] = [81, 103.5, 104.0, 103.0, 103.5, 1000.0]
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=1, signal_fn=fixed_buy,
+        )
+        self.assertEqual(result["trades"], [])
+        self.assertEqual(result["metrics"]["trade_count"], 0)
+
+    def test_actual_fill_net_rr_is_recorded_for_accepted_trade(self):
+        data = candles_with_bars()
+        # A favorable gap improves the actual reward/risk and remains valid.
+        data[80] = [81, 99.5, 100.0, 99.0, 99.5, 1000.0]
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=1, signal_fn=fixed_buy,
+        )
+        self.assertEqual(len(result["trades"]), 1)
+        self.assertGreaterEqual(
+            result["trades"][0]["actual_net_reward_risk"], 2.0
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
