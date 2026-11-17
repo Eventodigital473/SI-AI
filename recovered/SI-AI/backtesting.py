@@ -316,6 +316,8 @@ def run_backtest(
             "max_notional_equity_multiple": si.MAX_NOTIONAL_EQUITY_MULTIPLE,
             "max_holding_bars": max_holding_bars,
             "funding_costs_included": market == "FUTURES" and funding_rate is not None,
+            # A constant proxy is not a timestamped historical funding series.
+            "historical_funding_series_included": False,
             "funding_rate_per_8h_assumption": funding_rate,
             "funding_cost_method": "constant user-supplied rate at each UTC 00:00/08:00/16:00 boundary; entry notional held constant; not historical exchange funding" if funding_rate is not None else "excluded; supply a rate proxy or add historical funding series",
             "liquidation_modelled": False,
