@@ -40,7 +40,7 @@ class HistoricalDataTests(unittest.TestCase):
         exchange = FakeExchange("FUTURES", rows)
         interval = 900_000
         result = historical_data.download_ohlcv(
-            "SPOT", "BTC/USDT", "15m",
+            "FUTURES", "BTC/USDT", "15m",
             rows[0][0], rows[-1][0] + interval,
             exchange=exchange, limit=2,
             now_ms=rows[-1][0] + interval,
@@ -52,11 +52,11 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_incomplete_current_candle_is_excluded(self):
         rows = make_candles()
-        exchange = FakeExchange("SPOT", rows)
+        exchange = FakeExchange("FUTURES", rows)
         interval = 900_000
         now_ms = rows[-1][0] + interval - 1
         result = historical_data.download_ohlcv(
-            "SPOT", "BTC/USDT", "15m",
+            "FUTURES", "BTC/USDT", "15m",
             rows[0][0], rows[-1][0] + interval,
             exchange=exchange, limit=100,
             now_ms=now_ms,
@@ -67,9 +67,9 @@ class HistoricalDataTests(unittest.TestCase):
         rows = make_candles()
         interval = 900_000
         end_ms = rows[-1][0] + interval - 1
-        exchange = FakeExchange("SPOT", rows)
+        exchange = FakeExchange("FUTURES", rows)
         result = historical_data.download_ohlcv(
-            "SPOT", "BTC/USDT", "15m",
+            "FUTURES", "BTC/USDT", "15m",
             rows[0][0], end_ms,
             exchange=exchange, now_ms=rows[-1][0] + interval,
         )
@@ -80,7 +80,7 @@ class HistoricalDataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "outside"):
                 historical_data.save_dataset(
-                    "SPOT", "BTC/USDT", "15m", rows,
+                    "FUTURES", "BTC/USDT", "15m", rows,
                     output_path=Path(directory) / "bad.json",
                     start_ms=rows[0][0],
                     end_ms=rows[-1][0] + 900_000 - 1,
@@ -100,21 +100,21 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_inactive_or_wrong_market_is_rejected(self):
         rows = make_candles()
-        exchange = FakeExchange("SPOT", rows)
+        exchange = FakeExchange("FUTURES", rows)
         exchange.markets["BTC/USDT:USDT"]["active"] = None
         with self.assertRaisesRegex(ValueError, "active/inactive status"):
             historical_data.download_ohlcv(
-                "SPOT", "BTC/USDT", "15m",
+                "FUTURES", "BTC/USDT", "15m",
                 rows[0][0], rows[-1][0] + 900_000,
                 exchange=exchange, now_ms=rows[-1][0] + 900_000,
             )
 
     def test_known_inactive_market_can_be_downloaded_for_historical_research(self):
         rows = make_candles()
-        exchange = FakeExchange("SPOT", rows)
+        exchange = FakeExchange("FUTURES", rows)
         exchange.markets["BTC/USDT"]["active"] = False
         result = historical_data.download_ohlcv(
-            "SPOT", "BTC/USDT", "15m",
+            "FUTURES", "BTC/USDT", "15m",
             rows[0][0], rows[-1][0] + 900_000,
             exchange=exchange, now_ms=rows[-1][0] + 900_000,
         )
@@ -122,11 +122,11 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_pagination_non_progress_is_rejected(self):
         rows = make_candles()
-        exchange = FakeExchange("SPOT", rows)
+        exchange = FakeExchange("FUTURES", rows)
         exchange.fetch_ohlcv = lambda *args, **kwargs: rows[:2]
         with self.assertRaisesRegex(RuntimeError, "did not advance"):
             historical_data.download_ohlcv(
-                "SPOT", "BTC/USDT", "15m",
+                "FUTURES", "BTC/USDT", "15m",
                 rows[0][0], rows[-1][0] + 900_000,
                 exchange=exchange, limit=2,
                 now_ms=rows[-1][0] + 900_000,
@@ -137,7 +137,7 @@ class HistoricalDataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "dataset.json"
             saved = historical_data.save_dataset(
-                "SPOT", "BTC/USDT", "15m", rows, output_path=path
+                "FUTURES", "BTC/USDT", "15m", rows, output_path=path
             )
             loaded = historical_data.load_dataset(saved)
             self.assertEqual(loaded["candles"], rows)
@@ -153,10 +153,10 @@ class HistoricalDataTests(unittest.TestCase):
     def test_malformed_candles_are_rejected(self):
         rows = make_candles()
         rows[2][2] = 50
-        exchange = FakeExchange("SPOT", rows)
+        exchange = FakeExchange("FUTURES", rows)
         with self.assertRaisesRegex(ValueError, "OHLC relationship"):
             historical_data.download_ohlcv(
-                "SPOT", "BTC/USDT", "15m",
+                "FUTURES", "BTC/USDT", "15m",
                 rows[0][0], rows[-1][0] + 900_000,
                 exchange=exchange, now_ms=rows[-1][0] + 900_000,
             )
