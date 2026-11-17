@@ -136,6 +136,20 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
         try:
             exchange.load_markets()
             tickers = exchange.fetch_tickers()
+            book_tickers = None
+            if market == "FUTURES":
+                # Binance USD-M 24h tickers do not reliably include bid/ask.
+                # Use CCXT's bulk bookTicker endpoint once for the whole market.
+                fetch_bids_asks = getattr(exchange, "fetch_bids_asks", None)
+                if not callable(fetch_bids_asks):
+                    raise RuntimeError(
+                        "Futures exchange does not support bulk bid/ask retrieval"
+                    )
+                book_tickers = fetch_bids_asks()
+                if not isinstance(book_tickers, dict) or not book_tickers:
+                    raise RuntimeError(
+                        "Futures bulk bookTicker response is empty or invalid"
+                    )
             candidates = []
             minimum_volume = (
                 MIN_FUTURES_QUOTE_VOLUME_USDT
@@ -171,8 +185,16 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     continue
 
                 quote_volume = _finite_number(ticker.get("quoteVolume"))
-                bid = _finite_number(ticker.get("bid"))
-                ask = _finite_number(ticker.get("ask"))
+                book_ticker = ticker
+                if market == "FUTURES":
+                    book_ticker = (
+                        book_tickers.get(exchange_symbol)
+                        or book_tickers.get(canonical)
+                    )
+                if not isinstance(book_ticker, dict):
+                    continue
+                bid = _finite_number(book_ticker.get("bid"))
+                ask = _finite_number(book_ticker.get("ask"))
                 if quote_volume is None or quote_volume < minimum_volume:
                     continue
                 if bid is None or ask is None or bid <= 0 or ask < bid:

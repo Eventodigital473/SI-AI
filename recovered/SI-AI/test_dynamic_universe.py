@@ -12,6 +12,8 @@ class FakeExchange:
         self.fail = fail
         self.markets = {}
         self._tickers = {}
+        self._book_tickers = {}
+        self.book_ticker_calls = 0
 
         for index in range(count):
             base = f"COIN{index:03d}"
@@ -57,11 +59,17 @@ class FakeExchange:
             "settle": "USDT" if self.market == "FUTURES" else None,
         }
         self.markets[exchange_symbol] = metadata
-        self._tickers[exchange_symbol] = {
-            "quoteVolume": volume,
-            "bid": 1.0,
-            "ask": ask,
-        }
+        self._tickers[exchange_symbol] = {"quoteVolume": volume}
+        if self.market == "FUTURES":
+            self._book_tickers[exchange_symbol] = {
+                "bid": 1.0,
+                "ask": ask,
+            }
+        else:
+            self._tickers[exchange_symbol].update({
+                "bid": 1.0,
+                "ask": ask,
+            })
 
     def load_markets(self):
         if self.fail:
@@ -72,6 +80,12 @@ class FakeExchange:
         if self.fail:
             raise RuntimeError("simulated ticker outage")
         return self._tickers
+
+    def fetch_bids_asks(self):
+        self.book_ticker_calls += 1
+        if self.fail:
+            raise RuntimeError("simulated book ticker outage")
+        return self._book_tickers
 
 
 class FakeCandleExchange:
@@ -157,6 +171,39 @@ class DynamicUniverseTests(unittest.TestCase):
             self.assertNotIn("INACTIVE/USDT", symbols)
             self.assertNotIn("UNKNOWNACTIVE/USDT", symbols)
             self.assertNotIn("WBNB/USDT", symbols)
+
+    def test_futures_universe_uses_bulk_book_tickers_without_24h_bid_ask(self):
+        fake_futures = FakeExchange("FUTURES")
+        fake_spot = FakeExchange("SPOT")
+
+        with patch.dict(
+            si.EXCHANGES,
+            {"FUTURES": fake_futures, "SPOT": fake_spot},
+            clear=False,
+        ):
+            selected = si.refresh_symbol_universe(force=True)
+
+        self.assertEqual(fake_futures.book_ticker_calls, 1)
+        self.assertIn("BTC/USDT", selected["FUTURES"])
+        self.assertEqual(fake_spot.book_ticker_calls, 0)
+
+    def test_empty_futures_book_ticker_preserves_last_known_good_universe(self):
+        fake_futures = FakeExchange("FUTURES")
+        fake_spot = FakeExchange("SPOT")
+        si.MARKET_SYMBOLS["FUTURES"] = ["KEEP/USDT"]
+
+        with patch.object(fake_futures, "fetch_bids_asks", return_value={}), patch.dict(
+            si.EXCHANGES,
+            {"FUTURES": fake_futures, "SPOT": fake_spot},
+            clear=False,
+        ):
+            selected = si.refresh_symbol_universe(force=True)
+
+        self.assertEqual(selected["FUTURES"], ["KEEP/USDT"])
+        self.assertEqual(
+            si.MARKET_UNIVERSE_STATUS["FUTURES"],
+            "unavailable_using_last_known_good",
+        )
 
     def test_does_not_fabricate_coins_to_reach_minimum(self):
         fake_futures = FakeExchange("FUTURES", count=10)
