@@ -121,3 +121,8 @@ class SignalAlertTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_scanner_number_parser_rejects_booleans(value):
+    assert scanner.number(value) is None
