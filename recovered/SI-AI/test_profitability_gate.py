@@ -87,9 +87,6 @@ class ProfitabilityGateTests(unittest.TestCase):
             evaluate_profitability_evidence({}, {}, market="MARGIN")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
     def test_boolean_metrics_are_not_treated_as_numbers(self):
         oos, wf = reports()
@@ -115,3 +112,7 @@ if __name__ == "__main__":
                     "minimum_positive_walk_forward_folds": 3,
                 },
             )
+
+
+if __name__ == "__main__":
+    unittest.main()
