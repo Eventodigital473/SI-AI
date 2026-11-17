@@ -418,3 +418,62 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 4. Keep Futures certification INCONCLUSIVE until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are validated; then paper observation and final read-only Termux/Binance smoke checks remain.
 
 **Safety/state:** SI-AI remains a signal provider only. User manually executes any trade. No automatic order placement, private API keys, Telegram, or deployment added. `main` remains untouched. PR #1 remains open, draft and unmerged.
+
+
+---
+
+## SI-AI Futures-only finalization checkpoint (2026-11-18)
+
+**Current integration branch:** `fix/termux-minimal-ccxt-dependencies-2026-11-18`  
+**Current branch head at checkpoint:** `049489767df60dd15319373862f1ecfb0e95d37a`  
+**Local Termux checkout:** user device remains at `~/SI-AI_FINAL/recovered/SI-AI`; no files have been pulled or changed on the device by this session.
+
+### Completed implementation on the stacked PR branches
+
+- Active product is Binance USD-M linear USDT perpetual Futures only. Spot is excluded from the active scanner/backtest.
+- Production signal timeframes: 15m, 1h, 4h, 1d; incomplete timeframe confluence fails closed to WAIT.
+- Active paper policy remains 100 USDT reference equity, 0.5% per-trade stop-risk budget, 20% margin allocation cap, recommended 1x leverage, minimum 2:1 R:R.
+- Signal-only: no private API credentials, no order placement, no leverage-setting, no Telegram.
+- BUY/SELL notifications request green/red LED colors and include colored glyph fallbacks; WAIT is neutral. Android LED hardware/permission behavior still needs an actual device test.
+- Termux:Widget Start/Stop/Dry Run shortcuts exist; SI-AI Check performs an offline preflight. Start runs preflight before launching the scanner. Shortcut installer preserves existing user shortcuts and installs only missing shortcuts.
+- Alerts include estimated base-asset position size, notional, stop risk, estimated fees/slippage, reference equity/risk policy, and an explicit warning that liquidation is not modelled/certified.
+- Legacy standalone 10%-risk/high-leverage planner has been disabled.
+- Timestamped Binance USD-M funding downloader uses public CCXT funding history, validates raw funding time/rate/symbol and associated settlement markPrice, paginates, and saves SHA-256-verified datasets.
+- Historical backtest applies signed funding cashflows using position quantity and the event-specific markPrice. Candle-level exit-window settlements are treated conservatively; ambiguous entry/exit/intrabar settlements are flagged and block certification.
+- Public Futures backtest runner downloads the required 15m/1h/4h/1d OHLCV plus funding history. Funding integration is deterministic-tested but has not yet been smoke-tested against live Binance from the user's Termux device.
+- Added a Termux-specific minimal synchronous CCXT profile: CCXT 4.5.93 is installed with `--no-deps`; Termux supplies python-cryptography; unused async/accelerator extras are omitted. Desktop/CI continues to use the full pinned requirements file.
+
+### Pull request stack and merge state
+
+All PRs #1–#12 are open and reported mergeable; **none has been merged**. Do not merge without the user's explicit approval.
+
+- #1–#6: original recovery, dynamic universe, Futures-only, full MTF API, backtest evidence assumptions, Termux signal notifications.
+- #7: exact funding settlement mark-price certification gate.
+- #8: timestamped Binance funding integration into the Futures backtest.
+- #9: disables the legacy high-leverage planner.
+- #10: offline Termux preflight, Widget Check shortcut, richer risk alerts.
+- #11: conservative funding settlement handling for candle-level exits; fixes alert risk-config module alias.
+- #12: minimal synchronous CCXT profile for Termux.
+
+PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branch does not contain the `recovered/` project tree. After PRs #1–#12 are merged in dependency order into the recovery branch, a separate final recovery-to-`main` integration PR is still required before the README's `main`-branch clone command is valid.
+
+### Verified automated validation
+
+- PR #1–#6 head commits each had successful GitHub Actions runs.
+- PR #7 and #8 CI succeeded; PR #9 CI succeeded.
+- PR #10 final head `50c352d22524a0a8957e70179b87b02729fbb1ae`: CI succeeded.
+- PR #11 corrected head `24afbf6c3c2b66ea5a8c93583c2fc8d76169136d`: **136 passed**, 3 warnings, 4 subtests; CI succeeded.
+- PR #12 head `c7a96469061a34b92aee5f88d4c945196b11fd25`: minimal synchronous CCXT clean-venv import succeeded; full suite **136 passed**, 3 warnings, 4 subtests; CI succeeded.
+- The latest documentation-only head `049489767df60dd15319373862f1ecfb0e95d37a` has a fresh CI run pending at checkpoint time. Do not attribute the previous 136-test result to this newer head until that run succeeds.
+- CI uses deterministic fixtures/mocks. It does not prove live Binance reliability, Android notification delivery, profitability, or liquidation safety.
+
+### Remaining blockers / exact next steps
+
+1. Confirm GitHub Actions succeeds on current PR #12 head `049489767df60dd15319373862f1ecfb0e95d37a`.
+2. Obtain explicit user approval before merging PRs #1–#12 in dependency order; then create/merge the recovery-to-main integration PR.
+3. Only after the integration is available, update the user's existing Termux checkout without overwriting local data. Run SI-AI Check, one-cycle dry run, live public-data smoke tests, then the 180-day BTC/USDT historical Futures backtest.
+4. Test BUY/SELL Android notifications on the actual phone; LED behavior depends on device hardware and Android settings.
+5. Exchange-specific historical maintenance-margin/liquidation modelling remains absent. Futures profitability gate must remain **INCONCLUSIVE**; do not claim profitability or live-trading readiness until this model is independently validated.
+6. Historical funding settlement timestamp ambiguities also keep certification blocked when present. No parameter tuning against the same holdout.
+
+**Safety:** manual Binance execution only; no automatic orders. Keep the 100 USDT / 0.5% / 20% margin / 1x policy unchanged. This checkpoint records repository work only; it does not imply the user's Termux device has been updated or tested.
