@@ -198,5 +198,21 @@ class BacktestingTests(unittest.TestCase):
         )
 
 
+    def test_chronological_report_preserves_holdout_assumptions(self):
+        data = candles_with_bars(120)
+        result = backtesting.evaluate_chronological_validation(
+            data, "FUTURES", "BTC/USDT", "15m",
+            train_fraction=0.70,
+            signal_fn=lambda *args: {"signal": "WAIT"},
+            fee_rate=0.001,
+            slippage_rate=0.0005,
+        )
+        assumptions = result["assumptions"]
+        self.assertEqual(assumptions["fee_rate_per_side"], 0.001)
+        self.assertEqual(assumptions["slippage_rate_per_side"], 0.0005)
+        self.assertIn("historical_funding_series_included", assumptions)
+        self.assertFalse(assumptions["liquidation_modelled"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
