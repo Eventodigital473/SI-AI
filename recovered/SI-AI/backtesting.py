@@ -440,6 +440,9 @@ def evaluate_walk_forward(
             "trade_count": len(trades),
             "net_pnl_usdt": round(sum(t["net_pnl_usdt"] for t in trades), 8),
             "ending_equity_usdt": round(current_equity, 8),
+            "funding_settlement_boundary_ambiguities": sum(
+                int(trade.get("funding_boundary_ambiguities", 0)) for trade in trades
+            ),
             "trades": trades,
         })
     initial = _number(
