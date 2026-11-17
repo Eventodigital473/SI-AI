@@ -15,7 +15,7 @@ import ccxt
 # ----------------------------- CONFIGURATION -----------------------------
 # Dynamic Binance USDT universe. Symbols are canonical BASE/USDT strings.
 # The discovery layer selects liquid, actively traded markets independently for
-# SPOT and USD-M perpetual FUTURES. No order endpoints or credentials are used.
+# Binance USD-M USDT perpetual contracts only. No order endpoints or credentials are used.
 TIMEFRAMES = ["15m", "1h", "4h", "1d"]
 CANDLE_LIMIT = 250
 MIN_CANDLES = 80
@@ -25,7 +25,6 @@ MIN_ELIGIBLE_COINS = 15
 TARGET_UNIVERSE_SIZE = 50
 MAX_UNIVERSE_SIZE = 100
 UNIVERSE_REFRESH_SECONDS = 900
-MIN_SPOT_QUOTE_VOLUME_USDT = 5_000_000.0
 MIN_FUTURES_QUOTE_VOLUME_USDT = 10_000_000.0
 MAX_SPREAD_PERCENT = 0.15
 PRIORITY_BASES = ("BTC", "ETH", "BNB", "SOL")
@@ -38,24 +37,20 @@ EXCLUDED_BASES = {
     "WBETH", "WBNB", "BTCB", "WAVAX", "WMATIC", "WFTM",
 }
 LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
-MARKET_SYMBOLS = {"FUTURES": ["BTC/USDT", "ETH/USDT"],
-                  "SPOT": ["BTC/USDT", "ETH/USDT"]}
+MARKET_SYMBOLS = {"FUTURES": ["BTC/USDT", "ETH/USDT"]}
 MARKET_UNIVERSE_STATUS = {
     "FUTURES": "not_refreshed",
-    "SPOT": "not_refreshed",
 }
 MARKET_UNIVERSE_DIAGNOSTICS = {
     "FUTURES": {},
-    "SPOT": {},
 }
 SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 _UNIVERSE_LAST_REFRESH = 0.0
 
 # Futures is intentionally analysed first. Both exchanges use public endpoints.
-MARKETS = ["FUTURES", "SPOT"]
+MARKETS = ["FUTURES"]
 _MARKET_UNIVERSE_LAST_REFRESH = {market: 0.0 for market in MARKETS}
 FUTURES_EXCHANGE_ID = "binanceusdm"
-SPOT_EXCHANGE_ID = "binance"
 
 # Analysis/risk assumptions only; no account balance is queried and no orders sent.
 PAPER_EQUITY_USDT = 100.0
@@ -68,23 +63,20 @@ MAX_NOTIONAL_EQUITY_MULTIPLE = (
 MIN_REWARD_RISK = 2.0
 
 # Illustrative paper assumptions, not account-specific exchange rates.
-PAPER_TAKER_FEE_RATES = {
-    "FUTURES": 0.0005,
-    "SPOT": 0.0010,
-}
+PAPER_TAKER_FEE_RATES = {"FUTURES": 0.0005}
 PAPER_SLIPPAGE_RATE = 0.0002
 
 TIMEFRAME_WEIGHTS = {"15m": 1.0, "1h": 1.5, "4h": 2.0, "1d": 2.0}
 
 
 def make_exchange(market: str):
-    exchange_class = getattr(ccxt, FUTURES_EXCHANGE_ID if market == "FUTURES" else SPOT_EXCHANGE_ID)
-    return exchange_class({
+    if market != "FUTURES":
+        raise ValueError("SI-AI supports Binance USD-M Futures only")
+    return ccxt.binanceusdm({
         "enableRateLimit": True,
         "timeout": 20000,
-        "options": {"defaultType": "future" if market == "FUTURES" else "spot"},
+        "options": {"defaultType": "future"},
     })
-
 
 EXCHANGES = {market: make_exchange(market) for market in MARKETS}
 
@@ -192,7 +184,7 @@ def _spread_percent(bid: float, ask: float):
 
 def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
     """
-    Discover liquid Binance USDT spot and USD-M perpetual markets.
+    Discover liquid Binance USD-M USDT perpetual markets only.
     Failed refreshes preserve the last-known-good list; no synthetic symbols
     are added to reach the minimum. A market with fewer than 15 qualifiers
     is reported as undersized and the scanner will fail closed for that market.
@@ -242,11 +234,7 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                 if market == "FUTURES"
                 else {}
             )
-            minimum_volume = (
-                MIN_FUTURES_QUOTE_VOLUME_USDT
-                if market == "FUTURES"
-                else MIN_SPOT_QUOTE_VOLUME_USDT
-            )
+            minimum_volume = MIN_FUTURES_QUOTE_VOLUME_USDT
 
             for exchange_symbol, metadata in exchange.markets.items():
                 diagnostics["markets_seen"] += 1
@@ -260,16 +248,12 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                 if not _eligible_base(metadata.get("base")):
                     continue
 
-                if market == "SPOT":
-                    if metadata.get("spot") is not True:
-                        continue
-                else:
-                    if not (
-                        metadata.get("swap") is True
-                        and metadata.get("linear") is True
-                        and metadata.get("settle") == "USDT"
-                    ):
-                        continue
+                if not (
+                    metadata.get("swap") is True
+                    and metadata.get("linear") is True
+                    and metadata.get("settle") == "USDT"
+                ):
+                    continue
 
                 canonical = f"{metadata['base']}/USDT"
                 ticker = tickers.get(exchange_symbol) or tickers.get(canonical)
@@ -281,15 +265,12 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     continue
                 diagnostics["volume_qualified"] += 1
 
-                book_ticker = ticker
-                if market == "FUTURES":
-                    book_ticker = _find_book_ticker(
-                        book_ticker_index, exchange_symbol, canonical, metadata
-                    )
+                book_ticker = _find_book_ticker(
+                    book_ticker_index, exchange_symbol, canonical, metadata
+                )
                 if not isinstance(book_ticker, dict):
                     continue
-                if market == "FUTURES":
-                    diagnostics["book_ticker_matched"] += 1
+                diagnostics["book_ticker_matched"] += 1
 
                 bid, ask = _book_ticker_prices(book_ticker)
                 if bid is None or ask is None or bid <= 0 or ask < bid:
@@ -461,9 +442,7 @@ def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
         raise ValueError(
             f"Symbol {symbol} is not confirmed as an active USDT market"
         )
-    if market == "SPOT" and metadata.get("spot") is not True:
-        raise ValueError(f"Symbol {symbol} is not an active spot market")
-    if market == "FUTURES" and not (
+    if not (
         metadata.get("swap") is True
         and metadata.get("linear") is True
         and metadata.get("settle") == "USDT"
@@ -779,10 +758,6 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
     signal = "BUY" if score >= threshold else "SELL" if score <= -threshold else "WAIT"
     if not atr_valid or price <= 0:
         signal = "WAIT"
-    # Spot has no native short position in this scanner: bearish signals mean exit/avoid, not short.
-    if market == "SPOT" and signal == "SELL":
-        signal = "SELL/EXIT"
-
     stop_loss = take_profit = risk_distance = None
     reward_risk = None
 
@@ -1008,7 +983,7 @@ def print_result(result: Dict) -> None:
 
 
 def run_analysis() -> None:
-    print("\n========== SI AI | FUTURES-FIRST MARKET INTELLIGENCE ==========")
+    print("\n========== SI AI | FUTURES-ONLY MARKET INTELLIGENCE ==========")
     print("PUBLIC DATA ONLY | NO API KEYS | NO ORDERS | NOT FINANCIAL ADVICE")
     refresh_symbol_universe(force=True)
     for market in MARKETS:
