@@ -5,6 +5,7 @@ returned alongside the actual funding charge; candle-close proxies are rejected.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import math
@@ -316,3 +317,32 @@ def load_funding_dataset(path):
         raise ValueError("Funding dataset SHA-256 mismatch")
     payload["events"] = normalized
     return payload
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Download public Binance USD-M historical funding events with exact settlement mark prices"
+    )
+    parser.add_argument("--market", required=True, choices=("FUTURES",))
+    parser.add_argument("--symbol", required=True, help="Canonical symbol, e.g. BTC/USDT")
+    parser.add_argument("--start-ms", required=True, type=int)
+    parser.add_argument("--end-ms", required=True, type=int, help="Exclusive end timestamp in milliseconds")
+    parser.add_argument("--output", required=True, help="Funding dataset JSON output path")
+    args = parser.parse_args()
+
+    events = download_funding_history(
+        args.market, args.symbol, args.start_ms, args.end_ms
+    )
+    path = save_funding_dataset(
+        args.market, args.symbol, events,
+        args.start_ms, args.end_ms, args.output,
+    )
+    print(f"Saved {len(events)} timestamped funding events to {path}")
+    print(f"Funding dataset SHA-256: {funding_events_sha256(events)}")
+    print("Each event retains Binance's markPrice associated with that funding charge.")
+    print("Public market data only. No private credentials or orders.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
