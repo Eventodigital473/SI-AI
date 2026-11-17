@@ -185,7 +185,7 @@ def run_backtest(
             slippage_rate=slippage,
             entry_slippage_included=True,
         )
-        if actual_reward_risk < si.MIN_REWARD_RISK:
+        if actual_reward_risk < si.MIN_REWARD_RISK - 1e-9:
             i += 1
             continue
         stop_distance = abs(entry - stop)
