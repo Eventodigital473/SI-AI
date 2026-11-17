@@ -118,6 +118,22 @@ class SignalAlertTests(unittest.TestCase):
         self.assertNotIn("--sound", command)
         self.assertEqual(command[command.index("--priority") + 1], "default")
 
+    def test_test_notifications_cli_sends_buy_sell_wait_without_scanner_cycle(self):
+        with patch.object(
+            scanner.sys, "argv", ["si_ai_scanner.py", "--test-notifications"]
+        ), patch.object(scanner, "send_notification") as send:
+            result = scanner.main()
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            [call.args[2] for call in send.call_args_list],
+            ["BUY", "SELL", "WAIT"],
+        )
+        self.assertEqual(
+            [call.args[1] for call in send.call_args_list],
+            ["BTC/USDT", "ETH/USDT", "SOL/USDT"],
+        )
+        self.assertTrue(all("TEST ONLY" in call.args[3] for call in send.call_args_list))
+
     @patch.object(scanner.subprocess, "run")
     @patch.object(scanner.shutil, "which", return_value=None)
     def test_missing_termux_api_has_clear_error(self, _which, run_mock):
