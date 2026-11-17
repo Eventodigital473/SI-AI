@@ -74,6 +74,14 @@ cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
 python si_ai_scanner.py --once --dry-run
 ```
 
+### Test Android notifications (no market requests or orders)
+
+```bash
+python si_ai_scanner.py --test-notifications
+```
+
+This sends three clearly labelled TEST ONLY notifications (BUY, SELL, WAIT) so you can verify Android permission, title colors, sound/vibration, and whether the device supports LED behavior. These are not trading signals and do not contact Binance.
+
 ### Continuous scanner with Android notifications
 
 ```bash
