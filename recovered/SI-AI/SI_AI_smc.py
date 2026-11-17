@@ -432,14 +432,15 @@ def detect_market_structure(candles: List[list]) -> Dict:
 def detect_bos(candles: List[list], structure: Optional[Dict] = None) -> str:
     structure = structure or detect_market_structure(candles)
     sh, sl = structure["swing_highs"], structure["swing_lows"]
-    if not sh or not sl or len(candles) < 2:
+    if len(candles) < 2 or (not sh and not sl):
         return "None"
     previous_close, close = candles[-2][4], candles[-1][4]
-    # Ignore pivots too old to be useful; use the most recent confirmed pivot.
-    high_level, low_level = sh[-1][1], sl[-1][1]
-    if previous_close <= high_level < close:
+    # A directional BOS only needs the corresponding confirmed swing level.
+    # Requiring BOTH a high and a low pivot suppresses valid breakouts in
+    # one-sided/early structure histories.
+    if sh and previous_close <= sh[-1][1] < close:
         return "Bullish"
-    if previous_close >= low_level > close:
+    if sl and previous_close >= sl[-1][1] > close:
         return "Bearish"
     return "None"
 
@@ -509,6 +510,38 @@ def detect_order_block(candles: List[list], atr: float, scan: int = 25) -> Dict:
 
 
 # ----------------------------- SIGNAL / RISK ------------------------------
+
+
+def calculate_net_reward_risk(
+    entry: float, stop_loss: float, take_profit: float,
+    side: str, market: str,
+) -> float:
+    """Return fee/slippage-adjusted reward-to-risk for the actual fill prices."""
+    if market not in PAPER_TAKER_FEE_RATES:
+        raise ValueError("Unsupported market for reward/risk calculation")
+    values = [_finite_number(value) for value in (entry, stop_loss, take_profit)]
+    if any(value is None or value <= 0 for value in values):
+        raise ValueError("Entry, stop-loss and take-profit must be finite positive prices")
+    entry_price, stop_price, target_price = values
+    direction = str(side).upper()
+    cost_rate = PAPER_TAKER_FEE_RATES[market] + PAPER_SLIPPAGE_RATE
+    if direction == "LONG":
+        if not stop_price < entry_price < target_price:
+            raise ValueError("Long levels must satisfy stop < entry < target")
+        gross_risk = entry_price - stop_price
+        gross_reward = target_price - entry_price
+    elif direction == "SHORT":
+        if not target_price < entry_price < stop_price:
+            raise ValueError("Short levels must satisfy target < entry < stop")
+        gross_risk = stop_price - entry_price
+        gross_reward = entry_price - target_price
+    else:
+        raise ValueError("side must be LONG or SHORT")
+    net_risk = gross_risk + cost_rate * (entry_price + stop_price)
+    net_reward = gross_reward - cost_rate * (entry_price + target_price)
+    if net_risk <= 0 or net_reward <= 0:
+        return 0.0
+    return net_reward / net_risk
 
 
 def validate_analysis_inputs(market: str, symbol: str,
@@ -583,10 +616,20 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
     trend = structure["trend"]
     if trend == "Bullish": score += 2; reasons.append("Bullish swing structure")
     elif trend == "Bearish": score -= 2; reasons.append("Bearish swing structure")
-    if bos == "Bullish": score += 2; reasons.append("Bullish BOS")
-    elif bos == "Bearish": score -= 2; reasons.append("Bearish BOS")
-    if choch == "Bullish": score += 2; reasons.append("Bullish CHOCH")
-    elif choch == "Bearish": score -= 2; reasons.append("Bearish CHOCH")
+    # CHOCH is the classification of a counter-trend BOS, not a second
+    # independent event. Count one structure-break contribution only.
+    if choch == "Bullish":
+        score += 2.5
+        reasons.append("Bullish CHOCH")
+    elif choch == "Bearish":
+        score -= 2.5
+        reasons.append("Bearish CHOCH")
+    elif bos == "Bullish":
+        score += 2
+        reasons.append("Bullish BOS")
+    elif bos == "Bearish":
+        score -= 2
+        reasons.append("Bearish BOS")
     if fvg["bullish_fvg"]: score += 1; reasons.append("Bullish FVG present")
     if fvg["bearish_fvg"]: score -= 1; reasons.append("Bearish FVG present")
     if order_block["bullish_ob"]: score += 1; reasons.append("Bullish order block present")
@@ -705,10 +748,12 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
                     - cost_rate * (price + take_profit)
                 )
 
-                raw_reward_risk = (
-                    net_reward_per_unit / total_risk_per_unit
-                    if total_risk_per_unit > 0
-                    else 0.0
+                raw_reward_risk = calculate_net_reward_risk(
+                    price,
+                    stop_loss,
+                    take_profit,
+                    "LONG" if signal == "BUY" else "SHORT",
+                    market,
                 )
 
                 if (
