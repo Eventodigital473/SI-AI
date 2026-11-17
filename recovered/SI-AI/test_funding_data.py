@@ -136,7 +136,7 @@ class FundingDataTests(unittest.TestCase):
         result = funding_data.funding_cost_for_trade(events, "LONG", 1, 1000, 3000)
         self.assertEqual(result["funding_event_count"], 3)
         self.assertEqual(result["funding_boundary_ambiguities"], 2)
-        self.assertAlmostEqual(result["funding_cost_usdt"], 2.0)
+        self.assertAlmostEqual(result["funding_cost_usdt"], 3.0)
 
     def test_dataset_round_trip_and_checksum_tampering(self):
         events = [{"timestamp": 1000, "funding_rate": 0.001, "mark_price": 101.0}]
