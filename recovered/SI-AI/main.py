@@ -16,7 +16,7 @@ def validate_market_symbol(data):
     symbol = str(data.get("symbol", "BTC/USDT")).upper()
 
     if market not in smc.MARKETS:
-        raise ValueError("Unsupported market. Use FUTURES or SPOT.")
+        raise ValueError("Unsupported market. SI-AI supports FUTURES only.")
 
     if symbol not in smc.get_symbols(market):
         smc.refresh_symbol_universe()
@@ -90,7 +90,6 @@ def api_config():
             "target_coins": smc.TARGET_UNIVERSE_SIZE,
             "maximum_coins": smc.MAX_UNIVERSE_SIZE,
             "refresh_seconds": smc.UNIVERSE_REFRESH_SECONDS,
-            "spot_min_quote_volume_usdt": smc.MIN_SPOT_QUOTE_VOLUME_USDT,
             "futures_min_quote_volume_usdt": smc.MIN_FUTURES_QUOTE_VOLUME_USDT,
             "maximum_spread_percent": smc.MAX_SPREAD_PERCENT
         },
@@ -211,13 +210,6 @@ def api_multi_timeframe():
             combined = smc.combine_timeframes(results)
             combined["analysis_status"] = "COMPLETE"
 
-        if (
-            not errors
-            and market == "SPOT"
-            and combined["overall_signal"] == "SELL"
-        ):
-            combined["overall_signal"] = "SELL/EXIT"
-
         return jsonify({
             "success": True,
             "complete": not errors,
@@ -246,7 +238,7 @@ if __name__ == "__main__":
     print("       SI AI SYSTEM STARTING")
     print("====================================")
     print("SMC Engine: Connected")
-    print("Markets: FUTURES, SPOT")
+    print("Market: Binance USD-M FUTURES only")
     print("Timeframes: 15m, 1h, 4h, 1d")
     print("Trading: Analysis Only")
     print("API: http://127.0.0.1:5000")
