@@ -670,8 +670,8 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 
 **Branch:** `feat/binance-isolated-liquidation-model-2026-11-18`  
 **Implementation commits:** `457f073a03b193a45016ceb27bb5d1eb08ff2a89` through `e12fc252fad0e2b05bddfb9a4dfc2c2c673d76f5`  
-**Latest implementation/test correction head:** `8b6e341ac27d9fb2ad9c5126f62c737b29561710`  
-**CI:** first run `44198892931` failed at compilation due a literal escaped newline in a test; second run `44199065754` compiled but found two test-only issues (missing datetime import and an invalid test margin input). Both were corrected; a fresh full CI run is still required.
+**Verified implementation/test head:** `8b6e341ac27d9fb2ad9c5126f62c737b29561710`  
+**Successful CI:** run [44199245439](https://github.com/Eventodigital473/SI-AI/actions/runs/44199245439) — **185 passed, 3 warnings, 4 subtests passed**. The later checkpoint-only commit records this result.
 
 ### Why this was necessary
 - The previous project had no liquidation calculation at all. Binance USD-M liquidation depends on the isolated/cross wallet balance, position side/size/entry, maintenance-margin rate and maintenance amount for the correct notional tier. Binance's official formula and tier-recalculation note are documented at https://www.binance.com/en/support/faq/detail/b3c689c1f50a44cabb3a84e663b81d93.
@@ -691,8 +691,9 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - This calculator is not yet a full historical liquidation backtest. Historical mark-price candles and time-matched historical maintenance-tier snapshots are not present; liquidation event handling is not implemented in the backtest engine.
 - Profitability certification must remain **INCONCLUSIVE** until historical mark-price and tier data, liquidation event simulation, and validation are complete.
 - No actual Binance bracket snapshot is included; operators must supply exact current symbol-specific values. No private account endpoint, API key, or order permission has been added.
-- Initial CI run `44198892931` stopped at compilation before tests due a literal escaped newline in `test_scanner_alerts.py`; corrected.
-- Second run `44199065754`: compilation and Termux checks passed; test suite reported 2 failures (datetime import missing in the new alert test; an invalid margin value caused the wrong expected exception in a test). Both test issues corrected in commits through `8b6e341ac27d9fb2ad9c5126f62c737b29561710`. Full corrected-head CI remains pending.
+- Initial run `44198892931` caught a literal escaped newline in a test file before tests ran; corrected.
+- Second run `44199065754` compiled successfully and found two test-only issues (missing datetime import and invalid margin fixture); both corrected.
+- Final exact code/test head `8b6e341ac27d9fb2ad9c5126f62c737b29561710` passed run `44199245439`: **185 passed, 3 warnings, 4 subtests passed**. Dependency consistency, minimal Termux CCXT profile, Widget shell syntax and Python compilation all passed.
 - No PR merge, no Termux command, and no change to `main` or the user's device.
 
 **Safety policy unchanged:** Futures-only signal provider; manual Binance execution only; 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R. No automatic orders.
