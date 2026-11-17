@@ -94,7 +94,7 @@ def _load_timeframe_datasets(dataset_paths) -> Dict[str, Dict]:
 
 
 def build_production_signal_callback(datasets: Dict[str, Dict]):
-    """Recreate scanner confluence using only candles closed by the 1h signal close."""
+    """Recreate live scanner confluence with closed candles and the same 250-bar cap."""
     if set(datasets) != set(REQUIRED_TIMEFRAMES):
         raise ValueError("Production callback requires 15m, 1h, 4h and 1d datasets")
 
@@ -117,13 +117,14 @@ def build_production_signal_callback(datasets: Dict[str, Dict]):
         results = {}
         for timeframe in REQUIRED_TIMEFRAMES:
             if timeframe == "1h":
-                timeframe_history = history
+                timeframe_history = history[-smc.CANDLE_LIMIT:]
             else:
                 interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
-                timeframe_history = [
+                closed_history = [
                     row for row in candles_by_timeframe[timeframe]
                     if row[0] + interval_ms <= signal_close_ms
                 ]
+                timeframe_history = closed_history[-smc.CANDLE_LIMIT:]
 
             if len(timeframe_history) < smc.MIN_CANDLES:
                 return {"signal": "WAIT"}
