@@ -406,6 +406,20 @@ def run_cycle(dry_run=False):
         return
 
     for market in smc.MARKETS:
+        diagnostics = getattr(smc, "MARKET_UNIVERSE_DIAGNOSTICS", {}).get(market, {})
+        if diagnostics:
+            logger.info(
+                "%s universe filters: markets=%d, volume-qualified=%d, "
+                "bookTicker-matched=%d, valid-bid-ask=%d, spread-qualified=%d, "
+                "selected=%d",
+                market,
+                diagnostics.get("markets_seen", 0),
+                diagnostics.get("volume_qualified", 0),
+                diagnostics.get("book_ticker_matched", 0),
+                diagnostics.get("valid_bid_ask", 0),
+                diagnostics.get("spread_qualified", 0),
+                diagnostics.get("selected_count", 0),
+            )
         market_symbols = smc.get_symbols(market)
         if len(market_symbols) < smc.MIN_ELIGIBLE_COINS:
             logger.warning(
