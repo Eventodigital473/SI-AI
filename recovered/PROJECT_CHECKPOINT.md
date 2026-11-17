@@ -488,18 +488,19 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 **Audit PR:** https://github.com/Eventodigital473/SI-AI/pull/14
 
 ### Additional input-validation fix
-- `SI_AI_smc._finite_number()` now rejects Python booleans. Python treats `True` and `False` as numeric subclasses, so previously malformed market-data values could be interpreted as prices or quote volume (for example, `True == 1.0`).
-- Added parameterized regression coverage for both boolean values in numeric parsing, bid/ask normalization, and spread validation.
+- `SI_AI_smc._finite_number()`, `backtesting._number()`, and `si_ai_scanner.number()` now reject Python booleans. Python treats `True` and `False` as numeric subclasses, so malformed market data or configuration values could otherwise be interpreted as numbers (for example, `True == 1.0`). Backtest OHLCV validation inherits the strict check through its shared numeric parser.
+- Added regression coverage for both boolean values in market-data parsing, bid/ask normalization, spread validation, backtest numeric inputs, and scanner numeric checks.
 - No strategy logic, thresholds, equity, risk, margin, leverage, or order behavior changed.
 
 ### Verification
 - GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44195093952
-- Exact code head tested: `4a5433a8060f67af71daace758135b49a3dcd92b`.
+- Exact expanded code head tested: `1245c9e808cbbc19059fde41c9291eac6345e058`.
+- GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44195322815
 - Dependency consistency: PASS.
 - Minimal synchronous Termux CCXT profile: PASS.
 - Termux Widget shell syntax checks: PASS.
 - Python compilation: PASS.
-- Full suite: **138 passed, 3 warnings, 4 subtests passed**.
+- Full suite: **141 passed, 3 warnings, 4 subtests passed**.
 - This is automated CI evidence only; no live Binance/Termux or Android notification test has been performed.
 
 ### Repository audit findings
