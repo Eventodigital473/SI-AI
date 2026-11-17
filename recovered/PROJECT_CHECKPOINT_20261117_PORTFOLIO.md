@@ -1,3 +1,5 @@
+> **ARCHIVED CHECKPOINT — HISTORICAL ONLY.** SI-AI has since been migrated to Binance USD-M Futures-only. Any Spot code, Spot scanner settings, or Spot backtesting described below has been retired and removed from the active project. Do not use this checkpoint to restore Spot functionality.
+
 # SI-AI Recovery Checkpoint — 2026-11-17 (Dynamic-Universe Portfolio Validation)
 
 ## Authoritative working branch
