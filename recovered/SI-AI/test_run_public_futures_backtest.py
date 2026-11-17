@@ -29,7 +29,12 @@ class PublicFuturesBacktestRunnerTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as directory, patch.object(
             runner, "REPORT_DIR", Path(directory)
-        ), patch.dict(
+        ), patch.object(
+            runner.historical_data, "DATA_DIR", Path(directory)
+        ), patch.object(
+            runner.funding_data, "download_funding_history",
+            return_value=[{"timestamp": 1_790_000_000_000, "funding_rate": 0.001, "mark_price": 100.0}],
+        ) as funding_download, patch.dict(
             runner.smc.EXCHANGES, {"FUTURES": FakeExchange()}, clear=True
         ), patch.object(
             runner.historical_data, "download_ohlcv", return_value=candles
@@ -49,6 +54,7 @@ class PublicFuturesBacktestRunnerTests(unittest.TestCase):
             )
 
         self.assertEqual(download.call_count, 4)
+        funding_download.assert_called_once()
         self.assertEqual(summary["market"], "FUTURES")
         self.assertEqual(summary["certification"], "INCONCLUSIVE")
         self.assertEqual(summary["results"][0]["profitability_gate"], "INCONCLUSIVE")
