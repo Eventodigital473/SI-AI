@@ -397,7 +397,6 @@ def notification_command(market, symbol, title, content):
         "--content", content,
         "--group", "SI-AI",
         "--priority", signal_style["priority"],
-        "--alert-once",
     ]
 
     if signal_style["led"]:
