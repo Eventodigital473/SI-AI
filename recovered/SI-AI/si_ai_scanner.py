@@ -764,8 +764,35 @@ def main():
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--interval", type=int, default=120)
+    parser.add_argument(
+        "--test-notifications",
+        action="store_true",
+        help="Send three clearly labelled test notifications; no exchange requests or orders",
+    )
 
     args = parser.parse_args()
+
+    if args.test_notifications:
+        if args.once or args.dry_run:
+            parser.error("--test-notifications cannot be combined with --once or --dry-run")
+        test_cases = (
+            ("BTC/USDT", "BUY"),
+            ("ETH/USDT", "SELL"),
+            ("SOL/USDT", "WAIT"),
+        )
+        try:
+            for symbol, signal in test_cases:
+                send_notification(
+                    "FUTURES",
+                    symbol,
+                    signal,
+                    f"TEST ONLY — {signal} notification appearance check. No market analysis, exchange request, or order was performed.",
+                )
+        except Exception as exc:
+            print(f"SI-AI NOTIFICATION TEST FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 1
+        print("SI-AI notification test sent: BUY, SELL, WAIT. These were test-only alerts; no exchange data or orders.")
+        return 0
 
     if args.interval < 60:
         parser.error("--interval must be at least 60 seconds")
