@@ -46,6 +46,8 @@ def validate_ohlcv(candles: list) -> List[list]:
         ts, op, high, low, close, volume = row[:6]
         vals = [_number(v, f"candle[{index}]") for v in (ts, op, high, low, close, volume)]
         ts, op, high, low, close, volume = vals
+        if not ts.is_integer():
+            raise ValueError("Candle timestamps must be integer milliseconds")
         if ts <= 0 or (previous_ts is not None and ts <= previous_ts):
             raise ValueError("Candle timestamps must be positive and strictly increasing")
         if min(op, high, low, close) <= 0 or volume < 0:
