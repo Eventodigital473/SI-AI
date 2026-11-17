@@ -108,7 +108,7 @@ Copy the exact current tier values for that contract from Binance's USD-M Future
 
 **Scope limitation:** this calculator is for one-way isolated margin only. It uses the paper margin estimate as isolated wallet balance; the actual Binance isolated wallet balance, margin mode, leverage, mark price, funding/fee adjustments and exchange display must be checked manually. Cross margin, hedge mode, other positions, auto-add margin and liquidation fees are not modelled. A 1x long may have no positive liquidation threshold in the idealized formula; that is not a guarantee against liquidation.
 
-Historical backtests still do not model liquidation events because the project does not yet have historical mark-price candles and time-matched maintenance-tier snapshots. The profitability gate must remain INCONCLUSIVE until those inputs and liquidation-event handling are validated. No private API key, account endpoint or order permission is added by this calculator.
+The public Futures backtest runner now also archives Binance USD-M 1h historical mark-price candles from `/fapi/v1/markPriceKlines` into a separate integrity-checked dataset. These are distinct from last-trade OHLCV and are included in the report manifest with a SHA-256 digest. The mark-price data is currently captured for research only: liquidation events are not yet simulated because historical, timestamp-matched maintenance-tier snapshots are not available through the public market-data endpoint. Do not substitute today's maintenance tiers for historical tiers. The profitability gate therefore remains INCONCLUSIVE. No private API key, account endpoint or order permission is added.
 
 ## Futures historical backtesting
 
@@ -156,11 +156,11 @@ GitHub CI verifies dependency consistency, Python compilation, Termux shell synt
 - `smc.py` — legacy compatibility shim; delegates to the Futures engine and does not initialize a Spot client.
 - `si_ai_scanner.py` — Futures-only multi-timeframe scanner and Termux notifications.
 - `main.py` — Futures-only Flask API.
-- `historical_data.py` — public Futures OHLCV download and integrity-checked datasets.
+- `historical_data.py` — public Futures last-trade OHLCV download and integrity-checked datasets.\n- `mark_price_data.py` — public Binance USD-M historical mark-price candles and integrity-checked datasets.
 - `funding_data.py` — timestamped Binance funding events, exact associated settlement mark prices, and signed funding cashflows.
 - `backtesting.py` / `historical_backtest.py` — offline Futures backtesting and evaluation.
 - `run_public_futures_backtest.py` — public historical data collection and backtest runner.
-- `profitability_gate.py` — fail-closed evidence gate requiring historical funding and liquidation modelling for Futures.
+- `profitability_gate.py` — fail-closed evidence gate requiring historical funding and validated liquidation modelling for Futures.\n- `test_mark_price_data.py` — mark-price endpoint pagination, validation, and dataset-integrity regression tests.
 - `termux_preflight.py` — offline Android/Termux runtime, dependency, Widget, and safety-policy checks.
 
 The previous Spot portfolio experiment is retired and is not part of the active SI-AI codebase. Its historical result is not evidence for the Futures strategy.
