@@ -44,6 +44,13 @@
 - Test commit: `589a6c4b9993258776e18ea1f40fb28e6a56ca29`.
 - This is a narrow data-universe hygiene fix, not a strategy optimization and not a claim that profitability will improve.
 
+## Follow-up validation and security review
+- Latest feature-branch CI run `44088548976` (run #114), commit `589a6c4...`: completed successfully.
+- Downloaded and inspected JUnit artifact `si-ai-test-evidence-114`: **107 tests, 0 failures, 0 errors, 0 skipped**; runtime 1.624 seconds. Compile and dependency-install steps also succeeded.
+- Static review of `main.py`, `SI_AI_smc.py`, and `si_ai_scanner.py` found no order-placement/cancel/amend/leverage-setting methods or private API-key use. Notifications use a fixed argument list for `termux-notification` with `subprocess.run` and no shell.
+- Local notification behavior, Android permission/sound/vibration, and live Termux startup remain unverified until physical-device testing.
+- Public Spot historical validation run #31 is still running; see next section.
+
 ## Current validation in progress
 - Dynamic-universe CI run `44088548976` (run #114) for commit `589a6c4...`: in progress at checkpoint time.
 - Public Spot historical validation run `44088541205` (run #31) for commit `589a6c4...`: queued at checkpoint time.
