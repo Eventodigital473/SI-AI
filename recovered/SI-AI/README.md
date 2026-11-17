@@ -102,9 +102,25 @@ python run_public_futures_backtest.py --days 180 --symbol BTC/USDT --symbol ETH/
 
 Supported history window: 120–730 days. Each symbol is currently evaluated with its own reference equity; the reports are **not** a shared-wallet multi-symbol portfolio simulation. Local datasets are stored under `data/historical/`; reports are stored under `data/reports/`. These paths are git-ignored.
 
-### Important Futures backtest limitation
+### Timestamped funding history and Futures backtest
 
-The current historical backtest engine includes OHLCV, fees, adverse slippage, next-candle-open entries, conservative same-bar stop handling, and a clearly labelled optional constant-rate funding proxy. It does **not yet** ingest timestamped historical Binance funding events or model exchange-specific maintenance margin and liquidation. Therefore the profitability gate must remain **INCONCLUSIVE** for Futures, even if the OHLCV-only metrics look positive. Do not use such a report as a profitability certification or as permission for live trading.
+The public backtest runner now downloads Binance USD-M historical funding events alongside the four OHLCV timeframes. Each funding event retains Binance's associated settlement `markPrice`; the engine applies signed funding cashflows using the position quantity and the event-specific mark price. Positive funding is a cost to longs and a credit to shorts; negative funding reverses those directions. The funding dataset is range-checked, symbol-checked, SHA-256 verified, and included in the report manifest.
+
+Run the standard workflow (funding is downloaded automatically):
+
+```bash
+python run_public_futures_backtest.py --days 180 --symbol BTC/USDT
+```
+
+The lower-level funding downloader is also available:
+
+```bash
+python funding_data.py --market FUTURES --symbol BTC/USDT --start-ms START_MS --end-ms END_MS --output data/historical/funding/BTC-USDT.json
+```
+
+The lower-level multi-timeframe runner accepts the verified dataset with `--funding-dataset PATH`. Funding events exactly tied to a trade's entry or exit timestamp are conservatively charged without assuming a funding credit and are flagged as ambiguous; any such ambiguity blocks profitability certification.
+
+**Important remaining limitation:** exchange-specific maintenance-margin tiers and liquidation-price/liquidation-fee modelling are not yet implemented. Therefore the profitability gate must remain **INCONCLUSIVE** for Futures, even if net historical metrics look positive. Funding costs are now included, but position sizing still follows the configured 0.5% stop-risk budget and does not guarantee a maximum loss under gaps, funding changes, liquidation, or exchange execution. Do not treat a report as a profitability guarantee or permission for live trading.
 
 ## Validation status
 
@@ -116,6 +132,7 @@ GitHub CI verifies dependency consistency, Python compilation, and automated reg
 - `si_ai_scanner.py` — Futures-only multi-timeframe scanner and Termux notifications.
 - `main.py` — Futures-only Flask API.
 - `historical_data.py` — public Futures OHLCV download and integrity-checked datasets.
+- `funding_data.py` — timestamped Binance funding events, exact associated settlement mark prices, and signed funding cashflows.
 - `backtesting.py` / `historical_backtest.py` — offline Futures backtesting and evaluation.
 - `run_public_futures_backtest.py` — public historical data collection and backtest runner.
 - `profitability_gate.py` — fail-closed evidence gate requiring historical funding and liquidation modelling for Futures.
