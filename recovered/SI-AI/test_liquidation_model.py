@@ -48,10 +48,10 @@ class LiquidationModelTests(unittest.TestCase):
 
     def test_tier_is_resolved_using_liquidation_notional(self):
         tiers = [
-            {"notional_floor": 0, "notional_cap": 95,
+            {"notional_floor": 0, "notional_cap": 80,
              "maintenance_margin_rate": 0.005, "maintenance_amount": 0,
              "max_leverage": 50},
-            {"notional_floor": 95, "notional_cap": None,
+            {"notional_floor": 80, "notional_cap": None,
              "maintenance_margin_rate": 0.01, "maintenance_amount": 0.475,
              "max_leverage": 20},
         ]
@@ -60,7 +60,7 @@ class LiquidationModelTests(unittest.TestCase):
             isolated_wallet_balance=10, leverage=10,
             bracket_snapshot=snapshot(tiers=tiers), now=NOW,
         )
-        self.assertAlmostEqual(result["liquidation_price"], (100 - 10 + 0.475) / 0.99)
+        self.assertAlmostEqual(result["liquidation_price"], (100 - 10 - 0.475) / 0.99)
         self.assertEqual(result["maintenance_margin_rate"], 0.01)
 
     def test_rejects_wrong_symbol_stale_and_future_snapshots(self):
