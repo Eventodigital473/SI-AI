@@ -2,6 +2,7 @@ import time
 from flask import Flask, jsonify, request
 
 import SI_AI_smc as smc
+import si_ai_scanner as scanner
 
 app = Flask(__name__)
 
@@ -222,6 +223,18 @@ def api_multi_timeframe():
             }
         else:
             combined = smc.combine_timeframes(results)
+            raw_signal = combined.get("overall_signal", "WAIT")
+            result_by_timeframe = {
+                result["timeframe"]: result for result in results
+            }
+            confirmed_signal = scanner.confirm_signal(
+                market, result_by_timeframe, combined
+            )
+            combined["weighted_signal"] = raw_signal
+            combined["overall_signal"] = confirmed_signal
+            combined["confirmation_status"] = (
+                "CONFIRMED" if confirmed_signal in ("BUY", "SELL") else "WAIT"
+            )
             combined["analysis_status"] = "COMPLETE"
 
         return jsonify({
