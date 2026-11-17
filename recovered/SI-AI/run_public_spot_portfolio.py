@@ -18,6 +18,27 @@ TIMEFRAMES = ("15m", "1h", "4h", "1d")
 PUBLIC_SPOT_DATA_URL = "https://data-api.binance.vision/api/v3"
 
 
+def _complete_window(candles, timeframe, start_ms, end_ms):
+    """Require identical, gap-free candle windows across all portfolio symbols."""
+    if not candles:
+        return False, "no candles returned"
+    interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
+    expected_first = ((start_ms + interval_ms - 1) // interval_ms) * interval_ms
+    expected_last = ((end_ms // interval_ms) * interval_ms) - interval_ms
+    expected_count = ((expected_last - expected_first) // interval_ms) + 1
+    if (
+        candles[0][0] != expected_first
+        or candles[-1][0] != expected_last
+        or len(candles) != expected_count
+    ):
+        return False, (
+            f"window mismatch: first={candles[0][0]}, expected_first={expected_first}; "
+            f"last={candles[-1][0]}, expected_last={expected_last}; "
+            f"count={len(candles)}, expected_count={expected_count}"
+        )
+    return True, "complete"
+
+
 def _download_with_retries(exchange, symbol, timeframe, start_ms, end_ms):
     transient_names = (
         "RateLimitExceeded", "NetworkError", "ExchangeNotAvailable",
@@ -93,6 +114,12 @@ def collect_and_backtest(
                 candles = _download_with_retries(
                     exchange, symbol, timeframe, start_ms, end_ms
                 )
+                complete, window_reason = _complete_window(
+                    candles, timeframe, start_ms, end_ms
+                )
+                if not complete:
+                    insufficient = f"{timeframe}: {window_reason}"
+                    break
                 if len(candles) < smc.MIN_CANDLES:
                     insufficient = (
                         f"{timeframe} has {len(candles)} candles; "
