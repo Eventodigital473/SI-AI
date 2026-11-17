@@ -14,7 +14,9 @@ def reports():
         {"trade_count": 30, "net_pnl_usdt": 18.0},
     ]}
     return {"out_of_sample": oos, "assumptions": {
-        "historical_funding_series_included": True, "liquidation_modelled": True,
+        "historical_funding_series_included": True,
+        "funding_mark_price_exact": True,
+        "liquidation_modelled": True,
     }}, wf
 
 
@@ -30,6 +32,14 @@ class ProfitabilityGateTests(unittest.TestCase):
         oos["assumptions"] = {}
         result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "INCONCLUSIVE")
+
+    def test_funding_rates_without_exact_mark_price_remain_inconclusive(self):
+        oos, wf = reports()
+        oos["assumptions"]["funding_mark_price_exact"] = False
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+        check = next(item for item in result["checks"] if item["name"] == "funding_mark_price")
+        self.assertEqual(check["status"], "INCONCLUSIVE")
 
     def test_insufficient_trades_is_inconclusive(self):
         oos, wf = reports()
@@ -52,9 +62,7 @@ class ProfitabilityGateTests(unittest.TestCase):
     def test_missing_fold_pnl_is_inconclusive_not_false_failure(self):
         oos, wf = reports()
         wf["folds"][0]["net_pnl_usdt"] = None
-        result = evaluate_profitability_evidence(
-            oos, wf, market="FUTURES"
-        )
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "INCONCLUSIVE")
 
     def test_invalid_market_rejected(self):
