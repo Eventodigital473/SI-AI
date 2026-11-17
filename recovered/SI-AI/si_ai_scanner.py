@@ -161,6 +161,8 @@ def save_state(data):
 
 
 def number(value):
+    if isinstance(value, bool):
+        return None
     try:
         result = float(value)
     except (TypeError, ValueError):
