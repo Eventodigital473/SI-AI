@@ -1,0 +1,47 @@
+name: Recover SI-AI source archive
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/recover-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate and extract canonical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="SI-AI_GITHUB_UPLOAD.zip"
+          test -f "$archive"
+          unzip -t "$archive"
+          if unzip -Z1 "$archive" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+            echo "Unsafe archive path detected; refusing extraction."
+            exit 1
+          fi
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          unzip -q "$archive" -d "$tmp"
+          test -d "$tmp/SI-AI"
+          test -f "$tmp/SI-AI/si_ai_scanner.py"
+          test -f "$tmp/SI-AI/SI_AI_smc.py"
+          test -f "$tmp/SI-AI/smc.py"
+          test -f "$tmp/SI-AI/market.py"
+          git fetch origin
+          git checkout -B recovery/source-2026-11-17 origin/main
+          rm -f .github/workflows/recover-source.yml
+          rm -rf SI-AI
+          cp -a "$tmp/SI-AI" ./SI-AI
+          git add SI-AI
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Recover canonical SI-AI source from upload archive"
+          git push origin HEAD:refs/heads/recovery/source-2026-11-17
