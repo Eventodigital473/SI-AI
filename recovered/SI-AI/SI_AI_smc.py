@@ -159,13 +159,35 @@ def _book_ticker_prices(ticker: dict):
     """Read normalized CCXT bid/ask or raw Binance bidPrice/askPrice."""
     if not isinstance(ticker, dict):
         return None, None
-    bid = _finite_number(
-        ticker.get("bid", ticker.get("bidPrice", ticker.get("bid_price")))
+    info = ticker.get("info")
+    info = info if isinstance(info, dict) else {}
+    bid_values = (
+        ticker.get("bid"), ticker.get("bidPrice"), ticker.get("bid_price"),
+        info.get("bidPrice"), info.get("bid"),
     )
-    ask = _finite_number(
-        ticker.get("ask", ticker.get("askPrice", ticker.get("ask_price")))
+    ask_values = (
+        ticker.get("ask"), ticker.get("askPrice"), ticker.get("ask_price"),
+        info.get("askPrice"), info.get("ask"),
     )
+    bid = next((value for raw in bid_values
+                if (value := _finite_number(raw)) is not None), None)
+    ask = next((value for raw in ask_values
+                if (value := _finite_number(raw)) is not None), None)
     return bid, ask
+
+
+def _spread_percent(bid: float, ask: float):
+    """Return midpoint-relative spread percentage for a valid two-sided quote."""
+    bid_value = _finite_number(bid)
+    ask_value = _finite_number(ask)
+    if bid_value is None or ask_value is None:
+        return None
+    if bid_value <= 0 or ask_value < bid_value:
+        return None
+    total = ask_value + bid_value
+    if total <= 0:
+        return None
+    return 200.0 * (ask_value - bid_value) / total
 
 
 def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
@@ -274,12 +296,8 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     continue
                 diagnostics["valid_bid_ask"] += 1
 
-                midpoint = (bid + ask) / 2.0
-                if midpoint <= 0:
-                    continue
-                # Algebraic relative spread: 100 * (ask-bid) / midpoint.
-                spread_percent = 200.0 * (ask - bid) / (ask + bid)
-                if spread_percent > MAX_SPREAD_PERCENT:
+                spread_percent = _spread_percent(bid, ask)
+                if spread_percent is None or spread_percent > MAX_SPREAD_PERCENT:
                     continue
                 diagnostics["spread_qualified"] += 1
 
