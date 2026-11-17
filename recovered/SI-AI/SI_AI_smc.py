@@ -31,7 +31,7 @@ MAX_SPREAD_PERCENT = 0.15
 PRIORITY_BASES = ("BTC", "ETH", "BNB", "SOL")
 EXCLUDED_BASES = {
     "USDC", "FDUSD", "TUSD", "USDP", "DAI", "USDE", "USDS",
-    "BUSD", "USDD", "USD1", "UST", "USTC", "EUR", "TRY",
+    "BUSD", "USDD", "USD1", "RLUSD", "XUSD", "UST", "USTC", "EUR", "TRY",
     "EURC", "EURI", "AEUR", "USYC", "USDJ", "USDX", "USDB",
     "USDF", "USDK", "USTB", "USDH",
     "WBTC", "WETH", "STETH", "WSTETH", "CBETH", "BETH",
