@@ -161,10 +161,19 @@ class BacktestingTests(unittest.TestCase):
     def test_timestamped_funding_uses_event_mark_price_and_direction(self):
         data = candles_with_bars(86)
         event = {"timestamp": 82, "funding_rate": 0.001, "mark_price": 100.0}
+        calls = 0
+
+        def one_buy_then_wait(market, symbol, timeframe, history):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return fixed_buy(market, symbol, timeframe, history)
+            return {"signal": "WAIT"}
+
         result = backtesting.run_backtest(
             data, "FUTURES", "BTC/USDT", "15m",
             fee_rate=0.0, slippage_rate=0.0,
-            max_holding_bars=3, signal_fn=fixed_buy,
+            max_holding_bars=3, signal_fn=one_buy_then_wait,
             funding_events=[event],
         )
         self.assertEqual(len(result["trades"]), 1)
