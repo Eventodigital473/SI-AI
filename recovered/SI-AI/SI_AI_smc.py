@@ -89,6 +89,10 @@ def get_symbols(market: str) -> List[str]:
 
 
 def _finite_number(value):
+    # bool is a numeric subclass in Python, but it is never a valid market price
+    # or quote-volume value. Reject it instead of silently treating True as 1.0.
+    if isinstance(value, bool):
+        return None
     try:
         result = float(value)
     except (TypeError, ValueError):
