@@ -39,8 +39,8 @@ def evaluate_profitability_evidence(
     """Return PASS only when all minimum evidence and performance gates pass.
 
     Missing/invalid metrics are INCONCLUSIVE; observed threshold failures are
-    FAIL. Futures cannot pass until historical funding and liquidation risk
-    are explicitly modelled in the supplied evidence assumptions.
+    FAIL. Futures cannot pass until timestamped historical funding, a validated
+    funding valuation price, and exchange-specific liquidation risk are modelled.
     """
     if market != "FUTURES":
         raise ValueError("Profitability certification supports FUTURES only")
@@ -126,11 +126,21 @@ def evaluate_profitability_evidence(
     assumptions = chronological_report.get("assumptions", {})
     if market == "FUTURES":
         funding_ok = isinstance(assumptions, dict) and assumptions.get("historical_funding_series_included") is True
-        liquidation_ok = isinstance(assumptions, dict) and assumptions.get("liquidation_modelled") is True
         check("historical_funding_series", funding_ok, funding_ok,
               "Futures evidence must include timestamped historical funding events.")
+
+        # Funding rate history alone is not enough: the cash amount depends on
+        # the contract mark price at settlement. OHLCV close is only a proxy.
+        funding_price_ok = (
+            isinstance(assumptions, dict)
+            and assumptions.get("funding_mark_price_exact") is True
+        )
+        check("funding_mark_price", funding_price_ok, funding_price_ok,
+              "Funding cashflows must use the exchange mark price at each settlement; candle-close proxies are insufficient.")
+
+        liquidation_ok = isinstance(assumptions, dict) and assumptions.get("liquidation_modelled") is True
         check("liquidation_model", liquidation_ok, liquidation_ok,
-              "Futures evidence must model liquidation and maintenance margin.")
+              "Futures evidence must model exchange-specific liquidation and maintenance margin.")
 
     status = "FAIL" if failed else "INCONCLUSIVE" if inconclusive else "PASS"
     return {
