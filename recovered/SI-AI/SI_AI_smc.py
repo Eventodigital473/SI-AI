@@ -701,8 +701,8 @@ def validate_analysis_inputs(market: str, symbol: str,
 
         ts, op, high, low, close, volume = map(float, values)
 
-        if ts <= 0 or not ts.is_integer():
-            raise ValueError("Candle timestamps must be positive integer milliseconds")
+        if not ts.is_integer():
+            raise ValueError("Candle timestamps must be integer milliseconds")
 
         if min(op, high, low, close) <= 0 or volume < 0:
             raise ValueError("Invalid OHLCV price or volume")
