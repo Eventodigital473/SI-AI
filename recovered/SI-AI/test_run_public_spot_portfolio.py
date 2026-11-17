@@ -61,6 +61,8 @@ class PublicSpotPortfolioRunnerTests(unittest.TestCase):
                     {"SPOT": symbols},
                 )[-1],
             ), patch.object(
+                runner, "_complete_window", return_value=(True, "complete")
+            ), patch.object(
                 runner.historical_data, "download_ohlcv", return_value=candles
             ) as download, patch.object(
                 runner.historical_data, "save_dataset",
@@ -82,6 +84,27 @@ class PublicSpotPortfolioRunnerTests(unittest.TestCase):
         self.assertEqual(download.call_count, 8)
         self.assertEqual(portfolio.call_args.kwargs["initial_equity"], smc.PAPER_EQUITY_USDT)
         self.assertFalse(summary["automatic_orders"])
+
+
+    def test_complete_window_rejects_new_listings_and_missing_candles(self):
+        interval = smc.TIMEFRAME_MILLISECONDS["1h"]
+        start_ms = 1_700_000_000_123
+        end_ms = start_ms + 120 * interval
+        first = ((start_ms + interval - 1) // interval) * interval
+        last = ((end_ms // interval) * interval) - interval
+        candles = [
+            [timestamp, 100.0, 102.0, 99.0, 101.0, 10.0]
+            for timestamp in range(first, last + 1, interval)
+        ]
+        self.assertTrue(runner._complete_window(
+            candles, "1h", start_ms, end_ms
+        )[0])
+        self.assertFalse(runner._complete_window(
+            candles[1:], "1h", start_ms, end_ms
+        )[0])
+        self.assertFalse(runner._complete_window(
+            candles[:-1], "1h", start_ms, end_ms
+        )[0])
 
     def test_runner_rejects_short_history_window(self):
         with self.assertRaises(ValueError):
