@@ -6,6 +6,7 @@ prerequisites. It does not contact Binance, read credentials, or place orders.
 from __future__ import annotations
 
 import importlib
+from importlib import metadata
 import os
 import platform
 import shutil
@@ -41,7 +42,7 @@ def collect_preflight(project_dir=None, shortcuts_dir=None, command_lookup=None,
     for module_name in ("ccxt", "requests", "certifi", "cryptography", "typing_extensions", "flask"):
         try:
             module = importlib.import_module(module_name)
-            version = getattr(module, "__version__", "version unavailable")
+            version = metadata.version(module_name)
             checks.append(_check(f"dependency_{module_name}", "PASS", version))
         except Exception as exc:
             checks.append(_check(f"dependency_{module_name}", "FAIL", f"{type(exc).__name__}: {exc}"))
