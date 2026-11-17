@@ -135,6 +135,7 @@ def calculate_isolated_liquidation_price(
 
     direction = 1.0 if side == "LONG" else -1.0
     candidates = []
+    positive_prices = []
     for tier in tiers:
         mmr = tier["maintenance_margin_rate"]
         cum = tier["maintenance_amount"]
@@ -148,6 +149,7 @@ def calculate_isolated_liquidation_price(
         if not math.isfinite(price) or price <= 0:
             continue
         liquidation_notional = qty * price
+        positive_prices.append((price, tier, liquidation_notional))
         in_tier = (
             liquidation_notional >= tier["notional_floor"] - 1e-9
             and (tier["notional_cap"] is None
@@ -156,6 +158,11 @@ def calculate_isolated_liquidation_price(
         if in_tier:
             candidates.append((price, tier, liquidation_notional))
 
+    if not candidates and positive_prices:
+        raise ValueError(
+            "Could not uniquely resolve liquidation tier from this snapshot; "
+            "refuse to display an uncertified liquidation price"
+        )
     if not candidates:
         # At very low leverage an ideal isolated long can have no positive
         # liquidation threshold in the linear USDT price domain. This is not
