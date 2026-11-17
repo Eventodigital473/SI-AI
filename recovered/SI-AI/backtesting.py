@@ -360,6 +360,7 @@ def run_backtest(
             "funding_settlement_boundary_ambiguities": funding_boundary_ambiguities_total,
             "funding_rate_per_8h_assumption": funding_rate,
             "funding_cost_method": ("timestamped Binance funding events; each cashflow uses the event-specific exchange markPrice and position quantity" if funding_events is not None else "constant user-supplied rate proxy at UTC 8-hour boundaries; not historical exchange funding" if funding_rate is not None else "excluded; provide a verified Binance funding dataset"),
+            "funding_exit_window_policy": ("intrabar exits include settlements through the exit candle close conservatively and flag them ambiguous; TIME_EXIT includes settlements through candle close; open-time exits stop at the exit candle open" if funding_events is not None else "not applicable"),
             "liquidation_modelled": False,
         },
         "metrics": metrics,
