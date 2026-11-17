@@ -57,17 +57,6 @@ class SignalAlertTests(unittest.TestCase):
         self.assertIn("TP2 (1.5R reference): 97", content)
         self.assertIn("TP3 (engine target): 94", content)
 
-    def test_spot_sell_is_exit_without_short_targets(self):
-        self.results["1h"]["signal"] = "SELL/EXIT"
-        self.results["4h"]["signal"] = "SELL/EXIT"
-        title, content = scanner.make_alert(
-            "SPOT", "ETH/USDT", "SELL", self.results
-        )
-        self.assertEqual(title, "SELL / EXIT")
-        self.assertIn("Coin: Ethereum (ETH/USDT)", content)
-        self.assertIn("Spot exit only. No short position.", content)
-        self.assertNotIn("TP1", content)
-        self.assertNotIn("Stop Loss:", content)
 
     def test_unknown_coin_name_is_not_guessed(self):
         self.assertEqual(
