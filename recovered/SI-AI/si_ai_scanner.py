@@ -225,6 +225,14 @@ def confirm_signal(market, results, combined):
     if signal_1h != signal_4h or signal_1h != signal_mtf:
         return "WAIT"
 
+    # The 1h chart is the entry setup: require a confirmed directional
+    # structure break, not a score-only BUY/SELL assembled from lagging
+    # indicators. The 4h chart remains the directional confirmation.
+    entry_setup = results.get("1h") or {}
+    expected_bos = "Bullish" if signal_1h == "BUY" else "Bearish"
+    if str(entry_setup.get("bos", "None")).strip().title() != expected_bos:
+        return "WAIT"
+
     # Spot SELL is an exit signal, never a short entry.
     if signal_1h == "SELL" and market == "SPOT":
         return "SELL"
