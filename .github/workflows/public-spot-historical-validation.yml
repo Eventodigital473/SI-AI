@@ -19,7 +19,7 @@ permissions:
 jobs:
   collect-and-backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: recovered/SI-AI
@@ -38,106 +38,8 @@ jobs:
         run: python -m compileall -q .
       - name: Run full offline regression suite
         run: python -m pytest -q
-      - name: Download and verify 180 days of public Binance Spot history
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import time
-          from pathlib import Path
-
-          import ccxt
-          import historical_data
-          import historical_backtest
-          import SI_AI_smc as smc
-
-          market = "SPOT"
-          symbol = "BTC/USDT"
-          days = 180
-          end_ms = int(time.time() * 1000)
-          start_ms = end_ms - days * 24 * 60 * 60 * 1000
-          exchange = smc.EXCHANGES[market]
-          # Binance documents this host for unauthenticated public market data.
-          exchange.urls["api"]["public"] = "https://data-api.binance.vision/api/v3"
-          # Avoid CCXT loading restricted linear/inverse market metadata for a Spot-only run.
-          exchange.options["fetchMarkets"] = ["spot"]
-          paths = []
-          manifests = []
-
-          transient_types = tuple(
-              getattr(ccxt, name) for name in (
-                  "RateLimitExceeded", "NetworkError",
-                  "ExchangeNotAvailable", "RequestTimeout", "DDoSProtection"
-              ) if hasattr(ccxt, name)
-          )
-
-          for timeframe in ("15m", "1h", "4h", "1d"):
-              last_error = None
-              for attempt in range(3):
-                  try:
-                      candles = historical_data.download_ohlcv(
-                          market, symbol, timeframe, start_ms, end_ms,
-                          exchange=exchange,
-                      )
-                      break
-                  except transient_types as exc:
-                      last_error = exc
-                      if attempt == 2:
-                          raise
-                      time.sleep(3 * (attempt + 1))
-              else:
-                  raise RuntimeError(f"Download failed for {timeframe}: {last_error}")
-
-              path = historical_data.save_dataset(
-                  market, symbol, timeframe, candles,
-                  start_ms=start_ms, end_ms=end_ms,
-              )
-              verified = historical_data.load_dataset(path)
-              if verified["data_sha256"] != historical_data.dataset_sha256(verified["candles"]):
-                  raise RuntimeError(f"Dataset checksum verification failed: {timeframe}")
-
-              paths.append(str(path))
-              manifests.append({
-                  "timeframe": timeframe,
-                  "candle_count": verified["candle_count"],
-                  "start_ms": verified["start_ms"],
-                  "end_ms": verified["end_ms"],
-                  "sha256": verified["data_sha256"],
-                  "path": str(path),
-              })
-              print(json.dumps(manifests[-1], sort_keys=True))
-
-          report, report_path = historical_backtest.run_dataset_backtest(
-              paths,
-              initial_equity=100.0,
-          )
-          summary = {
-              "market": market,
-              "symbol": symbol,
-              "requested_days": days,
-              "dataset_manifest": manifests,
-              "report_path": str(report_path),
-              "combined_data_sha256": report["dataset"]["combined_data_sha256"],
-              "chronological_status": report["chronological_validation"]["status"],
-              "walk_forward_status": report["walk_forward"]["status"],
-              "profitability_gate": report["profitability_gate"]["status"],
-              "profitability_checks": report["profitability_gate"]["checks"],
-              "automatic_orders": False,
-              "limitations": report["limitations"],
-          }
-          summary_path = Path("data/reports/public_spot_validation_summary.json")
-          summary_path.parent.mkdir(parents=True, exist_ok=True)
-          summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
-              handle.write("# SI-AI public Spot historical validation\n\n")
-              handle.write(f"- Market/symbol: **{market} {symbol}**\n")
-              handle.write(f"- Requested history: **{days} days**\n")
-              handle.write(f"- Chronological holdout: **{summary['chronological_status']}**\n")
-              handle.write(f"- Walk-forward: **{summary['walk_forward_status']}**\n")
-              handle.write(f"- Profitability gate: **{summary['profitability_gate']}**\n")
-              handle.write(f"- Combined dataset SHA-256: `{summary['combined_data_sha256']}`\n\n")
-              handle.write("The gate is evidence-only. FAIL or INCONCLUSIVE is a valid research result, not a CI failure. No live profitability claim or automatic trading is implied.\n")
+      - name: Download dynamic-universe Spot history and run shared-wallet backtest
+        run: python run_public_spot_portfolio.py --days 180 --symbol-limit 50
       - name: Upload verified datasets and research report
         if: always()
         uses: actions/upload-artifact@v4
