@@ -59,7 +59,8 @@ class SignalAlertTests(unittest.TestCase):
         self.assertIn("Estimated stop risk: 0.4900 USDT incl. estimated costs", content)
         self.assertIn("Risk policy: 0.50% of 100.00 USDT reference equity", content)
         self.assertIn("Estimated round-trip fees: 0.0171 USDT", content)
-        self.assertIn("Liquidation price: NOT MODELLED/NOT CERTIFIED", content)
+        self.assertIn("Liquidation price: NOT CERTIFIED; no current symbol-specific", content)
+        self.assertIn("Model scope: isolated one-way only", content)
         self.assertIn("amount precision/minimum quantity/minimum notional: NOT", content)
         self.assertIn("round quantity DOWN only", content)
 
