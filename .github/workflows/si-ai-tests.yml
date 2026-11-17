@@ -39,7 +39,7 @@ jobs:
           temp_home="$(mktemp -d)"
           HOME="$temp_home" bash termux-widget/install-shortcuts.sh
           test -x "$temp_home/.shortcuts/SI-AI Check"
-          printf 'user-managed shortcut\\n' > "$temp_home/.shortcuts/SI-AI Start"
+          printf '%s\\n' "user-managed shortcut" > "$temp_home/.shortcuts/SI-AI Start"
           HOME="$temp_home" bash termux-widget/install-shortcuts.sh
           test "$(cat "$temp_home/.shortcuts/SI-AI Start")" = "user-managed shortcut"
           rm -rf "$temp_home"
