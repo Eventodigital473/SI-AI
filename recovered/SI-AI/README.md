@@ -45,7 +45,7 @@ python -m pytest -q
 
 If the destination folder already exists, do not overwrite it. Choose a new folder or safely inspect the existing checkout first. Android notification permission must be granted to Termux:API separately.
 
-The `main`-branch clone above is the final-install instruction **after the stacked pull requests are merged in order**; do not use it before that merge. For the current existing checkout, wait for the final merge/refresh instructions. The Termux profile installs CCXT's synchronous public REST client without its unused async/accelerator extras; Termux supplies `python-cryptography`. Do not run `pip check` against this intentionally minimal CCXT install because CCXT declares optional async/accelerator packages that SI-AI does not import. The standard `requirements.txt` remains the full desktop/CI profile.
+The `main`-branch clone above is the final-install instruction only after PRs #1–#12 have been merged in dependency order into the recovery branch **and** a final recovery-to-`main` integration pull request has been merged. Do not use it before that complete sequence. For the current existing checkout, wait for the final merge/refresh instructions. The Termux profile installs CCXT's synchronous public REST client without its unused async/accelerator extras; Termux supplies `python-cryptography`. Do not run `pip check` against this intentionally minimal CCXT install because CCXT declares optional async/accelerator packages that SI-AI does not import. The standard `requirements.txt` remains the full desktop/CI profile.
 
 ### Signal notification appearance
 
