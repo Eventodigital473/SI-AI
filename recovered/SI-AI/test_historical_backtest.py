@@ -282,16 +282,18 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
             primary = make_dataset_payloads()["1h"]
             rows = primary["candles"]
             shifted = [
-                [row[0] + historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"],
-                 row[1], row[2], row[3], row[4], 0.0]
-                for row in rows[:-1]
+                [rows[0][0] - historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"],
+                 rows[0][1], rows[0][2], rows[0][3], rows[0][4], 0.0]
+            ] + [
+                [row[0], row[1], row[2], row[3], row[4], 0.0]
+                for row in rows
             ]
             mark_dataset = {
                 "source": "BINANCE_USDM_MARK_PRICE_KLINES",
                 "market": "FUTURES",
                 "symbol": "BTC/USDT",
                 "timeframe": "1h",
-                "start_ms": rows[0][0],
+                "start_ms": rows[0][0] - historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"],
                 "end_ms": rows[-1][0] + historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"],
                 "candles": shifted,
                 "candle_count": len(shifted),
