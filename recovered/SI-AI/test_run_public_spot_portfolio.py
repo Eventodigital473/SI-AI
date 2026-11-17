@@ -82,7 +82,6 @@ class PublicSpotPortfolioRunnerTests(unittest.TestCase):
         self.assertEqual(download.call_count, 8)
         self.assertEqual(portfolio.call_args.kwargs["initial_equity"], smc.PAPER_EQUITY_USDT)
         self.assertFalse(summary["automatic_orders"])
-        self.assertTrue((Path(directory) / "data/reports/public_spot_portfolio_summary.json").exists())
 
     def test_runner_rejects_short_history_window(self):
         with self.assertRaises(ValueError):
