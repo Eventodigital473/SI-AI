@@ -155,36 +155,13 @@ class MainApiTests(unittest.TestCase):
             self.assertIn("paper_total_risk_usdt", result)
             self.assertIn("stop_loss", result)
 
-    def test_spot_bearish_combined_signal_becomes_exit(self):
-        result = sample_result("15m", "SELL/EXIT")
 
-        with patch.object(
-            main.smc, "analyze", return_value=result
-        ), patch.object(
-            main.smc, "combine_timeframes",
-            return_value={
-                "weighted_score": -4.0,
-                "overall_signal": "SELL",
-            }
-        ), patch.object(main.time, "sleep"):
-
-            response = self.client.post(
-                "/api/multi-timeframe",
-                json={
-                    "market": "SPOT",
-                    "symbol": "BTC/USDT",
-                    "timeframes": ["15m"],
-                },
-            )
-
-        self.assertEqual(response.status_code, 200)
-
-        data = response.get_json()
-        self.assertEqual(
-            data["multi_timeframe"]["overall_signal"],
-            "SELL/EXIT",
+    def test_spot_market_is_rejected(self):
+        response = self.client.get(
+            "/api/analyze?market=SPOT&symbol=BTC/USDT&timeframe=1h"
         )
-        self.assertFalse(data["automatic_orders"])
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("FUTURES only", response.get_json()["error"])
 
     def test_partial_timeframe_failure_is_reported(self):
         with patch.object(
