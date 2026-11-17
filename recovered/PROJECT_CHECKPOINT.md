@@ -697,3 +697,24 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - No PR merge, no Termux command, and no change to `main` or the user's device.
 
 **Safety policy unchanged:** Futures-only signal provider; manual Binance execution only; 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R. No automatic orders.
+
+
+---
+
+## Consolidation checkpoint — 2026-11-18
+
+**Integration branch:** `integration/si-ai-consolidated-2026-11-18`  
+**Starting source head:** `a66ae779d881250b4fdd164db4c015db69d56c74` (PR #15)  
+
+### Consolidated changes
+- Created a single integration branch from the latest PR #15 head, preserving the full dependency chain through PR #14 and PR #2–#12, with PR #1 already merged into the recovery history.
+- Selectively brought forward the still-relevant PR #13 fixes: Termux requirements are installed before CCXT with `--no-deps` in both README and CI; offline preflight obtains package versions through `importlib.metadata` instead of deprecated Flask `__version__` access.
+- Kept the PR #14 Futures-only `smc.py` compatibility shim. PR #13's deletion of that module and its test requiring the module to be absent were intentionally not copied because PR #14's tested shim preserves legacy import compatibility while preventing Spot client construction.
+- Risk and trading policy unchanged: Futures-only, signal-only, manual execution, no private credentials/orders; 100 USDT equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R.
+
+### Validation state
+- Prior PR #15 head CI: run [44199367891](https://github.com/Eventodigital473/SI-AI/actions/runs/44199367891) succeeded; exact code/test head [8b6e341ac27d9fb2ad9c5126f62c737b29561710](https://github.com/Eventodigital473/SI-AI/commit/8b6e341ac27d9fb2ad9c5126f62c737b29561710) passed 185 tests, 3 warnings, and 4 subtests in run [44199245439](https://github.com/Eventodigital473/SI-AI/actions/runs/44199245439).
+- The consolidation-only README/preflight/CI edits require a fresh CI run on this branch; do not claim them tested until that run passes.
+- Historical liquidation event simulation remains incomplete: historical mark-price candles and timestamp-matched maintenance-tier snapshots are still required. Profitability remains INCONCLUSIVE.
+- Live Termux Futures universe/bookTicker validation, Android notifications, and final device/backtest smoke tests remain pending.
+- No merge into `main`, no Termux commands, and no changes to the user's device.
