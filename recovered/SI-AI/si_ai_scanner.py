@@ -19,7 +19,7 @@ LOCK_FILE = BASE_DIR / "si_ai_scanner.lock"
 LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "si_ai_scanner.log"
 
-EXPECTED_MARKETS = {"SPOT", "FUTURES"}
+EXPECTED_MARKETS = {"FUTURES"}
 EXPECTED_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
 STATE_VERSION = 1
 
@@ -233,11 +233,7 @@ def confirm_signal(market, results, combined):
     if str(entry_setup.get("bos", "None")).strip().title() != expected_bos:
         return "WAIT"
 
-    # Spot SELL is an exit signal, never a short entry.
-    if signal_1h == "SELL" and market == "SPOT":
-        return "SELL"
-
-    # Spot BUY and all Futures signals require valid risk levels.
+    # Futures BUY and SELL both require validated risk levels.
     if not valid_risk(market, signal_1h, results["1h"]):
         return "WAIT"
 
@@ -287,11 +283,7 @@ def make_alert(market, symbol, signal, results):
     reference = results["1h"]
     price = number(reference.get("price"))
 
-    display_signal = (
-        "SELL / EXIT"
-        if market == "SPOT" and signal == "SELL"
-        else signal
-    )
+    display_signal = signal
 
     lines = [
         f"Coin: {coin_display_name(symbol)} ({symbol})",
@@ -355,10 +347,7 @@ def make_alert(market, symbol, signal, results):
                 lines.append(f"Recommended leverage: {leverage:g}x (conservative; higher leverage disabled)")
             if margin is not None and budget is not None:
                 lines.append(f"Estimated margin: {margin:.2f} USDT / {budget:.2f} USDT budget (20% of 100 USDT reference wallet)")
-        elif market == "SPOT":
-            lines.append("Leverage: not applicable to spot")
-    else:
-        lines.append("Spot exit only. No short position.")
+
 
     reasons = reference.get("reasons", [])
     if isinstance(reasons, (list, tuple)):
