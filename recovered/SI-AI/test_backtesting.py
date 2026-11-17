@@ -211,6 +211,7 @@ class BacktestingTests(unittest.TestCase):
         self.assertEqual(assumptions["fee_rate_per_side"], 0.001)
         self.assertEqual(assumptions["slippage_rate_per_side"], 0.0005)
         self.assertIn("historical_funding_series_included", assumptions)
+        self.assertFalse(assumptions["historical_funding_series_included"])
         self.assertFalse(assumptions["liquidation_modelled"])
 
 
