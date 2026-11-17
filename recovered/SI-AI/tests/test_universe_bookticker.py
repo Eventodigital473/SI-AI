@@ -59,3 +59,32 @@ def test_spread_percent_rejects_invalid_quotes():
     assert smc._spread_percent(None, 101.0) is None
     assert smc._spread_percent(0.0, 101.0) is None
     assert smc._spread_percent(102.0, 101.0) is None
+
+
+
+def test_fee_free_long_reward_risk_matches_algebra():
+    result = smc.calculate_net_reward_risk(
+        100.0, 95.0, 110.0, "LONG", "FUTURES",
+        fee_rate=0.0, slippage_rate=0.0,
+    )
+    assert result == 2.0
+
+
+def test_fee_free_short_reward_risk_matches_algebra():
+    result = smc.calculate_net_reward_risk(
+        100.0, 105.0, 90.0, "SHORT", "FUTURES",
+        fee_rate=0.0, slippage_rate=0.0,
+    )
+    assert result == 2.0
+
+
+def test_transaction_costs_reduce_net_reward_risk():
+    gross = smc.calculate_net_reward_risk(
+        100.0, 95.0, 110.0, "LONG", "FUTURES",
+        fee_rate=0.0, slippage_rate=0.0,
+    )
+    net = smc.calculate_net_reward_risk(
+        100.0, 95.0, 110.0, "LONG", "FUTURES",
+        fee_rate=0.0005, slippage_rate=0.0002,
+    )
+    assert net < gross
