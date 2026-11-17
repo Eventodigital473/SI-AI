@@ -1,4 +1,5 @@
 import SI_AI_smc as smc
+import pytest
 
 
 def test_index_accepts_unified_and_raw_binance_aliases():
@@ -52,7 +53,7 @@ def test_book_ticker_prices_accept_raw_binance_info_fields():
 def test_spread_percent_uses_midpoint_relative_algebra():
     # 100 * (101 - 99) / ((101 + 99) / 2) = 2.0 percent.
     assert smc._spread_percent(99.0, 101.0) == 2.0
-    assert smc._spread_percent(100.0, 100.1) == 100.0 * 0.1 / 100.05
+    assert smc._spread_percent(100.0, 100.1) == pytest.approx(100.0 * 0.1 / 100.05, rel=1e-12, abs=1e-12)
 
 
 def test_spread_percent_rejects_invalid_quotes():
