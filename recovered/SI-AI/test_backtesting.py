@@ -188,6 +188,31 @@ class BacktestingTests(unittest.TestCase):
         self.assertTrue(result["assumptions"]["funding_mark_price_exact"])
         self.assertFalse(result["assumptions"]["liquidation_modelled"])
 
+    def test_intrabar_exit_candle_funding_event_is_ambiguous(self):
+        data = candles_with_bars(86)
+        data[81] = [82, 100.0, 105.0, 99.0, 100.0, 1000.0]
+        event = {"timestamp": 83, "funding_rate": 0.001, "mark_price": 100.0}
+        calls = 0
+
+        def one_buy_then_wait(market, symbol, timeframe, history):
+            nonlocal calls
+            calls += 1
+            return fixed_buy(market, symbol, timeframe, history) if calls == 1 else {"signal": "WAIT"}
+
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=3, signal_fn=one_buy_then_wait,
+            funding_events=[event],
+        )
+        self.assertEqual(len(result["trades"]), 1)
+        trade = result["trades"][0]
+        self.assertEqual(trade["exit_reason"], "TARGET")
+        self.assertEqual(trade["funding_exit_timing"], "intrabar")
+        self.assertEqual(trade["funding_event_count"], 1)
+        self.assertEqual(trade["funding_boundary_ambiguities"], 1)
+        self.assertGreater(trade["funding_cost_usdt"], 0)
+
     def test_timestamped_funding_rejects_double_counting_proxy(self):
         with self.assertRaisesRegex(ValueError, "not both"):
             backtesting.run_backtest(
