@@ -52,7 +52,7 @@ class PublicFuturesBacktestRunnerTests(unittest.TestCase):
         self.assertEqual(summary["market"], "FUTURES")
         self.assertEqual(summary["certification"], "INCONCLUSIVE")
         self.assertEqual(summary["results"][0]["profitability_gate"], "INCONCLUSIVE")
-        self.assertTrue(summary_path.exists())
+        self.assertTrue(summary_path.name.startswith("futures_backtest_summary_"))
         self.assertFalse(summary["automatic_orders"])
 
     def test_runner_rejects_non_futures_symbols_and_spot(self):
