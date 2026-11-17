@@ -89,3 +89,62 @@ def test_transaction_costs_reduce_net_reward_risk():
         fee_rate=0.0005, slippage_rate=0.0002,
     )
     assert net < gross
+
+
+
+def test_futures_universe_accepts_raw_binance_bookticker_keyed_by_market_id(monkeypatch):
+    class FakeFuturesExchange:
+        markets = {
+            "BTC/USDT:USDT": {
+                "active": True,
+                "quote": "USDT",
+                "base": "BTC",
+                "swap": True,
+                "linear": True,
+                "settle": "USDT",
+                "symbol": "BTC/USDT:USDT",
+                "id": "BTCUSDT",
+            }
+        }
+
+        def load_markets(self):
+            return self.markets
+
+        def fetch_tickers(self):
+            return {
+                "BTC/USDT:USDT": {
+                    "quoteVolume": 15_000_000.0,
+                }
+            }
+
+        def fetch_bids_asks(self):
+            return {
+                "BTCUSDT": {
+                    "info": {
+                        "symbol": "BTCUSDT",
+                        "bidPrice": "100.0",
+                        "askPrice": "100.1",
+                    }
+                }
+            }
+
+    monkeypatch.setattr(smc, "MARKETS", ["FUTURES"])
+    monkeypatch.setattr(smc, "EXCHANGES", {"FUTURES": FakeFuturesExchange()})
+    monkeypatch.setattr(smc, "_MARKET_UNIVERSE_LAST_REFRESH", {"FUTURES": 0.0})
+    monkeypatch.setattr(smc, "MARKET_SYMBOLS", {"FUTURES": []})
+    monkeypatch.setattr(smc, "MARKET_UNIVERSE_STATUS", {"FUTURES": "not_refreshed"})
+    monkeypatch.setattr(smc, "MARKET_UNIVERSE_DIAGNOSTICS", {"FUTURES": {}})
+    monkeypatch.setattr(smc, "SYMBOLS", [])
+
+    result = smc.refresh_symbol_universe(force=True)
+
+    assert result["FUTURES"] == ["BTC/USDT"]
+    assert smc.MARKET_UNIVERSE_DIAGNOSTICS["FUTURES"] == {
+        "markets_seen": 1,
+        "volume_qualified": 1,
+        "book_ticker_matched": 1,
+        "valid_bid_ask": 1,
+        "spread_qualified": 1,
+        "candidate_count": 1,
+        "selected_count": 1,
+    }
