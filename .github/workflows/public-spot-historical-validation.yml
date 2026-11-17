@@ -6,8 +6,7 @@ on:
       - feature/dynamic-coin-universe
     paths:
       - .github/workflows/public-spot-historical-validation.yml
-      - recovered/SI-AI/historical_backtest.py
-      - recovered/SI-AI/test_historical_backtest.py
+      - recovered/SI-AI/**
   workflow_dispatch:
 
 concurrency:
