@@ -555,3 +555,39 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - No PRs were merged. `main` and the user's Termux checkout remain untouched.
 
 **Safety:** signal-only; user manually executes Binance trades. Paper policy remains 100 USDT equity, 0.5% risk, 20% margin cap, 1x recommendation, and minimum 2:1 R:R. Profitability remains **INCONCLUSIVE**.
+
+
+---
+
+## SI-AI Spot-residue and API-confirmation audit checkpoint — 2026-11-18
+
+**Audit branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Exact source/test head verified:** `0340ff45d34d23d648dae8ea8fbb192958bd2cfb`  
+**Successful GitHub Actions run:** https://github.com/Eventodigital473/SI-AI/actions/runs/44196753804
+
+### Additional defects found and corrected
+- Found an overlooked legacy `smc.py` module that still initialized `ccxt.binance()` (Spot). Replaced it with a compatibility shim that delegates legacy `get_candles`, `analyze`, and `run_analysis` calls to the Futures-only `SI_AI_smc` engine. It no longer creates a Spot client.
+- Added tests proving that importing/reloading the legacy module does not call `ccxt.binance()`, and that its data entry point delegates explicitly to `FUTURES`.
+- Found that Flask `/api/multi-timeframe` returned the raw weighted BUY/SELL signal without the scanner's stricter confirmation. It now applies the same `si_ai_scanner.confirm_signal()` rules (1h BOS, 1h/4h/MTF directional agreement, valid stop/target and R:R). The raw weighted result is retained as `weighted_signal`; `overall_signal` is the confirmed result and `confirmation_status` is explicit.
+- Added API regression tests for both confirmed BUY and WAIT when the 1h BOS requirement is absent.
+- README now documents `smc.py` as a Futures-only compatibility shim.
+- No Spot discovery/scanning/backtesting was reintroduced. No automatic order placement was added.
+
+### Verification on exact source/test head
+- GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44196753804
+- Exact tested source/test head: `0340ff45d34d23d648dae8ea8fbb192958bd2cfb`.
+- Dependency consistency: PASS.
+- Minimal synchronous Termux CCXT profile: PASS.
+- Termux Widget shell syntax: PASS.
+- Python compilation: PASS.
+- Full suite: **163 passed, 3 warnings, 4 subtests passed**.
+- CI is automated source validation only; it does not prove live Binance behavior, Android notification delivery, profitability, or liquidation safety.
+
+### Remaining source/device gates
+- Continue auditing remaining CLI, historical data, funding, notification, and backtest assumptions; this is not yet the final project sign-off.
+- Live Termux Futures universe/bookTicker validation remains mandatory before PR #2 can be accepted. Earlier 182 volume-qualified contracts still require fresh on-device evidence.
+- No PR merges were made. `main` and the user's Termux checkout remain untouched.
+- Exchange-specific maintenance-margin/liquidation modelling remains absent; profitability certification stays **INCONCLUSIVE**.
+- Funding settlement boundary ambiguities, when present, also block certification.
+
+**Safety:** Futures signal-only; user manually executes Binance trades. Policy unchanged: 100 USDT reference equity, 0.5% risk, 20% margin cap, recommended 1x, minimum 2:1 R:R.
