@@ -197,6 +197,10 @@ def run_dataset_backtest(
             or mark_dataset["candles"][-1][0] + smc.TIMEFRAME_MILLISECONDS["1h"] < required_end
         ):
             raise ValueError("Mark-price candles do not cover the complete primary 1h OHLCV time range")
+        primary_timestamps = [row[0] for row in primary_candles]
+        mark_timestamps = [row[0] for row in mark_dataset["candles"]]
+        if mark_timestamps != primary_timestamps:
+            raise ValueError("Mark-price candle timestamps must exactly match primary 1h OHLCV timestamps")
 
     options = {
         "initial_equity": initial_equity,
