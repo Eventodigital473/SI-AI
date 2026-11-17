@@ -55,6 +55,7 @@ class SignalAlertTests(unittest.TestCase):
         self.assertIn("Position size (paper estimate): 0.12 BTC", content)
         self.assertIn("Position notional (paper estimate): 17.1000 USDT", content)
         self.assertIn("Estimated stop risk: 0.4900 USDT incl. estimated costs", content)
+        self.assertIn("Risk policy: 0.50% of 100.00 USDT reference equity", content)
         self.assertIn("Estimated round-trip fees: 0.0171 USDT", content)
         self.assertIn("Liquidation price: NOT MODELLED/NOT CERTIFIED", content)
 
