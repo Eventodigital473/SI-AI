@@ -20,6 +20,8 @@ DEFAULT_POLICY = {
 
 
 def _finite_number(value):
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -50,6 +52,29 @@ def evaluate_profitability_evidence(
         if unknown:
             raise ValueError("Unknown profitability policy keys: " + ", ".join(sorted(unknown)))
         rules.update(policy)
+
+    integer_policy_keys = (
+        "minimum_oos_trades",
+        "minimum_trades_per_fold",
+        "minimum_positive_walk_forward_folds",
+        "required_walk_forward_folds",
+    )
+    for key in integer_policy_keys:
+        value = rules[key]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"{key} must be a positive integer")
+    for key, minimum in (
+        ("minimum_profit_factor", 0.0),
+        ("maximum_drawdown_percent", 0.0),
+    ):
+        value = rules[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{key} must be a finite number")
+        numeric = float(value)
+        if numeric != numeric or numeric in (float("inf"), float("-inf")) or numeric < minimum:
+            raise ValueError(f"{key} must be finite and >= {minimum}")
+    if rules["minimum_positive_walk_forward_folds"] > rules["required_walk_forward_folds"]:
+        raise ValueError("minimum_positive_walk_forward_folds cannot exceed required_walk_forward_folds")
 
     checks = []
     inconclusive = False
