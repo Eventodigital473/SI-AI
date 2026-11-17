@@ -171,6 +171,8 @@ class MainApiTests(unittest.TestCase):
             side_effect=[
                 sample_result("15m"),
                 RuntimeError("Temporary test failure"),
+                sample_result("4h"),
+                sample_result("1d"),
             ],
         ), patch.object(
             main.smc, "combine_timeframes",
@@ -192,7 +194,7 @@ class MainApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
         data = response.get_json()
-        self.assertEqual(data["timeframe_count"], 1)
+        self.assertEqual(data["timeframe_count"], 3)
         self.assertEqual(len(data["errors"]), 1)
         self.assertEqual(data["errors"][0]["timeframe"], "1h")
         self.assertFalse(data["complete"])
@@ -249,7 +251,7 @@ class MainApiTests(unittest.TestCase):
 
         data = response.get_json()
         self.assertFalse(data["success"])
-        self.assertEqual(len(data["errors"]), 2)
+        self.assertEqual(len(data["errors"]), 4)
 
 
 if __name__ == "__main__":
