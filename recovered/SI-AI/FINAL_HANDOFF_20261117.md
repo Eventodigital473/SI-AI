@@ -110,3 +110,43 @@ This downloads public Spot history and can take a long time on a phone. It write
 
 ## Completion statement
 The software test suite and the first corrected 180-day multi-symbol Spot backtest have both been run and their evidence archived. The code is runnable in Termux using the steps above, but **profitability is not certified**. Keep the system in analysis/signal-only mode until fresh out-of-sample evidence and device validation are satisfactory.
+
+
+## 2026-11-17 follow-up — Futures bookTicker normalization
+
+### Current working state
+- Original base branch preserved: `feature/dynamic-coin-universe`.
+- Follow-up branch: `fix/futures-bookticker-normalization-2026-11-17`.
+- Draft PR: https://github.com/Eventodigital473/SI-AI/pull/2
+- The original `main` branch remains untouched.
+- No live or automatic order-placement functionality was added.
+
+### Diagnosis carried forward
+The prior Termux checkpoint showed 182 Futures contracts passing the 10M USDT quote-volume filter, followed by 182 missing/invalid bid values. The original exchange-response root cause was not proven at that time. The 0.15% maximum spread filter was intentionally not relaxed.
+
+### Changes in the follow-up branch
+- Index bulk bookTicker entries by response key, CCXT unified symbol, ticker ID, and raw Binance `info.symbol`.
+- Resolve contract quotes using unified symbol, canonical base/quote symbol, and Binance market ID.
+- Parse normalized `bid`/`ask` and raw `bidPrice`/`askPrice` values, including nested `info`.
+- Express midpoint-relative spread as `200 * (ask - bid) / (ask + bid)`, equivalent to `100 * (ask - bid) / midpoint`.
+- Add filter-stage diagnostics: markets seen, volume-qualified, bookTicker-matched, valid bid/ask, spread-qualified, candidate count, and selected count.
+- Add regression tests for alias resolution, quote normalization, spread algebra, fee/slippage-adjusted long/short reward-risk, and mocked end-to-end Futures universe refresh.
+- Add GitHub Actions dependency, compilation, and pytest checks.
+
+### Latest CI evidence
+- Workflow run: https://github.com/Eventodigital473/SI-AI/actions/runs/44140620177
+- Head tested: `2b1193753aaf3626d93522918b92abefc6716b28`.
+- `python -m pip check`: PASS — no broken requirements.
+- `python -m compileall -q .`: PASS.
+- `python -m pytest -q`: **124 passed, 4 subtests passed**.
+- One initial new assertion failed because it used exact float equality; changed to `pytest.approx`, then reran the complete suite successfully.
+
+### Still required before merging
+1. Update the existing Termux clone from the follow-up branch without overwriting any uncommitted local work.
+2. Run `python -m pip check`, `python -m compileall -q .`, and `python -m pytest -q` on-device.
+3. Run `python si_ai_scanner.py --once --dry-run` and inspect the new Futures filter-stage diagnostics.
+4. Confirm that real Binance/CCXT Futures bookTicker records now match and contain valid bid/ask values. If they still do not, capture a sanitized sample of the response shape (never API secrets) and adjust the parser based on that evidence.
+5. Investigate the Spot 49-versus-50 observation separately; 50 is a target, not a guaranteed count, while 15 is the fail-closed minimum.
+6. Preserve the existing Spot profitability gate result: FAIL (15 OOS trades, 26.67% win rate, PF 0.736373, net P&L -0.739271 USDT). Do not tune against that same holdout or describe the strategy as profitable.
+
+The PR remains draft and unmerged until live Termux validation is reviewed. SI-AI remains signal-only; the user manually executes trades.
