@@ -76,6 +76,9 @@ def normalize_funding_event(row, index=0):
     if raw_timestamp != timestamp:
         raise ValueError("Unified and raw funding timestamps disagree")
     rate = _finite(row.get("fundingRate", info.get("fundingRate")), "funding rate")
+    raw_rate = _finite(info.get("fundingRate", rate), "raw Binance funding rate")
+    if not math.isclose(rate, raw_rate, rel_tol=1e-12, abs_tol=1e-15):
+        raise ValueError("Unified and raw funding rates disagree")
     if abs(rate) >= 0.05:
         raise ValueError("Funding rate outside supported safety bounds")
     mark_price = _finite(info.get("markPrice", row.get("markPrice")), "funding settlement markPrice")
@@ -180,7 +183,7 @@ def download_funding_history(
         expected_id = symbol.replace("/", "") 
         for event, raw in zip(normalized, batch):
             raw_symbol = raw.get("info", {}).get("symbol")
-            if raw_symbol is not None and raw_symbol != expected_id:
+            if raw_symbol != expected_id:
                 raise ValueError("Funding event symbol does not match requested contract")
             timestamp = event["timestamp"]
             if timestamp < cursor:
