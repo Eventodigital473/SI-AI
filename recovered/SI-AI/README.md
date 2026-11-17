@@ -36,8 +36,8 @@ pkg install -y git python python-cryptography clang termux-api
 cd "$HOME"
 git clone --branch main --single-branch https://github.com/Eventodigital473/SI-AI.git SI-AI_FUTURES
 cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
-python -m pip install --no-deps "ccxt==4.5.93"
 python -m pip install -r requirements-termux.txt
+python -m pip install --no-deps "ccxt==4.5.93"
 python -c "import ccxt, requests, certifi, cryptography, typing_extensions, flask, pytest; print('SI-AI Termux dependencies OK; CCXT', ccxt.__version__)"
 python -m compileall -q .
 python -m pytest -q
