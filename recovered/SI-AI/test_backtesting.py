@@ -288,3 +288,10 @@ class BacktestingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+def test_backtesting_numeric_parser_rejects_booleans():
+    with pytest.raises(ValueError, match="not boolean"):
+        backtesting._number(True, "risk_percent")
+    with pytest.raises(ValueError, match="not boolean"):
+        backtesting._number(False, "initial_equity")
