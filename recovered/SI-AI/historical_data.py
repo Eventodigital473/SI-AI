@@ -178,6 +178,7 @@ def download_ohlcv(
 
     if not collected:
         raise ValueError("No fully closed historical candles were returned")
+    smc.validate_candle_continuity(collected, timeframe)
     return collected
 
 
@@ -245,6 +246,7 @@ def save_dataset(
     for index in range(1, len(normalized)):
         if normalized[index][0] <= normalized[index - 1][0]:
             raise ValueError("Dataset timestamps must be strictly increasing")
+    smc.validate_candle_continuity(normalized, timeframe)
 
     if symbol != symbol.strip() or symbol != symbol.upper() or symbol.count("/") != 1 or not symbol.split("/", 1)[0] or symbol.split("/", 1)[1] != "USDT":
         raise ValueError("symbol must be a canonical uppercase BASE/USDT string")
@@ -312,6 +314,7 @@ def load_dataset(path: str | Path) -> Dict:
     for index in range(1, len(normalized)):
         if normalized[index][0] <= normalized[index - 1][0]:
             raise ValueError("Historical dataset timestamps are not strictly increasing")
+    smc.validate_candle_continuity(normalized, timeframe)
     interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
     if normalized[0][0] < start_value or normalized[-1][0] + interval_ms > end_value:
         raise ValueError("Historical dataset candles fall outside declared time range")
