@@ -43,6 +43,24 @@ python -m pytest -q
 
 If the destination folder already exists, do not overwrite it. Choose a new folder or safely inspect the existing checkout first. Android notification permission must be granted to Termux:API separately.
 
+### Signal notification appearance
+
+- BUY: green 🟢 title marker, high-priority notification, green LED request, short vibration, and sound.
+- SELL: red 🔴 title marker, high-priority notification, red LED request, a distinct longer vibration, and sound.
+- WAIT after a previously active signal: neutral ⚪ title marker, no LED request, no vibration, and no sound.
+- LED behavior depends on the phone having a notification LED and on Android/OEM notification settings. The colored title marker is the visual fallback; Android does not let Termux force colored/glowing notification text.
+
+### Termux:Widget shortcuts
+
+The project includes Start, Stop, and Dry Run shortcuts. After cloning, install them with:
+
+```bash
+cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
+bash termux-widget/install-shortcuts.sh
+```
+
+Then open/refresh Termux:Widget. Start launches the 120-second scanner in the background; Stop sends a graceful termination request to the scanner started by that shortcut; Dry Run performs one preview cycle without sending trade alerts or placing orders. The installer refuses to overwrite shortcuts with the same names. The shortcuts recognize the existing `~/SI-AI_FINAL/recovered/SI-AI` path as well as the documented fresh-install path.
+
 ## Run modes
 
 ### One-cycle public-data preview (no notifications or orders)
