@@ -60,6 +60,32 @@ class HistoricalDataTests(unittest.TestCase):
         self.assertEqual(result[-1][0], rows[-1][0])
         self.assertGreaterEqual(len(exchange.calls), 3)
 
+    def test_download_rejects_missing_intermediate_candle(self):
+        rows = make_candles()
+        gapped = rows[:3] + rows[4:]
+        exchange = FakeExchange("FUTURES", gapped)
+        with self.assertRaisesRegex(ValueError, "Missing or irregular 15m candle"):
+            historical_data.download_ohlcv(
+                "FUTURES", "BTC/USDT", "15m",
+                rows[0][0], rows[-1][0] + 900_000,
+                exchange=exchange, now_ms=rows[-1][0] + 900_000,
+            )
+
+    def test_save_rejects_missing_intermediate_candle(self):
+        rows = make_candles()
+        gapped = rows[:3] + rows[4:]
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "Missing or irregular 15m candle"):
+                historical_data.save_dataset(
+                    "FUTURES", "BTC/USDT", "15m", gapped,
+                    output_path=Path(directory) / "gapped.json",
+                )
+
+    def test_continuity_validator_rejects_wrong_timeframe_spacing(self):
+        rows = make_candles()
+        with self.assertRaisesRegex(ValueError, "expected 900000 ms"):
+            historical_data.smc.validate_candle_continuity(rows, "1h")
+
     def test_incomplete_current_candle_is_excluded(self):
         rows = make_candles()
         exchange = FakeExchange("FUTURES", rows)
