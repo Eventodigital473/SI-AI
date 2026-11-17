@@ -128,3 +128,45 @@ if __name__ == "__main__":
 @pytest.mark.parametrize("value", [True, False])
 def test_scanner_number_parser_rejects_booleans(value):
     assert scanner.number(value) is None
+
+def test_duplicate_actionable_alert_expires_after_six_hours():
+    now = 1_800_000_000
+    assert scanner.should_suppress_duplicate("BUY", "BUY", now - 60, now)
+    assert not scanner.should_suppress_duplicate(
+        "BUY", "BUY", now - scanner.SIGNAL_REPEAT_ALERT_SECONDS - 1, now
+    )
+    assert not scanner.should_suppress_duplicate("SELL", "BUY", now - 60, now)
+    assert not scanner.should_suppress_duplicate("WAIT", "WAIT", now - 60, now)
+    assert not scanner.should_suppress_duplicate("BUY", "BUY", None, now)
+
+
+def test_legacy_signal_state_migrates_without_losing_last_signal(tmp_path, monkeypatch):
+    state_file = tmp_path / "scanner-state.json"
+    state_file.write_text(
+        '{"version":1,"last_signals":{"FUTURES|BTC/USDT":"BUY"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(scanner, "STATE_FILE", state_file)
+    state = scanner.load_state()
+    assert state == {
+        "version": 2,
+        "last_signals": {"FUTURES|BTC/USDT": "BUY"},
+        "last_notified_at": {},
+    }
+
+
+@pytest.mark.parametrize("timestamp", [True, False, -1, float("inf"), "not-a-time"])
+def test_state_rejects_invalid_notification_timestamps(tmp_path, monkeypatch, timestamp):
+    state_file = tmp_path / "scanner-state.json"
+    state_file.write_text(
+        __import__("json").dumps({
+            "version": 2,
+            "last_signals": {"FUTURES|BTC/USDT": "BUY"},
+            "last_notified_at": {"FUTURES|BTC/USDT": timestamp},
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(scanner, "STATE_FILE", state_file)
+    with pytest.raises(RuntimeError, match="Invalid notification timestamp"):
+        scanner.load_state()
+
