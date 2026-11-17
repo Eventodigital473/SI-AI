@@ -121,8 +121,8 @@ def run_backtest(
     signal candle. Default callback is SI-AI's current analyze_candles logic.
     """
     data = validate_ohlcv(candles)
-    if market not in ("SPOT", "FUTURES"):
-        raise ValueError("market must be SPOT or FUTURES")
+    if market != "FUTURES":
+        raise ValueError("SI-AI backtesting supports FUTURES only")
     if timeframe not in si.TIMEFRAMES:
         raise ValueError("Unsupported timeframe")
     if not isinstance(symbol, str) or "/" not in symbol:
@@ -156,7 +156,7 @@ def run_backtest(
         history = data[:i]
         result = callback(market, symbol, timeframe, history)
         signal = result.get("signal") if isinstance(result, dict) else None
-        if signal not in ("BUY", "SELL") or (market == "SPOT" and signal == "SELL"):
+        if signal not in ("BUY", "SELL"):
             i += 1
             continue
 
@@ -241,10 +241,6 @@ def run_backtest(
                     str(exit_result.get("signal", "WAIT")).strip().upper()
                     if isinstance(exit_result, dict) else "WAIT"
                 )
-                spot_exit = (
-                    market == "SPOT" and side == "LONG"
-                    and exit_signal in ("SELL", "SELL/EXIT", "EXIT")
-                )
                 futures_reversal = (
                     market == "FUTURES"
                     and (
@@ -252,9 +248,9 @@ def run_backtest(
                         or (side == "SHORT" and exit_signal == "BUY")
                     )
                 )
-                if spot_exit or futures_reversal:
+                if futures_reversal:
                     exit_raw = data[j + 1][1]
-                    exit_reason = "SIGNAL_EXIT" if spot_exit else "SIGNAL_REVERSAL"
+                    exit_reason = "SIGNAL_REVERSAL"
                     exit_index = j + 1
                     break
 
@@ -310,7 +306,7 @@ def run_backtest(
         "data_sha256": hashlib.sha256(digest_source).hexdigest(),
         "assumptions": {
             "entry": "next candle open after signal candle closes",
-            "signal_exit": "opposite/spot-exit signal at candle close; exit next candle open",
+            "signal_exit": "opposite Futures signal at candle close; exit next candle open",
             "same_bar_stop_and_target": "stop first (conservative)",
             "fee_rate_per_side": fee,
             "slippage_rate_per_side": slippage,
