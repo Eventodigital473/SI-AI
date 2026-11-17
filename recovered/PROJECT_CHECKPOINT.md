@@ -376,3 +376,6 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - Backtester now supports Spot SELL/EXIT closing an existing long at the next candle open and Futures opposite confirmed signals closing at the next candle open. Spot SELL never opens a short.
 - Added tests for multi-timeframe no-lookahead filtering, missing timeframe warm-up, spot exit, futures reversal, all-four-dataset requirement, and report integration.
 - Pending: CI verification. Futures profitability remains blocked by missing historical funding and liquidation/maintenance-margin models.
+
+
+- Initial CI for production multi-timeframe runner had 80 passing tests and one assertion failure caused only by case-sensitive test wording. Updated the expected error text to match the actual fail-closed message; rerun pending.

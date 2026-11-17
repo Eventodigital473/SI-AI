@@ -200,7 +200,7 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
     def test_runner_requires_all_four_timeframes(self):
         with tempfile.TemporaryDirectory() as directory:
             dataset_paths = self._save_datasets(directory)
-            with self.assertRaisesRegex(ValueError, "all production timeframes"):
+            with self.assertRaisesRegex(ValueError, "All production timeframes"):
                 historical_backtest.run_dataset_backtest(dataset_paths[:3])
 
 
