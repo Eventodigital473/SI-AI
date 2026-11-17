@@ -1,4 +1,6 @@
 import unittest
+
+import pytest
 from unittest.mock import patch
 
 import si_ai_scanner as scanner
