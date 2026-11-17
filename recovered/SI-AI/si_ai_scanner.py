@@ -22,7 +22,8 @@ LOG_FILE = LOG_DIR / "si_ai_scanner.log"
 
 EXPECTED_MARKETS = {"FUTURES"}
 EXPECTED_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
-STATE_VERSION = 1
+STATE_VERSION = 2
+SIGNAL_REPEAT_ALERT_SECONDS = 6 * 60 * 60
 
 logger = logging.getLogger("SI_AI_SCANNER")
 
@@ -109,12 +110,26 @@ def load_state():
     if not isinstance(data, dict):
         raise RuntimeError("Invalid state file: expected JSON object")
 
-    if data.get("version") != STATE_VERSION:
+    version = data.get("version")
+    if version not in (1, STATE_VERSION):
         raise RuntimeError("Unsupported state file version")
 
     signals = data.get("last_signals")
     if not isinstance(signals, dict):
         raise RuntimeError("Invalid state file: last_signals must be an object")
+
+    # Migrate the old signal-only state safely. The previous notification time
+    # is unknown, so an existing actionable signal may be refreshed once.
+    if version == 1:
+        data = {
+            "version": STATE_VERSION,
+            "last_signals": signals,
+            "last_notified_at": {},
+        }
+
+    notified_at = data.get("last_notified_at")
+    if not isinstance(notified_at, dict):
+        raise RuntimeError("Invalid state file: last_notified_at must be an object")
 
     for key, value in signals.items():
         parts = key.split("|", 1)
@@ -128,7 +143,36 @@ def load_state():
         if value not in ("BUY", "SELL", "WAIT"):
             raise RuntimeError(f"Invalid saved signal for {key}")
 
+    for key, value in notified_at.items():
+        if key not in signals:
+            raise RuntimeError(f"Notification timestamp has no saved signal: {key}")
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or value < 0
+        ):
+            raise RuntimeError(f"Invalid notification timestamp for {key}")
+
     return data
+
+
+def should_suppress_duplicate(signal, previous, last_notified_at, now=None):
+    """Suppress repeats only while the last successful alert is still fresh."""
+    if signal not in ("BUY", "SELL") or signal != previous:
+        return False
+    if (
+        isinstance(last_notified_at, bool)
+        or not isinstance(last_notified_at, (int, float))
+        or not math.isfinite(float(last_notified_at))
+        or last_notified_at < 0
+    ):
+        return False
+    current = time.time() if now is None else number(now)
+    if current is None:
+        raise ValueError("Current time must be finite")
+    age = current - float(last_notified_at)
+    return age < SIGNAL_REPEAT_ALERT_SECONDS
 
 
 def save_state(data):
@@ -469,7 +513,9 @@ def send_notification(market, symbol, title, content):
 def run_cycle(dry_run=False):
     state = load_state()
     previous_signals = state["last_signals"]
+    previous_notified_at = state["last_notified_at"]
     updated_signals = dict(previous_signals)
+    updated_notified_at = dict(previous_notified_at)
     completed_pairs = 0
 
     request_delay = number(
@@ -579,6 +625,7 @@ def run_cycle(dry_run=False):
 
             if signal == "WAIT":
                 updated_signals[key] = "WAIT"
+                updated_notified_at.pop(key, None)
                 # Alert only on a transition from an actionable signal to WAIT;
                 # this avoids flooding the phone with hundreds of initial WAITs.
                 if previous in ("BUY", "SELL"):
@@ -599,8 +646,10 @@ def run_cycle(dry_run=False):
                 continue
 
             # Dry-run always previews actionable signals, even if previously alerted.
-            if not dry_run and signal == previous:
-                logger.info("%s: duplicate alert suppressed", key)
+            if not dry_run and should_suppress_duplicate(
+                signal, previous, previous_notified_at.get(key)
+            ):
+                logger.info("%s: duplicate alert suppressed (last alert is fresh)", key)
                 continue
 
             title, content = make_alert(
@@ -616,6 +665,7 @@ def run_cycle(dry_run=False):
             try:
                 send_notification(market, symbol, title, content)
                 updated_signals[key] = signal
+                updated_notified_at[key] = time.time()
                 logger.info("%s: notification sent", key)
 
             except Exception:
@@ -623,8 +673,14 @@ def run_cycle(dry_run=False):
                     "%s: notification failed; saved state unchanged", key
                 )
 
-    if not dry_run and updated_signals != previous_signals:
+    if not dry_run and (
+        updated_signals != previous_signals
+        or updated_notified_at != previous_notified_at
+        or state.get("version") != STATE_VERSION
+    ):
+        state["version"] = STATE_VERSION
         state["last_signals"] = updated_signals
+        state["last_notified_at"] = updated_notified_at
         save_state(state)
 
     logger.info(
