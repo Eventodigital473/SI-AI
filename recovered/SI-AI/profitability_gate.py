@@ -138,6 +138,14 @@ def evaluate_profitability_evidence(
         check("funding_mark_price", funding_price_ok, funding_price_ok,
               "Funding cashflows must use the exchange mark price at each settlement; candle-close proxies are insufficient.")
 
+        boundary_ambiguities = _finite_number(
+            assumptions.get("funding_settlement_boundary_ambiguities", 0)
+            if isinstance(assumptions, dict) else None
+        )
+        boundary_clear = boundary_ambiguities is not None and boundary_ambiguities == 0
+        check("funding_settlement_boundary_ordering", boundary_clear, boundary_clear,
+              f"ambiguous_entry_or_exit_settlement_ties={boundary_ambiguities}; required=0")
+
         liquidation_ok = isinstance(assumptions, dict) and assumptions.get("liquidation_modelled") is True
         check("liquidation_model", liquidation_ok, liquidation_ok,
               "Futures evidence must model exchange-specific liquidation and maintenance margin.")
