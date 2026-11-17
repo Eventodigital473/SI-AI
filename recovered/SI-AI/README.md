@@ -133,6 +133,7 @@ GitHub CI verifies dependency consistency, Python compilation, Termux shell synt
 ## Project files
 
 - `SI_AI_smc.py` — Futures discovery, market data, SMC analysis, and risk calculations.
+- `smc.py` — legacy compatibility shim; delegates to the Futures engine and does not initialize a Spot client.
 - `si_ai_scanner.py` — Futures-only multi-timeframe scanner and Termux notifications.
 - `main.py` — Futures-only Flask API.
 - `historical_data.py` — public Futures OHLCV download and integrity-checked datasets.
