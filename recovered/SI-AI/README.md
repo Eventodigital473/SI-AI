@@ -36,8 +36,8 @@ pkg install -y git python python-cryptography clang termux-api
 cd "$HOME"
 git clone --branch main --single-branch https://github.com/Eventodigital473/SI-AI.git SI-AI_FUTURES
 cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
-python -m pip install --no-deps "ccxt==4.5.93"
 python -m pip install -r requirements-termux.txt
+python -m pip install --no-deps "ccxt==4.5.93"
 python -c "import ccxt, requests, certifi, cryptography, typing_extensions, flask, pytest; print('SI-AI Termux dependencies OK; CCXT', ccxt.__version__)"
 python -m compileall -q .
 python -m pytest -q
@@ -45,7 +45,7 @@ python -m pytest -q
 
 If the destination folder already exists, do not overwrite it. Choose a new folder or safely inspect the existing checkout first. Android notification permission must be granted to Termux:API separately.
 
-The `main`-branch clone above is the final-install instruction only after PRs #1–#12 have been merged in dependency order into the recovery branch **and** a final recovery-to-`main` integration pull request has been merged. Do not use it before that complete sequence. For the current existing checkout, wait for the final merge/refresh instructions. The Termux profile installs CCXT's synchronous public REST client without its unused async/accelerator extras; Termux supplies `python-cryptography`. Do not run `pip check` against this intentionally minimal CCXT install because CCXT declares optional async/accelerator packages that SI-AI does not import. The standard `requirements.txt` remains the full desktop/CI profile.
+The `main`-branch clone above is the final-install instruction only after PRs #1–#12 have been merged in dependency order into the recovery branch **and** a final recovery-to-`main` integration pull request has been merged. Do not use it before that complete sequence. For the current existing checkout, wait for the final merge/refresh instructions. Install the Termux dependency profile first, then add CCXT with `--no-deps`; this avoids pip trying to resolve CCXT's unused async/accelerator extras. The Termux profile installs CCXT's synchronous public REST client without those extras; Termux supplies `python-cryptography`. Do not run `pip check` against this intentionally minimal CCXT install because CCXT declares optional async/accelerator packages that SI-AI does not import. The standard `requirements.txt` remains the full desktop/CI profile.
 
 ### Signal notification appearance
 
