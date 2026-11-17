@@ -53,14 +53,14 @@ If the destination folder already exists, do not overwrite it. Choose a new fold
 
 ### Termux:Widget shortcuts
 
-The project includes Start, Stop, and Dry Run shortcuts. After cloning, install them with:
+The project includes Start, Stop, Dry Run, and Check shortcuts. After cloning, install them with:
 
 ```bash
 cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
 bash termux-widget/install-shortcuts.sh
 ```
 
-Then open/refresh Termux:Widget. Start launches the 120-second scanner in the background; Stop sends a graceful termination request to the scanner started by that shortcut; Dry Run performs one preview cycle without sending trade alerts or placing orders. The installer refuses to overwrite shortcuts with the same names. The shortcuts recognize the existing `~/SI-AI_FINAL/recovered/SI-AI` path as well as the documented fresh-install path.
+Then open/refresh Termux:Widget. Run **SI-AI Check** first: it performs an offline preflight of Python/dependencies, Futures-only settings, risk limits, Widget shortcuts, and Termux:API command availability. Start launches the 120-second scanner in the background; Stop sends a graceful termination request to the scanner started by that shortcut; Dry Run performs one preview cycle without sending trade alerts or placing orders. The installer refuses to overwrite shortcuts with the same names. The shortcuts recognize the existing `~/SI-AI_FINAL/recovered/SI-AI` path as well as the documented fresh-install path.
 
 ## Run modes
 
@@ -125,7 +125,7 @@ The lower-level multi-timeframe runner accepts the verified dataset with `--fund
 
 ## Validation status
 
-GitHub CI verifies dependency consistency, Python compilation, and automated regression tests. CI does not validate the live Binance response in Termux, Android notifications, paper-trading behavior, historical funding integration, liquidation modelling, or profitability. A real device smoke test remains required.
+GitHub CI verifies dependency consistency, Python compilation, Termux shell syntax, and automated regression tests, including deterministic timestamped funding calculations. CI does not validate live Binance responses from the phone, Android notification permissions/LED hardware, historical liquidation modelling, or profitability. A real device smoke test remains required.
 
 ## Project files
 
@@ -137,5 +137,6 @@ GitHub CI verifies dependency consistency, Python compilation, and automated reg
 - `backtesting.py` / `historical_backtest.py` — offline Futures backtesting and evaluation.
 - `run_public_futures_backtest.py` — public historical data collection and backtest runner.
 - `profitability_gate.py` — fail-closed evidence gate requiring historical funding and liquidation modelling for Futures.
+- `termux_preflight.py` — offline Android/Termux runtime, dependency, Widget, and safety-policy checks.
 
 The previous Spot portfolio experiment is retired and is not part of the active SI-AI codebase. Its historical result is not evidence for the Futures strategy.
