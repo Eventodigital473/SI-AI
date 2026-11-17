@@ -34,6 +34,7 @@ jobs:
           bash -n termux-widget/si-ai-start
           bash -n termux-widget/si-ai-stop
           bash -n termux-widget/si-ai-dry-run
+          bash -n termux-widget/si-ai-check
           bash -n termux-widget/install-shortcuts.sh
         working-directory: recovered/SI-AI
       - name: Compile Python sources
