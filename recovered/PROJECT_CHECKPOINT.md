@@ -746,3 +746,15 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - Live Futures universe/bookTicker eligibility validation (including the earlier 182 volume-qualified contracts) must be run from the user's Termux phone.
 - Actual Termux runtime, Android notification permission/LED behavior, and 180-day live public-data backtest remain device tests.
 - No automatic orders, no private API keys, no Spot scanning, no changes to `main`, and no changes to the user's Termux device.
+
+
+---
+
+## Device-test handoff update — 2026-11-18
+
+- Added `python si_ai_scanner.py --test-notifications`: sends three clearly labelled TEST ONLY BUY/SELL/WAIT Android notifications, using the real Termux:API path but no Binance requests, scanner cycle, credentials, or orders.
+- Added a regression test proving the notification test CLI sends exactly the three test-only cases.
+- Added `recovered/SI-AI/TERMUX_FINAL_TEST_RUNBOOK.md` and linked it from README. It clones the consolidated validation branch into a separate folder, preserving the existing Termux checkout, then lists dependency, pytest, preflight, live dry-run, notification, 180-day backtest, and Widget checks.
+- CI after notification test addition: run [44201759094](https://github.com/Eventodigital473/SI-AI/actions/runs/44201759094), **195 passed, 4 subtests passed**. Python compilation, dependency consistency, minimal synchronous Termux CCXT profile and Widget shell checks passed.
+- README/runbook-only final commits are being rechecked by CI; the latest successful code/test head above includes all executable code changes.
+- No Termux device commands have been run by the assistant. The runbook requires the user to execute the phone-side checks and return outputs for sign-off.
