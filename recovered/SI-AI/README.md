@@ -6,6 +6,7 @@ SI-AI is a public-market-data analysis and signal-generation system for **Binanc
 
 - Signal provider only. The user manually reviews and executes trades on Binance.
 - No automatic order placement, cancellation, amendment, or leverage-setting.
+- The retired legacy 10%-risk/high-leverage paper planner is disabled; active policy remains 0.5% risk, 20% margin allocation, and recommended 1x leverage.
 - Public exchange data only. No private account keys or order endpoints are required.
 - Reference wallet: 100 USDT; per-trade risk budget: 0.5% (0.50 USDT).
 - Margin allocation cap: 20% (20 USDT); recommended Futures leverage remains 1x.
