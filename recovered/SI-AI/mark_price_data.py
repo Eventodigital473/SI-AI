@@ -69,15 +69,6 @@ def mark_price_sha256(candles, timeframe):
     return hashlib.sha256(payload).hexdigest()
 
 
-def _infer_interval(candles):
-    if not isinstance(candles, list) or len(candles) < 2:
-        raise ValueError("At least two mark-price candles are required to infer interval")
-    delta = int(candles[1][0]) - int(candles[0][0])
-    if delta not in set(smc.TIMEFRAME_MILLISECONDS.values()):
-        raise ValueError("Unsupported mark-price candle interval")
-    return delta
-
-
 def download_mark_price_ohlcv(
     symbol, timeframe, start_ms, end_ms, *, http_get=None,
     limit=PAGE_LIMIT, max_pages=10000, now_ms=None,
@@ -159,7 +150,9 @@ def download_mark_price_ohlcv(
 
 def save_mark_price_dataset(symbol, timeframe, candles, *, output_path=None,
                             start_ms=None, end_ms=None):
-    if not isinstance(symbol, str) or symbol != symbol.strip() or symbol != symbol.upper() or symbol.count("/") != 1 or not symbol.endswith("/USDT"):
+    if (not isinstance(symbol, str) or symbol != symbol.strip() or symbol != symbol.upper()
+            or symbol.count("/") != 1 or not symbol.split("/", 1)[0]
+            or not symbol.endswith("/USDT")):
         raise ValueError("symbol must be canonical uppercase BASE/USDT")
     interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
     if interval_ms is None:
@@ -221,7 +214,8 @@ def load_mark_price_dataset(path):
     symbol = payload.get("symbol")
     timeframe = payload.get("timeframe")
     interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
-    if not isinstance(symbol, str) or symbol != symbol.upper() or symbol.count("/") != 1 or not symbol.endswith("/USDT") or interval_ms is None:
+    if (not isinstance(symbol, str) or symbol != symbol.upper() or symbol.count("/") != 1
+            or not symbol.split("/", 1)[0] or not symbol.endswith("/USDT") or interval_ms is None):
         raise ValueError("Mark-price dataset symbol/timeframe is invalid")
     candles = payload.get("candles")
     if not isinstance(candles, list) or not candles:
@@ -230,6 +224,8 @@ def load_mark_price_dataset(path):
     smc.validate_candle_continuity(normalized, timeframe)
     start = _timestamp(payload.get("start_ms"), "dataset start_ms")
     end = _timestamp(payload.get("end_ms"), "dataset end_ms")
+    if end <= start:
+        raise ValueError("Mark-price dataset has an invalid time range")
     if normalized[0][0] < start or normalized[-1][0] + interval_ms > end:
         raise ValueError("Mark-price candles fall outside declared time range")
     digest = hashlib.sha256(json.dumps(normalized, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
