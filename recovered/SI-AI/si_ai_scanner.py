@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 import SI_AI_smc as smc
+from liquidation_model import calculate_isolated_liquidation_price
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -427,9 +428,65 @@ def make_alert(market, symbol, signal, results):
                     f"Estimated round-trip fees: {estimated_fees:.4f} USDT; "
                     f"slippage allowance: {estimated_slippage:.4f} USDT"
                 )
+            bracket_path = (
+                BASE_DIR / "data" / "liquidation_brackets"
+                / f"{symbol.replace('/', '-')}.json"
+            )
+            bracket_snapshot = None
+            if bracket_path.is_file():
+                try:
+                    with bracket_path.open("r", encoding="utf-8") as handle:
+                        bracket_snapshot = json.load(handle)
+                    if None not in (quantity, price, margin, leverage):
+                        liquidation = calculate_isolated_liquidation_price(
+                            symbol=symbol,
+                            side="LONG" if signal == "BUY" else "SHORT",
+                            quantity=quantity,
+                            entry_price=price,
+                            isolated_wallet_balance=margin,
+                            leverage=leverage,
+                            bracket_snapshot=bracket_snapshot,
+                        )
+                        if liquidation["status"] == "CALCULATED_ISOLATED_ESTIMATE":
+                            lines.append(
+                                "Estimated isolated liquidation price "
+                                f"(one-way): {liquidation['liquidation_price']:g}"
+                            )
+                        else:
+                            lines.append(
+                                "Isolated liquidation price: no positive threshold "
+                                "under the supplied 1x model assumptions."
+                            )
+                        lines.append(
+                            "Liquidation model: Binance USD-M tier formula; "
+                            f"snapshot {liquidation['bracket_snapshot_retrieved_at']}"
+                        )
+                        lines.append(
+                            "Estimate only: assumes isolated one-way mode and "
+                            "paper margin as isolated wallet balance. Confirm "
+                            "Binance's live mark-price liquidation display."
+                        )
+                    else:
+                        lines.append(
+                            "Liquidation price: NOT CERTIFIED; entry, size, margin "
+                            "or leverage inputs are unavailable."
+                        )
+                except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+                    lines.append(
+                        "Liquidation price: NOT CERTIFIED; maintenance-tier "
+                        f"snapshot invalid or stale ({type(exc).__name__})."
+                    )
+            else:
+                lines.append(
+                    "Liquidation price: NOT CERTIFIED; no current symbol-specific "
+                    "Binance maintenance-tier snapshot. Supply a verified snapshot "
+                    "in data/liquidation_brackets before calculation."
+                )
             lines.append(
-                "Liquidation price: NOT MODELLED/NOT CERTIFIED. Keep 1x leverage; "
-                "manually verify Binance margin mode and maintenance-margin rules."
+                "Model scope: isolated one-way only; cross margin, hedge mode, "
+                "other positions, margin changes, fees/funding adjustments and "
+                "historical mark-price liquidation are not certified. Use 1x "
+                "guidance and verify Binance's live liquidation display."
             )
             lines.append(
                 "Binance amount precision/minimum quantity/minimum notional: NOT "
