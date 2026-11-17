@@ -92,6 +92,31 @@ def normalize_funding_event(row, index=0):
     }
 
 
+def validate_normalized_funding_events(events):
+    if not isinstance(events, list):
+        raise ValueError("funding events must be a list")
+    clean = []
+    previous = None
+    for index, event in enumerate(events):
+        if not isinstance(event, dict):
+            raise ValueError(f"Invalid normalized funding event at index {index}")
+        timestamp = _timestamp(event.get("timestamp"), "funding timestamp")
+        rate = _finite(event.get("funding_rate"), "funding rate")
+        mark = _finite(event.get("mark_price"), "funding mark price")
+        if abs(rate) >= 0.05 or mark <= 0:
+            raise ValueError("Funding rate or settlement mark price outside supported bounds")
+        if previous is not None and timestamp <= previous:
+            raise ValueError("Funding timestamps must be strictly increasing")
+        clean.append({
+            "timestamp": timestamp,
+            "funding_rate": rate,
+            "mark_price": mark,
+            "rate_type": str(event.get("rate_type", "Regular")),
+        })
+        previous = timestamp
+    return clean
+
+
 def funding_events_sha256(events: List[Dict]) -> str:
     normalized = [normalize_funding_event({
         "timestamp": event["timestamp"],
@@ -152,7 +177,11 @@ def download_funding_history(
         for index in range(1, len(normalized)):
             if normalized[index]["timestamp"] <= normalized[index - 1]["timestamp"]:
                 raise ValueError("Exchange returned duplicate or unordered funding events")
-        for event in normalized:
+        expected_id = symbol.replace("/", "") 
+        for event, raw in zip(normalized, batch):
+            raw_symbol = raw.get("info", {}).get("symbol")
+            if raw_symbol is not None and raw_symbol != expected_id:
+                raise ValueError("Funding event symbol does not match requested contract")
             timestamp = event["timestamp"]
             if timestamp < cursor:
                 raise RuntimeError("Funding pagination returned an event before its cursor")
@@ -248,6 +277,8 @@ def save_funding_dataset(market, symbol, events, start_ms, end_ms, output_path):
     end = _timestamp(end_ms, "end_ms")
     if end <= start or not events:
         raise ValueError("A non-empty funding dataset and valid time range are required")
+    if not isinstance(symbol, str) or symbol != symbol.strip() or symbol != symbol.upper() or len(symbol.split("/")) != 2 or not symbol.endswith("/USDT") or not symbol.split("/")[0]:
+        raise ValueError("symbol must be canonical uppercase BASE/USDT")
     normalized = []
     for index, event in enumerate(events):
         item = normalize_funding_event({
@@ -292,6 +323,9 @@ def load_funding_dataset(path):
     events = payload.get("events")
     if not isinstance(events, list) or not events:
         raise ValueError("Funding dataset has no events")
+    symbol = payload.get("symbol")
+    if not isinstance(symbol, str) or symbol != symbol.strip() or symbol != symbol.upper() or len(symbol.split("/")) != 2 or not symbol.endswith("/USDT") or not symbol.split("/")[0]:
+        raise ValueError("Funding dataset has invalid symbol metadata")
     start = _timestamp(payload.get("start_ms"), "dataset start_ms")
     end = _timestamp(payload.get("end_ms"), "dataset end_ms")
     if end <= start:
@@ -308,7 +342,11 @@ def load_funding_dataset(path):
                 "rateType": event.get("rate_type", "Regular"),
             },
         }, index))
-    for event in normalized:
+    expected_id = symbol.replace("/", "")
+    for raw, event in zip(events, normalized):
+        raw_symbol = raw.get("symbol")
+        if raw_symbol is not None and raw_symbol != expected_id:
+            raise ValueError("Funding dataset event symbol does not match dataset symbol")
         if not start <= event["timestamp"] < end:
             raise ValueError("Funding event falls outside declared time range")
     if payload.get("event_count") != len(normalized):
