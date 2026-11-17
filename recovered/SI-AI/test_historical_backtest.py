@@ -18,7 +18,7 @@ def candle_rows(count, start, interval):
     ]
 
 
-def make_dataset_payloads(market="SPOT", symbol="BTC/USDT"):
+def make_dataset_payloads(market="SPOT", symbol="BTC/USDT", counts_override=None):
     intervals = {
         "15m": 900_000,
         "1h": 3_600_000,
@@ -31,7 +31,7 @@ def make_dataset_payloads(market="SPOT", symbol="BTC/USDT"):
         "4h": BASE + 60 * intervals["1d"],
         "1d": BASE,
     }
-    counts = {"15m": 2400, "1h": 240, "4h": 240, "1d": 240}
+    counts = counts_override or {"15m": 2400, "1h": 240, "4h": 240, "1d": 240}
     datasets = {}
     for timeframe, interval in intervals.items():
         rows = candle_rows(counts[timeframe], starts[timeframe], interval)
@@ -151,6 +151,44 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
         self.assertEqual(result["signal"], "BUY")
         self.assertEqual(set(observed), {"15m", "1h", "4h", "1d"})
         self.assertTrue(all(close_time <= signal_close for close_time in observed.values()))
+
+
+    def test_production_callback_matches_live_scanner_250_candle_cap(self):
+        datasets = make_dataset_payloads(
+            counts_override={"15m": 4800, "1h": 500, "4h": 500, "1d": 500}
+        )
+        history = datasets["1h"]["candles"][:400]
+        signal_close = history[-1][0] + historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"]
+        observed = {}
+
+        def fake_analyze(market, symbol, timeframe, candles):
+            observed[timeframe] = (
+                len(candles),
+                candles[-1][0] + historical_backtest.smc.TIMEFRAME_MILLISECONDS[timeframe],
+            )
+            return {
+                "timeframe": timeframe,
+                "signal": "BUY",
+                "price": 100.0,
+                "stop_loss": 98.0,
+                "take_profit": 104.0,
+                "reward_risk": 2.0,
+            }
+
+        callback = historical_backtest.build_production_signal_callback(datasets)
+        with patch.object(historical_backtest.smc, "analyze_candles", side_effect=fake_analyze), patch.object(
+            historical_backtest.smc, "combine_timeframes",
+            return_value={"overall_signal": "BUY"},
+        ), patch.object(
+            historical_backtest.scanner, "confirm_signal", return_value="BUY"
+        ):
+            result = callback("SPOT", "BTC/USDT", "1h", history)
+
+        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual(set(observed), {"15m", "1h", "4h", "1d"})
+        self.assertTrue(all(length <= historical_backtest.smc.CANDLE_LIMIT for length, _ in observed.values()))
+        self.assertEqual(observed["1h"][0], historical_backtest.smc.CANDLE_LIMIT)
+        self.assertTrue(all(close_time <= signal_close for _, close_time in observed.values()))
 
     def test_production_callback_waits_for_all_timeframe_warmups(self):
         datasets = make_dataset_payloads()
