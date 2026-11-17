@@ -181,7 +181,6 @@ def test_missing_state_initializes_notification_timestamp_map(tmp_path, monkeypa
         "last_signals": {},
         "last_notified_at": {},
     }
-\n
 
 def test_alert_uses_recent_symbol_specific_isolated_bracket_snapshot(tmp_path, monkeypatch):
     monkeypatch.setattr(scanner, "BASE_DIR", tmp_path)
@@ -211,4 +210,3 @@ def test_alert_uses_recent_symbol_specific_isolated_bracket_snapshot(tmp_path, m
     assert "Isolated liquidation price: no positive threshold" in content
     assert "Binance USD-M tier formula" in content
     assert "Model scope: isolated one-way only" in content
-\n
