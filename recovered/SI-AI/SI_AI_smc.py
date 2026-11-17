@@ -768,7 +768,7 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
 
                 if (
                     net_reward_per_unit <= 0
-                    or raw_reward_risk < MIN_REWARD_RISK
+                    or raw_reward_risk < MIN_REWARD_RISK - 1e-9
                 ):
                     signal = "WAIT"
                     stop_loss = take_profit = risk_distance = None
