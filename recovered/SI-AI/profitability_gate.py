@@ -20,6 +20,8 @@ DEFAULT_POLICY = {
 
 
 def _finite_number(value):
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -39,17 +41,40 @@ def evaluate_profitability_evidence(
     """Return PASS only when all minimum evidence and performance gates pass.
 
     Missing/invalid metrics are INCONCLUSIVE; observed threshold failures are
-    FAIL. Futures cannot pass until historical funding and liquidation risk
-    are explicitly modelled in the supplied evidence assumptions.
+    FAIL. Futures cannot pass until timestamped historical funding, a validated
+    funding valuation price, and exchange-specific liquidation risk are modelled.
     """
-    if market not in ("SPOT", "FUTURES"):
-        raise ValueError("market must be SPOT or FUTURES")
+    if market != "FUTURES":
+        raise ValueError("Profitability certification supports FUTURES only")
     rules = dict(DEFAULT_POLICY)
     if policy:
         unknown = set(policy) - set(rules)
         if unknown:
             raise ValueError("Unknown profitability policy keys: " + ", ".join(sorted(unknown)))
         rules.update(policy)
+
+    integer_policy_keys = (
+        "minimum_oos_trades",
+        "minimum_trades_per_fold",
+        "minimum_positive_walk_forward_folds",
+        "required_walk_forward_folds",
+    )
+    for key in integer_policy_keys:
+        value = rules[key]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"{key} must be a positive integer")
+    for key, minimum in (
+        ("minimum_profit_factor", 0.0),
+        ("maximum_drawdown_percent", 0.0),
+    ):
+        value = rules[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{key} must be a finite number")
+        numeric = float(value)
+        if numeric != numeric or numeric in (float("inf"), float("-inf")) or numeric < minimum:
+            raise ValueError(f"{key} must be finite and >= {minimum}")
+    if rules["minimum_positive_walk_forward_folds"] > rules["required_walk_forward_folds"]:
+        raise ValueError("minimum_positive_walk_forward_folds cannot exceed required_walk_forward_folds")
 
     checks = []
     inconclusive = False
@@ -126,13 +151,54 @@ def evaluate_profitability_evidence(
     assumptions = chronological_report.get("assumptions", {})
     if market == "FUTURES":
         funding_ok = isinstance(assumptions, dict) and assumptions.get("historical_funding_series_included") is True
-        liquidation_ok = isinstance(assumptions, dict) and assumptions.get("liquidation_modelled") is True
         check("historical_funding_series", funding_ok, funding_ok,
               "Futures evidence must include timestamped historical funding events.")
+
+        # Funding rate history alone is not enough: the cash amount depends on
+        # the contract mark price at settlement. OHLCV close is only a proxy.
+        funding_price_ok = (
+            isinstance(assumptions, dict)
+            and assumptions.get("funding_mark_price_exact") is True
+        )
+        check("funding_mark_price", funding_price_ok, funding_price_ok,
+              "Funding cashflows must use the exchange mark price at each settlement; candle-close proxies are insufficient.")
+
+        boundary_ambiguities = _finite_number(
+            assumptions.get("funding_settlement_boundary_ambiguities", 0)
+            if isinstance(assumptions, dict) else None
+        )
+        oos_trades = chronological_report.get("out_of_sample_trades", [])
+        oos_boundary_count = 0
+        oos_boundary_valid = isinstance(oos_trades, list)
+        if oos_boundary_valid:
+            for trade in oos_trades:
+                if not isinstance(trade, dict):
+                    oos_boundary_valid = False
+                    break
+                value = _finite_number(trade.get("funding_boundary_ambiguities", 0))
+                if value is None or value < 0:
+                    oos_boundary_valid = False
+                    break
+                oos_boundary_count += value
+        fold_boundary_count = 0
+        fold_boundary_valid = True
+        for fold in valid_folds:
+            value = _finite_number(fold.get("funding_settlement_boundary_ambiguities", 0))
+            if value is None or value < 0:
+                fold_boundary_valid = False
+                break
+            fold_boundary_count += value
+        boundary_clear = (
+            boundary_ambiguities is not None and boundary_ambiguities == 0
+            and oos_boundary_valid and oos_boundary_count == 0
+            and fold_boundary_valid and fold_boundary_count == 0
+        )
+        check("funding_settlement_boundary_ordering", boundary_clear, boundary_clear,
+              f"oos_assumption={boundary_ambiguities}; oos_trades={oos_boundary_count}; walk_forward_folds={fold_boundary_count}; required=0")
+
+        liquidation_ok = isinstance(assumptions, dict) and assumptions.get("liquidation_modelled") is True
         check("liquidation_model", liquidation_ok, liquidation_ok,
-              "Futures evidence must model liquidation and maintenance margin.")
-    else:
-        check("spot_market_scope", True, True, "Spot long-only evaluation.")
+              "Futures evidence must model exchange-specific liquidation and maintenance margin.")
 
     status = "FAIL" if failed else "INCONCLUSIVE" if inconclusive else "PASS"
     return {

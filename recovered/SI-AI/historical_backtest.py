@@ -14,8 +14,9 @@ from typing import Dict, Optional
 import SI_AI_smc as smc
 import backtesting
 import historical_data
+import funding_data
+import mark_price_data
 import profitability_gate
-import portfolio_backtest
 import si_ai_scanner as scanner
 
 
@@ -159,6 +160,8 @@ def run_dataset_backtest(
     *,
     output_path: Optional[str | Path] = None,
     initial_equity: float = 100.0,
+    funding_dataset_path: Optional[str | Path] = None,
+    mark_price_dataset_path: Optional[str | Path] = None,
 ) -> tuple[Dict, Path]:
     datasets = _load_timeframe_datasets(dataset_paths)
     market = datasets["1h"]["market"]
@@ -166,9 +169,43 @@ def run_dataset_backtest(
     primary_candles = datasets["1h"]["candles"]
     signal_fn = build_production_signal_callback(datasets)
 
+    funding_dataset = None
+    funding_events = None
+    if funding_dataset_path is not None:
+        funding_dataset = funding_data.load_funding_dataset(funding_dataset_path)
+        if funding_dataset.get("market") != market or funding_dataset.get("symbol") != symbol:
+            raise ValueError("Funding dataset market/symbol must match OHLCV datasets")
+        required_start = min(item[0] for item in primary_candles)
+        required_end = primary_candles[-1][0] + smc.TIMEFRAME_MILLISECONDS["1h"]
+        if funding_dataset["start_ms"] > required_start or funding_dataset["end_ms"] < required_end:
+            raise ValueError("Funding dataset must cover the complete primary 1h OHLCV time range")
+        funding_events = funding_dataset["events"]
+
+    mark_dataset = None
+    if mark_price_dataset_path is not None:
+        mark_dataset = mark_price_data.load_mark_price_dataset(mark_price_dataset_path)
+        if mark_dataset.get("market") != market or mark_dataset.get("symbol") != symbol:
+            raise ValueError("Mark-price dataset market/symbol must match OHLCV datasets")
+        if mark_dataset.get("timeframe") != "1h":
+            raise ValueError("Mark-price dataset must use the primary 1h timeframe")
+        required_start = primary_candles[0][0]
+        required_end = primary_candles[-1][0] + smc.TIMEFRAME_MILLISECONDS["1h"]
+        if mark_dataset["start_ms"] > required_start or mark_dataset["end_ms"] < required_end:
+            raise ValueError("Mark-price dataset must cover the complete primary 1h OHLCV time range")
+        if (
+            mark_dataset["candles"][0][0] > required_start
+            or mark_dataset["candles"][-1][0] + smc.TIMEFRAME_MILLISECONDS["1h"] < required_end
+        ):
+            raise ValueError("Mark-price candles do not cover the complete primary 1h OHLCV time range")
+        primary_timestamps = [row[0] for row in primary_candles]
+        mark_timestamps = [row[0] for row in mark_dataset["candles"]]
+        if mark_timestamps != primary_timestamps:
+            raise ValueError("Mark-price candle timestamps must exactly match primary 1h OHLCV timestamps")
+
     options = {
         "initial_equity": initial_equity,
         "signal_fn": signal_fn,
+        "funding_events": funding_events,
     }
     try:
         chronological = backtesting.evaluate_chronological_validation(
@@ -226,6 +263,21 @@ def run_dataset_backtest(
             "primary_timeframe": "1h",
             "timeframes": timeframe_manifest,
             "combined_data_sha256": combined_hash,
+            "mark_price": ({
+                "source": mark_dataset["source"],
+                "timeframe": mark_dataset["timeframe"],
+                "candle_count": mark_dataset["candle_count"],
+                "data_sha256": mark_dataset["data_sha256"],
+                "start_ms": mark_dataset["start_ms"],
+                "end_ms": mark_dataset["end_ms"],
+            } if mark_dataset is not None else None),
+            "funding": ({
+                "event_count": funding_dataset["event_count"],
+                "data_sha256": funding_dataset["data_sha256"],
+                "start_ms": funding_dataset["start_ms"],
+                "end_ms": funding_dataset["end_ms"],
+                "source": funding_dataset["source"],
+            } if funding_dataset is not None else None),
         },
         "strategy": (
             "Production scanner confluence: 15m, 1h, 4h and 1d; "
@@ -233,7 +285,7 @@ def run_dataset_backtest(
         ),
         "execution_assumptions": {
             "entry": "next 1h candle open after confirmed signal candle close",
-            "spot_sell": "exit an existing long at next 1h open; never open a spot short",
+            "futures_short": "SELL opens a short; BUY reverses/closes it at next 1h open",
             "futures_reversal": "close existing position at next 1h open on opposite confirmed signal",
             "automatic_orders": False,
         },
@@ -244,7 +296,9 @@ def run_dataset_backtest(
         "limitations": [
             "Historical results do not guarantee future returns.",
             "No automatic orders are placed.",
-            "Futures certification remains INCONCLUSIVE until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are included.",
+            ("Timestamped Binance funding events and event-specific settlement mark prices are included." if funding_dataset is not None else "Timestamped historical funding data is not supplied."),
+            ("Historical Binance mark-price OHLC is archived for the primary 1h timeframe, but liquidation events are not simulated until timestamp-matched historical maintenance-tier snapshots and conservative intrabar liquidation ordering are available." if mark_dataset is not None else "Historical mark-price candles are not supplied; liquidation events are not simulated."),
+            "Futures profitability certification remains INCONCLUSIVE until exchange-specific historical liquidation and maintenance-margin modelling is validated.",
             "Signals are evaluated only when all required timeframe histories are available and closed by the 1h signal close.",
         ],
     }
@@ -258,202 +312,6 @@ def run_dataset_backtest(
 
 
 
-def run_multi_symbol_portfolio_backtest(
-    dataset_paths_by_symbol,
-    *,
-    output_path: Optional[str | Path] = None,
-    initial_equity: float = 100.0,
-    universe_as_of_utc: Optional[str] = None,
-) -> tuple[Dict, Path]:
-    """Evaluate a shared-equity, one-position-at-a-time Spot universe portfolio."""
-    if not isinstance(dataset_paths_by_symbol, dict):
-        raise ValueError("dataset_paths_by_symbol must be a symbol-to-paths mapping")
-    symbols = list(dataset_paths_by_symbol)
-    if len(symbols) < smc.MIN_ELIGIBLE_COINS:
-        raise ValueError(
-            f"Portfolio research requires at least {smc.MIN_ELIGIBLE_COINS} symbols"
-        )
-    if len(set(symbols)) != len(symbols):
-        raise ValueError("Duplicate symbols are not allowed")
-
-    per_symbol = {}
-    oos_candidates = []
-    fold_candidates = {}
-    common_split = None
-    common_fold_windows = None
-
-    for symbol_rank, symbol in enumerate(symbols):
-        report, report_path = run_dataset_backtest(
-            dataset_paths_by_symbol[symbol],
-            initial_equity=initial_equity,
-        )
-        dataset = report["dataset"]
-        if dataset["market"] != "SPOT" or dataset["symbol"] != symbol:
-            raise ValueError(f"Portfolio dataset identity mismatch for {symbol}")
-
-        split_timestamp = report.get("chronological_validation", {}).get("split_timestamp")
-        if split_timestamp is None:
-            raise ValueError(f"Chronological split unavailable for {symbol}")
-        if common_split is None:
-            common_split = split_timestamp
-        elif split_timestamp != common_split:
-            raise ValueError("All symbols must use the same chronological OOS split timestamp")
-
-        folds = report.get("walk_forward", {}).get("folds")
-        if not isinstance(folds, list) or len(folds) != 3:
-            raise ValueError(f"Three walk-forward folds are required for {symbol}")
-        fold_windows = [
-            (fold.get("test_start_timestamp"), fold.get("test_end_timestamp"))
-            for fold in folds
-        ]
-        if common_fold_windows is None:
-            common_fold_windows = fold_windows
-        elif fold_windows != common_fold_windows:
-            raise ValueError("All symbols must use identical walk-forward fold windows")
-
-        oos_trades = report.get("chronological_validation", {}).get(
-            "out_of_sample_trades", []
-        )
-        for trade in oos_trades:
-            candidate = dict(trade)
-            candidate["symbol"] = symbol
-            candidate["_symbol_rank"] = symbol_rank
-            oos_candidates.append(candidate)
-
-        for fold_index, fold in enumerate(folds):
-            trades = fold.get("trades", [])
-            if not isinstance(trades, list):
-                raise ValueError(f"Missing fold trade details for {symbol}")
-            for trade in trades:
-                candidate = dict(trade)
-                candidate["symbol"] = symbol
-                candidate["_symbol_rank"] = symbol_rank
-                fold_candidates.setdefault(fold_index, []).append(candidate)
-
-        per_symbol[symbol] = {
-            "report_path": str(report_path),
-            "combined_data_sha256": dataset["combined_data_sha256"],
-            "timeframes": dataset["timeframes"],
-            "individual_oos_trade_count": len(oos_trades),
-            "individual_walk_forward_trade_counts": [
-                int(fold.get("trade_count", 0)) for fold in folds
-            ],
-            "individual_profitability_gate": report["profitability_gate"]["status"],
-        }
-
-    oos_portfolio = portfolio_backtest.simulate_spot_portfolio(
-        oos_candidates,
-        initial_equity=initial_equity,
-    )
-
-    current_equity = float(initial_equity)
-    walk_forward_trades = []
-    walk_forward_curve = [current_equity]
-    fold_reports = []
-    for fold_index in range(3):
-        simulation = portfolio_backtest.simulate_spot_portfolio(
-            fold_candidates.get(fold_index, []),
-            initial_equity=current_equity,
-        )
-        metrics = simulation["metrics"]
-        current_equity = metrics["ending_equity_usdt"]
-        walk_forward_trades.extend(simulation["trades"])
-        walk_forward_curve.extend(simulation["equity_curve"][1:])
-        fold_reports.append({
-            "fold": fold_index + 1,
-            "test_start_timestamp": common_fold_windows[fold_index][0],
-            "test_end_timestamp": common_fold_windows[fold_index][1],
-            "trade_count": metrics["trade_count"],
-            "net_pnl_usdt": metrics["net_pnl_usdt"],
-            "ending_equity_usdt": metrics["ending_equity_usdt"],
-            "skipped_overlapping_trades": simulation["skipped_overlapping_trades"],
-            "trades": simulation["trades"],
-        })
-
-    walk_metrics = backtesting._metrics(
-        walk_forward_trades, walk_forward_curve, initial_equity
-    )
-    walk_forward = {
-        "folds": fold_reports,
-        "metrics": walk_metrics,
-        "status": "INCONCLUSIVE" if not walk_forward_trades else (
-            "WALK_FORWARD_POSITIVE" if walk_metrics["profitable"]
-            else "WALK_FORWARD_NOT_PROFITABLE"
-        ),
-        "max_concurrent_positions": 1,
-        "automatic_orders": False,
-    }
-    chronological = {
-        "split_timestamp": common_split,
-        "out_of_sample": oos_portfolio["metrics"],
-        "out_of_sample_trades": oos_portfolio["trades"],
-        "skipped_overlapping_trades": oos_portfolio["skipped_overlapping_trades"],
-        "skipped_invalid_trades": oos_portfolio["skipped_invalid_trades"],
-        "status": "INCONCLUSIVE" if not oos_portfolio["trades"] else (
-            "OUT_OF_SAMPLE_PROFITABLE"
-            if oos_portfolio["metrics"]["profitable"]
-            else "OUT_OF_SAMPLE_NOT_PROFITABLE"
-        ),
-        "max_concurrent_positions": 1,
-        "automatic_orders": False,
-    }
-    gate = profitability_gate.evaluate_profitability_evidence(
-        chronological, walk_forward, market="SPOT"
-    )
-
-    hash_source = json.dumps(
-        {
-            symbol: per_symbol[symbol]["combined_data_sha256"]
-            for symbol in symbols
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    combined_hash = hashlib.sha256(hash_source).hexdigest()
-    report = {
-        "report_schema_version": 1,
-        "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "dataset": {
-            "market": "SPOT",
-            "symbols": symbols,
-            "symbol_count": len(symbols),
-            "universe_as_of_utc": universe_as_of_utc,
-            "per_symbol": per_symbol,
-            "combined_data_sha256": combined_hash,
-        },
-        "portfolio_assumptions": {
-            "initial_equity_usdt": initial_equity,
-            "risk_per_trade_percent": smc.RISK_PER_TRADE_PERCENT,
-            "max_notional_equity_multiple": smc.MAX_NOTIONAL_EQUITY_MULTIPLE,
-            "fee_rate": smc.PAPER_TAKER_FEE_RATES["SPOT"],
-            "slippage_rate": smc.PAPER_SLIPPAGE_RATE,
-            "max_concurrent_positions": 1,
-            "overlapping_entries": "skipped conservatively",
-            "automatic_orders": False,
-        },
-        "strategy": (
-            "Production scanner confluence: 15m, 1h, 4h and 1d; "
-            "1h entry setup, 4h directional agreement, weighted all-timeframe confirmation"
-        ),
-        "chronological_validation": chronological,
-        "walk_forward": walk_forward,
-        "profitability_gate": gate,
-        "automatic_orders": False,
-        "limitations": [
-            "Current eligible-universe snapshot is applied retrospectively; historical constituent membership is not reconstructed (survivorship bias remains).",
-            "Portfolio replay allows one open position at a time and skips overlapping opportunities; this is conservative and does not model concurrent fills.",
-            "Futures certification remains INCONCLUSIVE until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are included.",
-            "Historical results do not guarantee future returns; no automatic orders are placed.",
-        ],
-    }
-
-    path = Path(output_path) if output_path is not None else (
-        REPORT_DIR / f"spot_multi_symbol_portfolio_{combined_hash[:12]}.json"
-    )
-    _atomic_write(path, report)
-    return report, path
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run production-equivalent SI-AI multi-timeframe holdout and walk-forward validation"
@@ -463,6 +321,7 @@ def main() -> int:
         help="Repeat four times: one verified JSON dataset each for 15m, 1h, 4h and 1d",
     )
     parser.add_argument("--output", default=None, help="Optional report JSON path")
+    parser.add_argument("--funding-dataset", default=None, help="Verified Binance funding JSON covering the full 1h dataset range")
     parser.add_argument("--initial-equity", type=float, default=100.0)
     args = parser.parse_args()
 
@@ -470,6 +329,7 @@ def main() -> int:
         args.dataset,
         output_path=args.output,
         initial_equity=args.initial_equity,
+        funding_dataset_path=args.funding_dataset,
     )
     print(f"Research report: {path}")
     print(f"Combined dataset SHA-256: {report['dataset']['combined_data_sha256']}")

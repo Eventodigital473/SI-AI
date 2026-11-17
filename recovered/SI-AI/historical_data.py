@@ -80,9 +80,7 @@ def _resolve_exchange_symbol(exchange, market: str, symbol: str) -> str:
     if not isinstance(metadata.get("active"), bool) or metadata.get("quote") != "USDT":
         raise ValueError(f"{symbol} metadata does not confirm USDT quote and active/inactive status")
 
-    if market == "SPOT" and metadata.get("spot") is not True:
-        raise ValueError(f"{symbol} is not a Binance spot market")
-    if market == "FUTURES" and not (
+    if not (
         metadata.get("swap") is True
         and metadata.get("linear") is True
         and metadata.get("settle") == "USDT"
@@ -105,7 +103,7 @@ def download_ohlcv(
 ) -> List[list]:
     """Download closed candles in [start_ms, end_ms), with guarded pagination."""
     if market not in smc.MARKETS:
-        raise ValueError("market must be SPOT or FUTURES")
+        raise ValueError("market must be FUTURES only")
     interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
     if interval_ms is None:
         raise ValueError("Unsupported timeframe")
@@ -180,6 +178,7 @@ def download_ohlcv(
 
     if not collected:
         raise ValueError("No fully closed historical candles were returned")
+    smc.validate_candle_continuity(collected, timeframe)
     return collected
 
 
@@ -247,6 +246,7 @@ def save_dataset(
     for index in range(1, len(normalized)):
         if normalized[index][0] <= normalized[index - 1][0]:
             raise ValueError("Dataset timestamps must be strictly increasing")
+    smc.validate_candle_continuity(normalized, timeframe)
 
     if symbol != symbol.strip() or symbol != symbol.upper() or symbol.count("/") != 1 or not symbol.split("/", 1)[0] or symbol.split("/", 1)[1] != "USDT":
         raise ValueError("symbol must be a canonical uppercase BASE/USDT string")
@@ -314,6 +314,7 @@ def load_dataset(path: str | Path) -> Dict:
     for index in range(1, len(normalized)):
         if normalized[index][0] <= normalized[index - 1][0]:
             raise ValueError("Historical dataset timestamps are not strictly increasing")
+    smc.validate_candle_continuity(normalized, timeframe)
     interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
     if normalized[0][0] < start_value or normalized[-1][0] + interval_ms > end_value:
         raise ValueError("Historical dataset candles fall outside declared time range")
@@ -330,7 +331,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Download public Binance historical OHLCV for SI-AI research"
     )
-    parser.add_argument("--market", required=True, choices=("SPOT", "FUTURES"))
+    parser.add_argument("--market", required=True, choices=("FUTURES",))
     parser.add_argument("--symbol", required=True, help="Canonical symbol, e.g. BTC/USDT")
     parser.add_argument("--timeframe", required=True, choices=tuple(smc.TIMEFRAME_MILLISECONDS))
     parser.add_argument("--start-ms", required=True, type=int)

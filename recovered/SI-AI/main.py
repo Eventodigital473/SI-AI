@@ -2,6 +2,7 @@ import time
 from flask import Flask, jsonify, request
 
 import SI_AI_smc as smc
+import si_ai_scanner as scanner
 
 app = Flask(__name__)
 
@@ -16,7 +17,7 @@ def validate_market_symbol(data):
     symbol = str(data.get("symbol", "BTC/USDT")).upper()
 
     if market not in smc.MARKETS:
-        raise ValueError("Unsupported market. Use FUTURES or SPOT.")
+        raise ValueError("Unsupported market. SI-AI supports FUTURES only.")
 
     if symbol not in smc.get_symbols(market):
         smc.refresh_symbol_universe()
@@ -90,7 +91,6 @@ def api_config():
             "target_coins": smc.TARGET_UNIVERSE_SIZE,
             "maximum_coins": smc.MAX_UNIVERSE_SIZE,
             "refresh_seconds": smc.UNIVERSE_REFRESH_SECONDS,
-            "spot_min_quote_volume_usdt": smc.MIN_SPOT_QUOTE_VOLUME_USDT,
             "futures_min_quote_volume_usdt": smc.MIN_FUTURES_QUOTE_VOLUME_USDT,
             "maximum_spread_percent": smc.MAX_SPREAD_PERCENT
         },
@@ -171,6 +171,20 @@ def api_multi_timeframe():
                 "error": "Duplicate timeframes are not allowed."
             }), 400
 
+        required_timeframes = list(smc.TIMEFRAMES)
+        if (
+            len(timeframes) != len(required_timeframes)
+            or set(timeframes) != set(required_timeframes)
+        ):
+            return jsonify({
+                "success": False,
+                "error": (
+                    "Actionable multi-timeframe analysis requires all production "
+                    "timeframes: " + ", ".join(required_timeframes)
+                ),
+                "required_timeframes": required_timeframes,
+            }), 400
+
         results = []
         errors = []
 
@@ -209,14 +223,19 @@ def api_multi_timeframe():
             }
         else:
             combined = smc.combine_timeframes(results)
+            raw_signal = combined.get("overall_signal", "WAIT")
+            result_by_timeframe = {
+                result["timeframe"]: result for result in results
+            }
+            confirmed_signal = scanner.confirm_signal(
+                market, result_by_timeframe, combined
+            )
+            combined["weighted_signal"] = raw_signal
+            combined["overall_signal"] = confirmed_signal
+            combined["confirmation_status"] = (
+                "CONFIRMED" if confirmed_signal in ("BUY", "SELL") else "WAIT"
+            )
             combined["analysis_status"] = "COMPLETE"
-
-        if (
-            not errors
-            and market == "SPOT"
-            and combined["overall_signal"] == "SELL"
-        ):
-            combined["overall_signal"] = "SELL/EXIT"
 
         return jsonify({
             "success": True,
@@ -246,7 +265,7 @@ if __name__ == "__main__":
     print("       SI AI SYSTEM STARTING")
     print("====================================")
     print("SMC Engine: Connected")
-    print("Markets: FUTURES, SPOT")
+    print("Market: Binance USD-M FUTURES only")
     print("Timeframes: 15m, 1h, 4h, 1d")
     print("Trading: Analysis Only")
     print("API: http://127.0.0.1:5000")

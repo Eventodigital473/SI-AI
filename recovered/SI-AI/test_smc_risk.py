@@ -57,15 +57,6 @@ class RiskManagementTests(unittest.TestCase):
         self.assertLess(result["paper_quantity"], 2.5)
         self.assertLessEqual(result["paper_total_risk_usdt"], 0.5)
 
-    def test_spot_sell_is_exit_not_short(self):
-        result = run_analysis("SPOT", "Bearish", "Bearish")
-        self.assertEqual(result["signal"], "SELL/EXIT")
-        self.assertIsNone(result["stop_loss"])
-        self.assertIsNone(result["take_profit"])
-        self.assertIsNone(result["paper_quantity"])
-        self.assertIsNone(result["paper_notional_usdt"])
-        self.assertIsNone(result["paper_risk_usdt"])
-        self.assertIsNone(result["paper_total_risk_usdt"])
 
     def test_wallet_and_margin_policy_is_twenty_percent(self):
         result = run_analysis("FUTURES", "Bullish", "Bullish")

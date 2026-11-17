@@ -1,0 +1,59 @@
+name: SI-AI Python tests
+
+on:
+  push:
+    paths:
+      - "recovered/SI-AI/**"
+      - ".github/workflows/si-ai-tests.yml"
+  pull_request:
+    paths:
+      - "recovered/SI-AI/**"
+      - ".github/workflows/si-ai-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project dependencies
+        run: python -m pip install -r requirements.txt
+        working-directory: recovered/SI-AI
+      - name: Check dependency consistency
+        run: python -m pip check
+      - name: Verify minimal synchronous Termux CCXT profile
+        run: |
+          python -m venv /tmp/si-ai-termux-venv
+          /tmp/si-ai-termux-venv/bin/python -m pip install -r requirements-termux.txt
+          /tmp/si-ai-termux-venv/bin/python -m pip install --no-deps "ccxt==4.5.93"
+          /tmp/si-ai-termux-venv/bin/python -c "import ccxt, requests, certifi, cryptography, typing_extensions, flask, pytest; exchange = ccxt.binanceusdm(); assert callable(exchange.fetch_funding_rate_history); print('Minimal synchronous CCXT profile OK:', ccxt.__version__)"
+        working-directory: recovered/SI-AI
+      - name: Validate Termux Widget shell scripts
+        run: |
+          bash -n termux-widget/si-ai-start
+          bash -n termux-widget/si-ai-stop
+          bash -n termux-widget/si-ai-dry-run
+          bash -n termux-widget/si-ai-check
+          bash -n termux-widget/install-shortcuts.sh
+          temp_home="$(mktemp -d)"
+          HOME="$temp_home" bash termux-widget/install-shortcuts.sh
+          test -x "$temp_home/.shortcuts/SI-AI Check"
+          echo "user-managed shortcut" > "$temp_home/.shortcuts/SI-AI Start"
+          HOME="$temp_home" bash termux-widget/install-shortcuts.sh
+          test "$(cat "$temp_home/.shortcuts/SI-AI Start")" = "user-managed shortcut"
+          rm -rf "$temp_home"
+        working-directory: recovered/SI-AI
+      - name: Compile Python sources
+        run: python -m compileall -q .
+        working-directory: recovered/SI-AI
+      - name: Run test suite
+        run: python -m pytest -q
+        working-directory: recovered/SI-AI

@@ -15,7 +15,7 @@ import ccxt
 # ----------------------------- CONFIGURATION -----------------------------
 # Dynamic Binance USDT universe. Symbols are canonical BASE/USDT strings.
 # The discovery layer selects liquid, actively traded markets independently for
-# SPOT and USD-M perpetual FUTURES. No order endpoints or credentials are used.
+# Binance USD-M USDT perpetual contracts only. No order endpoints or credentials are used.
 TIMEFRAMES = ["15m", "1h", "4h", "1d"]
 CANDLE_LIMIT = 250
 MIN_CANDLES = 80
@@ -25,7 +25,6 @@ MIN_ELIGIBLE_COINS = 15
 TARGET_UNIVERSE_SIZE = 50
 MAX_UNIVERSE_SIZE = 100
 UNIVERSE_REFRESH_SECONDS = 900
-MIN_SPOT_QUOTE_VOLUME_USDT = 5_000_000.0
 MIN_FUTURES_QUOTE_VOLUME_USDT = 10_000_000.0
 MAX_SPREAD_PERCENT = 0.15
 PRIORITY_BASES = ("BTC", "ETH", "BNB", "SOL")
@@ -38,20 +37,20 @@ EXCLUDED_BASES = {
     "WBETH", "WBNB", "BTCB", "WAVAX", "WMATIC", "WFTM",
 }
 LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
-MARKET_SYMBOLS = {"FUTURES": ["BTC/USDT", "ETH/USDT"],
-                  "SPOT": ["BTC/USDT", "ETH/USDT"]}
+MARKET_SYMBOLS = {"FUTURES": ["BTC/USDT", "ETH/USDT"]}
 MARKET_UNIVERSE_STATUS = {
     "FUTURES": "not_refreshed",
-    "SPOT": "not_refreshed",
+}
+MARKET_UNIVERSE_DIAGNOSTICS = {
+    "FUTURES": {},
 }
 SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 _UNIVERSE_LAST_REFRESH = 0.0
 
 # Futures is intentionally analysed first. Both exchanges use public endpoints.
-MARKETS = ["FUTURES", "SPOT"]
+MARKETS = ["FUTURES"]
 _MARKET_UNIVERSE_LAST_REFRESH = {market: 0.0 for market in MARKETS}
 FUTURES_EXCHANGE_ID = "binanceusdm"
-SPOT_EXCHANGE_ID = "binance"
 
 # Analysis/risk assumptions only; no account balance is queried and no orders sent.
 PAPER_EQUITY_USDT = 100.0
@@ -64,23 +63,20 @@ MAX_NOTIONAL_EQUITY_MULTIPLE = (
 MIN_REWARD_RISK = 2.0
 
 # Illustrative paper assumptions, not account-specific exchange rates.
-PAPER_TAKER_FEE_RATES = {
-    "FUTURES": 0.0005,
-    "SPOT": 0.0010,
-}
+PAPER_TAKER_FEE_RATES = {"FUTURES": 0.0005}
 PAPER_SLIPPAGE_RATE = 0.0002
 
 TIMEFRAME_WEIGHTS = {"15m": 1.0, "1h": 1.5, "4h": 2.0, "1d": 2.0}
 
 
 def make_exchange(market: str):
-    exchange_class = getattr(ccxt, FUTURES_EXCHANGE_ID if market == "FUTURES" else SPOT_EXCHANGE_ID)
-    return exchange_class({
+    if market != "FUTURES":
+        raise ValueError("SI-AI supports Binance USD-M Futures only")
+    return ccxt.binanceusdm({
         "enableRateLimit": True,
         "timeout": 20000,
-        "options": {"defaultType": "future" if market == "FUTURES" else "spot"},
+        "options": {"defaultType": "future"},
     })
-
 
 EXCHANGES = {market: make_exchange(market) for market in MARKETS}
 
@@ -93,6 +89,10 @@ def get_symbols(market: str) -> List[str]:
 
 
 def _finite_number(value):
+    # bool is a numeric subclass in Python, but it is never a valid market price
+    # or quote-volume value. Reject it instead of silently treating True as 1.0.
+    if isinstance(value, bool):
+        return None
     try:
         result = float(value)
     except (TypeError, ValueError):
@@ -111,9 +111,84 @@ def _eligible_base(base: str) -> bool:
     return True
 
 
+def _index_book_tickers(book_tickers: dict) -> Dict[str, dict]:
+    """Index unified and raw Binance bookTicker aliases without guessing prices."""
+    indexed = {}
+    if not isinstance(book_tickers, dict):
+        return indexed
+
+    for key, ticker in book_tickers.items():
+        if not isinstance(ticker, dict):
+            continue
+        info = ticker.get("info")
+        info = info if isinstance(info, dict) else {}
+        aliases = (
+            key,
+            ticker.get("symbol"),
+            ticker.get("id"),
+            info.get("symbol"),
+        )
+        for alias in aliases:
+            if alias is not None and str(alias).strip():
+                indexed[str(alias).strip()] = ticker
+    return indexed
+
+
+def _find_book_ticker(indexed: dict, exchange_symbol: str,
+                      canonical: str, metadata: dict):
+    """Resolve CCXT unified symbols and Binance market IDs to one quote."""
+    aliases = (
+        exchange_symbol,
+        canonical,
+        metadata.get("symbol"),
+        metadata.get("id"),
+    )
+    for alias in aliases:
+        if alias is not None:
+            ticker = indexed.get(str(alias).strip())
+            if isinstance(ticker, dict):
+                return ticker
+    return None
+
+
+def _book_ticker_prices(ticker: dict):
+    """Read normalized CCXT bid/ask or raw Binance bidPrice/askPrice."""
+    if not isinstance(ticker, dict):
+        return None, None
+    info = ticker.get("info")
+    info = info if isinstance(info, dict) else {}
+    bid_values = (
+        ticker.get("bid"), ticker.get("bidPrice"), ticker.get("bid_price"),
+        info.get("bidPrice"), info.get("bid"),
+    )
+    ask_values = (
+        ticker.get("ask"), ticker.get("askPrice"), ticker.get("ask_price"),
+        info.get("askPrice"), info.get("ask"),
+    )
+    bid = next((value for raw in bid_values
+                if (value := _finite_number(raw)) is not None), None)
+    ask = next((value for raw in ask_values
+                if (value := _finite_number(raw)) is not None), None)
+    return bid, ask
+
+
+def _spread_percent(bid: float, ask: float):
+    """Return midpoint-relative spread percentage for a valid two-sided quote."""
+    bid_value = _finite_number(bid)
+    ask_value = _finite_number(ask)
+    if bid_value is None or ask_value is None:
+        return None
+    if bid_value <= 0 or ask_value < bid_value:
+        return None
+    total = ask_value + bid_value
+    if total <= 0:
+        return None
+    return 200.0 * (ask_value - bid_value) / total
+
+
 def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
     """
-    Discover liquid Binance USDT spot and USD-M perpetual markets.
+    Discover liquid Binance USD-M USDT perpetual markets only.
     Failed refreshes preserve the last-known-good list; no synthetic symbols
     are added to reach the minimum. A market with fewer than 15 qualifiers
     is reported as undersized and the scanner will fail closed for that market.
@@ -151,13 +226,22 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                         "Futures bulk bookTicker response is empty or invalid"
                     )
             candidates = []
-            minimum_volume = (
-                MIN_FUTURES_QUOTE_VOLUME_USDT
+            diagnostics = {
+                "markets_seen": 0,
+                "volume_qualified": 0,
+                "book_ticker_matched": 0,
+                "valid_bid_ask": 0,
+                "spread_qualified": 0,
+            }
+            book_ticker_index = (
+                _index_book_tickers(book_tickers)
                 if market == "FUTURES"
-                else MIN_SPOT_QUOTE_VOLUME_USDT
+                else {}
             )
+            minimum_volume = MIN_FUTURES_QUOTE_VOLUME_USDT
 
             for exchange_symbol, metadata in exchange.markets.items():
+                diagnostics["markets_seen"] += 1
                 if not isinstance(metadata, dict):
                     continue
                 # Require an explicit active flag; unknown status is not eligible.
@@ -168,16 +252,12 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                 if not _eligible_base(metadata.get("base")):
                     continue
 
-                if market == "SPOT":
-                    if metadata.get("spot") is not True:
-                        continue
-                else:
-                    if not (
-                        metadata.get("swap") is True
-                        and metadata.get("linear") is True
-                        and metadata.get("settle") == "USDT"
-                    ):
-                        continue
+                if not (
+                    metadata.get("swap") is True
+                    and metadata.get("linear") is True
+                    and metadata.get("settle") == "USDT"
+                ):
+                    continue
 
                 canonical = f"{metadata['base']}/USDT"
                 ticker = tickers.get(exchange_symbol) or tickers.get(canonical)
@@ -185,27 +265,26 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     continue
 
                 quote_volume = _finite_number(ticker.get("quoteVolume"))
-                book_ticker = ticker
-                if market == "FUTURES":
-                    book_ticker = (
-                        book_tickers.get(exchange_symbol)
-                        or book_tickers.get(canonical)
-                    )
-                if not isinstance(book_ticker, dict):
-                    continue
-                bid = _finite_number(book_ticker.get("bid"))
-                ask = _finite_number(book_ticker.get("ask"))
                 if quote_volume is None or quote_volume < minimum_volume:
                     continue
+                diagnostics["volume_qualified"] += 1
+
+                book_ticker = _find_book_ticker(
+                    book_ticker_index, exchange_symbol, canonical, metadata
+                )
+                if not isinstance(book_ticker, dict):
+                    continue
+                diagnostics["book_ticker_matched"] += 1
+
+                bid, ask = _book_ticker_prices(book_ticker)
                 if bid is None or ask is None or bid <= 0 or ask < bid:
                     continue
+                diagnostics["valid_bid_ask"] += 1
 
-                midpoint = (bid + ask) / 2.0
-                if midpoint <= 0:
+                spread_percent = _spread_percent(bid, ask)
+                if spread_percent is None or spread_percent > MAX_SPREAD_PERCENT:
                     continue
-                spread_percent = (ask - bid) / midpoint * 100.0
-                if spread_percent > MAX_SPREAD_PERCENT:
-                    continue
+                diagnostics["spread_qualified"] += 1
 
                 candidates.append({
                     "symbol": canonical,
@@ -244,6 +323,11 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     else:
                         selected_symbols.append(preferred_symbol)
 
+            MARKET_UNIVERSE_DIAGNOSTICS[market] = {
+                **diagnostics,
+                "candidate_count": len(candidates),
+                "selected_count": len(set(selected_symbols)),
+            }
             MARKET_SYMBOLS[market] = list(dict.fromkeys(selected_symbols))
             MARKET_UNIVERSE_STATUS[market] = (
                 "ready"
@@ -292,7 +376,14 @@ def validate_candles(candles: list) -> List[list]:
             continue
         ts, op, high, low, close, volume = row[:6]
         values = (ts, op, high, low, close, volume)
-        if not all(isinstance(v, (int, float)) and math.isfinite(float(v)) for v in values):
+        if not all(
+            not isinstance(value, bool)
+            and isinstance(value, (int, float))
+            and math.isfinite(float(value))
+            for value in values
+        ):
+            continue
+        if not float(ts).is_integer():
             continue
         if min(op, high, low, close) <= 0 or volume < 0 or high < low:
             continue
@@ -317,6 +408,22 @@ TIMEFRAME_MILLISECONDS = {
     "4h": 4 * 60 * 60 * 1000,
     "1d": 24 * 60 * 60 * 1000,
 }
+
+
+def validate_candle_continuity(candles: List[list], timeframe: str) -> None:
+    """Fail closed when any expected timeframe candle is missing."""
+    interval_ms = TIMEFRAME_MILLISECONDS.get(timeframe)
+    if interval_ms is None:
+        raise ValueError(f"Unsupported timeframe for continuity check: {timeframe}")
+    if not candles:
+        raise ValueError("Cannot validate continuity of an empty candle series")
+    for index in range(1, len(candles)):
+        delta = int(candles[index][0]) - int(candles[index - 1][0])
+        if delta != interval_ms:
+            raise ValueError(
+                f"Missing or irregular {timeframe} candle between "
+                f"rows {index - 1} and {index}: expected {interval_ms} ms, got {delta} ms"
+            )
 
 
 def validate_candle_freshness(candles: List[list], timeframe: str, now_ms: int) -> None:
@@ -362,9 +469,7 @@ def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
         raise ValueError(
             f"Symbol {symbol} is not confirmed as an active USDT market"
         )
-    if market == "SPOT" and metadata.get("spot") is not True:
-        raise ValueError(f"Symbol {symbol} is not an active spot market")
-    if market == "FUTURES" and not (
+    if not (
         metadata.get("swap") is True
         and metadata.get("linear") is True
         and metadata.get("settle") == "USDT"
@@ -377,6 +482,7 @@ def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
         limit=CANDLE_LIMIT
     )
     candles = validate_candles(raw)
+    validate_candle_continuity(candles, timeframe)
     validate_candle_freshness(candles, timeframe, exchange.milliseconds())
     return candles
 
@@ -603,13 +709,17 @@ def validate_analysis_inputs(market: str, symbol: str,
         values = row[:6]
 
         if not all(
-            isinstance(v, (int, float))
+            not isinstance(v, bool)
+            and isinstance(v, (int, float))
             and math.isfinite(float(v))
             for v in values
         ):
             raise ValueError("OHLCV values must be finite numbers")
 
         ts, op, high, low, close, volume = map(float, values)
+
+        if not ts.is_integer():
+            raise ValueError("Candle timestamps must be integer milliseconds")
 
         if min(op, high, low, close) <= 0 or volume < 0:
             raise ValueError("Invalid OHLCV price or volume")
@@ -680,10 +790,6 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
     signal = "BUY" if score >= threshold else "SELL" if score <= -threshold else "WAIT"
     if not atr_valid or price <= 0:
         signal = "WAIT"
-    # Spot has no native short position in this scanner: bearish signals mean exit/avoid, not short.
-    if market == "SPOT" and signal == "SELL":
-        signal = "SELL/EXIT"
-
     stop_loss = take_profit = risk_distance = None
     reward_risk = None
 
@@ -909,7 +1015,7 @@ def print_result(result: Dict) -> None:
 
 
 def run_analysis() -> None:
-    print("\n========== SI AI | FUTURES-FIRST MARKET INTELLIGENCE ==========")
+    print("\n========== SI AI | FUTURES-ONLY MARKET INTELLIGENCE ==========")
     print("PUBLIC DATA ONLY | NO API KEYS | NO ORDERS | NOT FINANCIAL ADVICE")
     refresh_symbol_universe(force=True)
     for market in MARKETS:

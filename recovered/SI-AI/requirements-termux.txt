@@ -1,0 +1,9 @@
+# Termux-only dependency profile for SI-AI's synchronous public REST workflow.
+# Install CCXT separately with: python -m pip install --no-deps "ccxt==4.5.93"
+# python-cryptography should be installed from Termux packages (pkg install python-cryptography).
+requests>=2.32,<3
+certifi>=2026.10.19
+cryptography>=50,<51
+typing_extensions==4.16.0
+Flask>=3.1,<4
+pytest>=9,<10

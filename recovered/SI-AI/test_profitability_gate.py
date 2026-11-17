@@ -14,14 +14,16 @@ def reports():
         {"trade_count": 30, "net_pnl_usdt": 18.0},
     ]}
     return {"out_of_sample": oos, "assumptions": {
-        "historical_funding_series_included": True, "liquidation_modelled": True,
+        "historical_funding_series_included": True,
+        "funding_mark_price_exact": True,
+        "liquidation_modelled": True,
     }}, wf
 
 
 class ProfitabilityGateTests(unittest.TestCase):
-    def test_complete_spot_evidence_can_pass(self):
+    def test_complete_futures_evidence_can_pass(self):
         oos, wf = reports()
-        result = evaluate_profitability_evidence(oos, wf, market="SPOT")
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "PASS")
         self.assertFalse(result["automatic_orders"])
 
@@ -31,35 +33,85 @@ class ProfitabilityGateTests(unittest.TestCase):
         result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "INCONCLUSIVE")
 
+    def test_funding_rates_without_exact_mark_price_remain_inconclusive(self):
+        oos, wf = reports()
+        oos["assumptions"]["funding_mark_price_exact"] = False
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+        check = next(item for item in result["checks"] if item["name"] == "funding_mark_price")
+        self.assertEqual(check["status"], "INCONCLUSIVE")
+
+    def test_funding_settlement_boundary_ambiguity_blocks_certification(self):
+        oos, wf = reports()
+        oos["assumptions"]["funding_settlement_boundary_ambiguities"] = 1
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+        check = next(
+            item for item in result["checks"]
+            if item["name"] == "funding_settlement_boundary_ordering"
+        )
+        self.assertEqual(check["status"], "INCONCLUSIVE")
+
+    def test_walk_forward_funding_boundary_ambiguity_blocks_certification(self):
+        oos, wf = reports()
+        wf["folds"][1]["funding_settlement_boundary_ambiguities"] = 1
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+
     def test_insufficient_trades_is_inconclusive(self):
         oos, wf = reports()
         oos["out_of_sample"]["trade_count"] = 10
-        result = evaluate_profitability_evidence(oos, wf, market="SPOT")
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "INCONCLUSIVE")
 
     def test_negative_oos_pnl_fails(self):
         oos, wf = reports()
         oos["out_of_sample"]["net_pnl_usdt"] = -1
-        result = evaluate_profitability_evidence(oos, wf, market="SPOT")
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "FAIL")
 
     def test_missing_metrics_never_pass(self):
         result = evaluate_profitability_evidence(
-            {"out_of_sample": {}}, {"folds": []}, market="SPOT"
+            {"out_of_sample": {}}, {"folds": []}, market="FUTURES"
         )
         self.assertNotEqual(result["status"], "PASS")
 
     def test_missing_fold_pnl_is_inconclusive_not_false_failure(self):
         oos, wf = reports()
         wf["folds"][0]["net_pnl_usdt"] = None
-        result = evaluate_profitability_evidence(
-            oos, wf, market="SPOT"
-        )
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "INCONCLUSIVE")
 
     def test_invalid_market_rejected(self):
         with self.assertRaises(ValueError):
             evaluate_profitability_evidence({}, {}, market="MARGIN")
+
+
+
+    def test_boolean_metrics_are_not_treated_as_numbers(self):
+        oos, wf = reports()
+        oos["out_of_sample"]["trade_count"] = True
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+
+    def test_boolean_policy_override_is_rejected(self):
+        oos, wf = reports()
+        with self.assertRaises(ValueError):
+            evaluate_profitability_evidence(
+                oos, wf, market="FUTURES",
+                policy={"minimum_oos_trades": True},
+            )
+
+    def test_invalid_walk_forward_policy_relationship_is_rejected(self):
+        oos, wf = reports()
+        with self.assertRaises(ValueError):
+            evaluate_profitability_evidence(
+                oos, wf, market="FUTURES",
+                policy={
+                    "required_walk_forward_folds": 2,
+                    "minimum_positive_walk_forward_folds": 3,
+                },
+            )
 
 
 if __name__ == "__main__":

@@ -31,17 +31,6 @@ class ScannerEntryConfirmationTests(unittest.TestCase):
             "WAIT",
         )
 
-    def test_spot_bearish_bos_is_exit_only(self):
-        self.results["1h"].update({
-            "signal": "SELL/EXIT",
-            "bos": "Bearish",
-        })
-        self.results["4h"]["signal"] = "SELL/EXIT"
-        self.combined["overall_signal"] = "SELL"
-        self.assertEqual(
-            scanner.confirm_signal("SPOT", self.results, self.combined),
-            "SELL",
-        )
 
 
 if __name__ == "__main__":

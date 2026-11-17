@@ -1,5 +1,7 @@
 import unittest
 
+import pytest
+
 import backtesting
 
 
@@ -60,29 +62,6 @@ class BacktestingTests(unittest.TestCase):
         self.assertEqual(seen[0], 80)
         self.assertLess(seen[0], data[80][0] + 1)
 
-    def test_spot_sell_signal_closes_long_at_next_candle_open(self):
-        data = candles_with_bars(84)
-        data[81] = [82, 99.0, 100.0, 98.5, 99.0, 1000.0]
-        calls = 0
-
-        def buy_then_exit(market, symbol, timeframe, history):
-            nonlocal calls
-            calls += 1
-            if calls == 1:
-                return {"signal": "BUY", "stop_loss": 98.0, "take_profit": 104.0}
-            if calls == 2:
-                return {"signal": "SELL/EXIT"}
-            return {"signal": "WAIT"}
-
-        result = backtesting.run_backtest(
-            data, "SPOT", "BTC/USDT", "1h",
-            fee_rate=0.0, slippage_rate=0.0,
-            max_holding_bars=3, signal_fn=buy_then_exit,
-        )
-        self.assertEqual(len(result["trades"]), 1)
-        self.assertEqual(result["trades"][0]["side"], "LONG")
-        self.assertEqual(result["trades"][0]["exit_reason"], "SIGNAL_EXIT")
-        self.assertEqual(result["trades"][0]["exit_price"], 99.0)
 
     def test_futures_opposite_signal_closes_position_at_next_open(self):
         data = candles_with_bars(84)
@@ -107,18 +86,6 @@ class BacktestingTests(unittest.TestCase):
         self.assertEqual(result["trades"][0]["exit_reason"], "SIGNAL_REVERSAL")
         self.assertEqual(result["trades"][0]["exit_price"], 99.0)
 
-    def test_spot_short_signals_are_not_opened(self):
-        data = candles_with_bars()
-
-        def short_signal(*args):
-            return {"signal": "SELL", "stop_loss": 102.0, "take_profit": 96.0}
-
-        result = backtesting.run_backtest(
-            data, "SPOT", "BTC/USDT", "15m",
-            signal_fn=short_signal, max_holding_bars=1,
-        )
-        self.assertEqual(result["metrics"]["trade_count"], 0)
-        self.assertEqual(result["status"], "INCONCLUSIVE")
 
     def test_chronological_holdout_starts_signals_in_oos_period(self):
         data = candles_with_bars(120)
@@ -193,6 +160,77 @@ class BacktestingTests(unittest.TestCase):
                 risk_percent=8.0,
             )
 
+    def test_timestamped_funding_uses_event_mark_price_and_direction(self):
+        data = candles_with_bars(86)
+        event = {"timestamp": 82, "funding_rate": 0.001, "mark_price": 100.0}
+        calls = 0
+
+        def one_buy_then_wait(market, symbol, timeframe, history):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return fixed_buy(market, symbol, timeframe, history)
+            return {"signal": "WAIT"}
+
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=3, signal_fn=one_buy_then_wait,
+            funding_events=[event],
+        )
+        self.assertEqual(len(result["trades"]), 1)
+        trade = result["trades"][0]
+        self.assertEqual(trade["funding_event_count"], 1)
+        self.assertAlmostEqual(
+            trade["funding_cost_usdt"],
+            trade["quantity"] * 100.0 * 0.001,
+            places=7,
+        )
+        self.assertTrue(result["assumptions"]["historical_funding_series_included"])
+        self.assertTrue(result["assumptions"]["funding_mark_price_exact"])
+        self.assertFalse(result["assumptions"]["liquidation_modelled"])
+
+    def test_intrabar_exit_candle_funding_event_is_ambiguous(self):
+        data = candles_with_bars(86)
+        data[81] = [82, 100.0, 105.0, 99.0, 100.0, 1000.0]
+        event = {"timestamp": 83, "funding_rate": 0.001, "mark_price": 100.0}
+        calls = 0
+
+        def one_buy_then_wait(market, symbol, timeframe, history):
+            nonlocal calls
+            calls += 1
+            return fixed_buy(market, symbol, timeframe, history) if calls == 1 else {"signal": "WAIT"}
+
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=3, signal_fn=one_buy_then_wait,
+            funding_events=[event],
+        )
+        self.assertEqual(len(result["trades"]), 1)
+        trade = result["trades"][0]
+        self.assertEqual(trade["exit_reason"], "TARGET")
+        self.assertEqual(trade["funding_exit_timing"], "intrabar")
+        self.assertEqual(trade["funding_event_count"], 1)
+        self.assertEqual(trade["funding_boundary_ambiguities"], 1)
+        self.assertGreater(trade["funding_cost_usdt"], 0)
+
+    def test_timestamped_funding_rejects_double_counting_proxy(self):
+        with self.assertRaisesRegex(ValueError, "not both"):
+            backtesting.run_backtest(
+                candles_with_bars(), "FUTURES", "BTC/USDT", "15m",
+                funding_rate_per_8h=0.001,
+                funding_events=[{"timestamp": 100, "funding_rate": 0.001, "mark_price": 100}],
+            )
+
+    def test_exact_entry_funding_boundary_is_flagged_and_not_credited(self):
+        result = backtesting.funding_data.funding_cost_for_trade(
+            [{"timestamp": 10, "funding_rate": -0.01, "mark_price": 100.0}],
+            "LONG", 1.0, 10, 20,
+        )
+        self.assertEqual(result["funding_boundary_ambiguities"], 1)
+        self.assertEqual(result["funding_cost_usdt"], 0.0)
+
     def test_report_contains_reproducible_data_hash_and_cost_assumptions(self):
         result = backtesting.run_backtest(
             candles_with_bars(), "FUTURES", "BTC/USDT", "15m",
@@ -233,5 +271,46 @@ class BacktestingTests(unittest.TestCase):
         )
 
 
+    def test_chronological_report_preserves_holdout_assumptions(self):
+        data = candles_with_bars(120)
+        result = backtesting.evaluate_chronological_validation(
+            data, "FUTURES", "BTC/USDT", "15m",
+            train_fraction=0.70,
+            signal_fn=lambda *args: {"signal": "WAIT"},
+            fee_rate=0.001,
+            slippage_rate=0.0005,
+        )
+        assumptions = result["assumptions"]
+        self.assertEqual(assumptions["fee_rate_per_side"], 0.001)
+        self.assertEqual(assumptions["slippage_rate_per_side"], 0.0005)
+        self.assertIn("historical_funding_series_included", assumptions)
+        self.assertFalse(assumptions["historical_funding_series_included"])
+        self.assertFalse(assumptions["liquidation_modelled"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+def test_backtesting_numeric_parser_rejects_booleans():
+    with pytest.raises(ValueError, match="not boolean"):
+        backtesting._number(True, "risk_percent")
+    with pytest.raises(ValueError, match="not boolean"):
+        backtesting._number(False, "initial_equity")
+
+
+def test_backtesting_ohlcv_rejects_fractional_timestamps():
+    candles = []
+    start = 1_700_000_000_000
+    for index in range(backtesting.si.MIN_CANDLES + 2):
+        candles.append([
+            start + index * 60_000,
+            100.0,
+            101.0,
+            99.0,
+            100.5,
+            10.0,
+        ])
+    candles[0][0] += 0.5
+    with pytest.raises(ValueError, match="integer milliseconds"):
+        backtesting.validate_ohlcv(candles)

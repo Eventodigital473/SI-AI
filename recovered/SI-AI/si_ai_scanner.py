@@ -5,12 +5,14 @@ import logging
 import math
 import os
 import subprocess
+import shutil
 import sys
 import tempfile
 import time
 from pathlib import Path
 
 import SI_AI_smc as smc
+from liquidation_model import calculate_isolated_liquidation_price
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -19,9 +21,10 @@ LOCK_FILE = BASE_DIR / "si_ai_scanner.lock"
 LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "si_ai_scanner.log"
 
-EXPECTED_MARKETS = {"SPOT", "FUTURES"}
+EXPECTED_MARKETS = {"FUTURES"}
 EXPECTED_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
-STATE_VERSION = 1
+STATE_VERSION = 2
+SIGNAL_REPEAT_ALERT_SECONDS = 6 * 60 * 60
 
 logger = logging.getLogger("SI_AI_SCANNER")
 
@@ -95,7 +98,11 @@ def acquire_lock():
 
 def load_state():
     if not STATE_FILE.exists():
-        return {"version": STATE_VERSION, "last_signals": {}}
+        return {
+            "version": STATE_VERSION,
+            "last_signals": {},
+            "last_notified_at": {},
+        }
 
     try:
         with STATE_FILE.open("r", encoding="utf-8") as handle:
@@ -108,12 +115,26 @@ def load_state():
     if not isinstance(data, dict):
         raise RuntimeError("Invalid state file: expected JSON object")
 
-    if data.get("version") != STATE_VERSION:
+    version = data.get("version")
+    if version not in (1, STATE_VERSION):
         raise RuntimeError("Unsupported state file version")
 
     signals = data.get("last_signals")
     if not isinstance(signals, dict):
         raise RuntimeError("Invalid state file: last_signals must be an object")
+
+    # Migrate the old signal-only state safely. The previous notification time
+    # is unknown, so an existing actionable signal may be refreshed once.
+    if version == 1:
+        data = {
+            "version": STATE_VERSION,
+            "last_signals": signals,
+            "last_notified_at": {},
+        }
+
+    notified_at = data.get("last_notified_at")
+    if not isinstance(notified_at, dict):
+        raise RuntimeError("Invalid state file: last_notified_at must be an object")
 
     for key, value in signals.items():
         parts = key.split("|", 1)
@@ -127,7 +148,36 @@ def load_state():
         if value not in ("BUY", "SELL", "WAIT"):
             raise RuntimeError(f"Invalid saved signal for {key}")
 
+    for key, value in notified_at.items():
+        if key not in signals:
+            raise RuntimeError(f"Notification timestamp has no saved signal: {key}")
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or value < 0
+        ):
+            raise RuntimeError(f"Invalid notification timestamp for {key}")
+
     return data
+
+
+def should_suppress_duplicate(signal, previous, last_notified_at, now=None):
+    """Suppress repeats only while the last successful alert is still fresh."""
+    if signal not in ("BUY", "SELL") or signal != previous:
+        return False
+    if (
+        isinstance(last_notified_at, bool)
+        or not isinstance(last_notified_at, (int, float))
+        or not math.isfinite(float(last_notified_at))
+        or last_notified_at < 0
+    ):
+        return False
+    current = time.time() if now is None else number(now)
+    if current is None:
+        raise ValueError("Current time must be finite")
+    age = current - float(last_notified_at)
+    return age < SIGNAL_REPEAT_ALERT_SECONDS
 
 
 def save_state(data):
@@ -160,6 +210,8 @@ def save_state(data):
 
 
 def number(value):
+    if isinstance(value, bool):
+        return None
     try:
         result = float(value)
     except (TypeError, ValueError):
@@ -233,11 +285,7 @@ def confirm_signal(market, results, combined):
     if str(entry_setup.get("bos", "None")).strip().title() != expected_bos:
         return "WAIT"
 
-    # Spot SELL is an exit signal, never a short entry.
-    if signal_1h == "SELL" and market == "SPOT":
-        return "SELL"
-
-    # Spot BUY and all Futures signals require valid risk levels.
+    # Futures BUY and SELL both require validated risk levels.
     if not valid_risk(market, signal_1h, results["1h"]):
         return "WAIT"
 
@@ -287,11 +335,7 @@ def make_alert(market, symbol, signal, results):
     reference = results["1h"]
     price = number(reference.get("price"))
 
-    display_signal = (
-        "SELL / EXIT"
-        if market == "SPOT" and signal == "SELL"
-        else signal
-    )
+    display_signal = signal
 
     lines = [
         f"Coin: {coin_display_name(symbol)} ({symbol})",
@@ -355,10 +399,103 @@ def make_alert(market, symbol, signal, results):
                 lines.append(f"Recommended leverage: {leverage:g}x (conservative; higher leverage disabled)")
             if margin is not None and budget is not None:
                 lines.append(f"Estimated margin: {margin:.2f} USDT / {budget:.2f} USDT budget (20% of 100 USDT reference wallet)")
-        elif market == "SPOT":
-            lines.append("Leverage: not applicable to spot")
-    else:
-        lines.append("Spot exit only. No short position.")
+
+            quantity = number(reference.get("paper_quantity"))
+            notional = number(reference.get("paper_notional_usdt"))
+            gross_risk = number(reference.get("paper_risk_usdt"))
+            total_risk = number(reference.get("paper_total_risk_usdt"))
+            estimated_fees = number(reference.get("paper_estimated_fees_usdt"))
+            estimated_slippage = number(reference.get("paper_estimated_slippage_usdt"))
+            base_asset = str(symbol).split("/", 1)[0]
+            if quantity is not None and notional is not None:
+                lines.append(
+                    f"Position size (paper estimate): {quantity:.8g} {base_asset}"
+                )
+                lines.append(f"Position notional (paper estimate): {notional:.4f} USDT")
+            else:
+                lines.append("Position size: unavailable; do not estimate manually from this alert")
+            if gross_risk is not None and total_risk is not None:
+                lines.append(
+                    f"Estimated stop risk: {total_risk:.4f} USDT incl. estimated costs "
+                    f"(gross price risk {gross_risk:.4f} USDT)"
+                )
+                lines.append(
+                    f"Risk policy: {smc.RISK_PER_TRADE_PERCENT:.2f}% of "
+                    f"{smc.PAPER_EQUITY_USDT:.2f} USDT reference equity"
+                )
+            if estimated_fees is not None and estimated_slippage is not None:
+                lines.append(
+                    f"Estimated round-trip fees: {estimated_fees:.4f} USDT; "
+                    f"slippage allowance: {estimated_slippage:.4f} USDT"
+                )
+            bracket_path = (
+                BASE_DIR / "data" / "liquidation_brackets"
+                / f"{symbol.replace('/', '-')}.json"
+            )
+            bracket_snapshot = None
+            if bracket_path.is_file():
+                try:
+                    with bracket_path.open("r", encoding="utf-8") as handle:
+                        bracket_snapshot = json.load(handle)
+                    if None not in (quantity, price, margin, leverage):
+                        liquidation = calculate_isolated_liquidation_price(
+                            symbol=symbol,
+                            side="LONG" if signal == "BUY" else "SHORT",
+                            quantity=quantity,
+                            entry_price=price,
+                            isolated_wallet_balance=margin,
+                            leverage=leverage,
+                            bracket_snapshot=bracket_snapshot,
+                        )
+                        if liquidation["status"] == "CALCULATED_ISOLATED_ESTIMATE":
+                            lines.append(
+                                "Estimated isolated liquidation price "
+                                f"(one-way): {liquidation['liquidation_price']:g}"
+                            )
+                        else:
+                            lines.append(
+                                "Isolated liquidation price: no positive threshold "
+                                "under the supplied 1x model assumptions."
+                            )
+                        lines.append(
+                            "Liquidation model: Binance USD-M tier formula; "
+                            f"snapshot {liquidation['bracket_snapshot_retrieved_at']}"
+                        )
+                        lines.append(
+                            "Estimate only: assumes isolated one-way mode and "
+                            "paper margin as isolated wallet balance. Confirm "
+                            "Binance's live mark-price liquidation display."
+                        )
+                    else:
+                        lines.append(
+                            "Liquidation price: NOT CERTIFIED; entry, size, margin "
+                            "or leverage inputs are unavailable."
+                        )
+                except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+                    lines.append(
+                        "Liquidation price: NOT CERTIFIED; maintenance-tier "
+                        f"snapshot invalid or stale ({type(exc).__name__})."
+                    )
+            else:
+                lines.append(
+                    "Liquidation price: NOT CERTIFIED; no current symbol-specific "
+                    "Binance maintenance-tier snapshot. Supply a verified snapshot "
+                    "in data/liquidation_brackets before calculation."
+                )
+            lines.append(
+                "Model scope: isolated one-way only; cross margin, hedge mode, "
+                "other positions, margin changes, fees/funding adjustments and "
+                "historical mark-price liquidation are not certified. Use 1x "
+                "guidance and verify Binance's live liquidation display."
+            )
+            lines.append(
+                "Binance amount precision/minimum quantity/minimum notional: NOT "
+                "validated in this paper estimate. Before any manual order, check "
+                "the live contract filters, round quantity DOWN only, and skip "
+                "if the rounded size is below exchange minimums or exceeds the "
+                "0.50 USDT total-risk budget."
+            )
+
 
     reasons = reference.get("reasons", [])
     if isinstance(reasons, (list, tuple)):
@@ -368,18 +505,72 @@ def make_alert(market, symbol, signal, results):
     return display_signal, "\n".join(lines)
 
 
-def send_notification(market, symbol, title, content):
+def notification_command(market, symbol, title, content):
+    signal = str(title).strip().upper()
+    if signal not in ("BUY", "SELL", "WAIT"):
+        raise ValueError(f"Unsupported notification signal: {title}")
+
+    # Android/Termux can show a colored signal glyph in the title. LED color
+    # is best-effort because many modern phones have no notification LED or
+    # Android/OEM notification settings may override it.
+    signal_style = {
+        "BUY": {
+            "title": "🟢 BUY",
+            "led": "00C853",
+            "vibrate": "0,120,80,120",
+            "priority": "high",
+            "sound": True,
+        },
+        "SELL": {
+            "title": "🔴 SELL",
+            "led": "FF1744",
+            "vibrate": "0,350,100,350",
+            "priority": "high",
+            "sound": True,
+        },
+        "WAIT": {
+            "title": "⚪ WAIT",
+            "led": None,
+            "vibrate": None,
+            "priority": "default",
+            "sound": False,
+        },
+    }[signal]
+
     command = [
         "termux-notification",
         "--id", str(notification_id(market, symbol)),
-        "--title", f"SI-AI: {title}",
+        "--title", f"SI-AI | {signal_style['title']}",
         "--content", content,
         "--group", "SI-AI",
-        "--sound"
+        "--priority", signal_style["priority"],
     ]
 
+    if signal_style["led"]:
+        command.extend([
+            "--led-color", signal_style["led"],
+            "--led-on", "700",
+            "--led-off", "400",
+        ])
+
+    if signal_style["vibrate"]:
+        command.extend(["--vibrate", signal_style["vibrate"]])
+
+    if signal_style["sound"]:
+        command.append("--sound")
+
+    return command
+
+
+def send_notification(market, symbol, title, content):
+    if shutil.which("termux-notification") is None:
+        raise RuntimeError(
+            "termux-notification command not found. Install the Termux:API "
+            "package and companion app, then grant notification permission."
+        )
+
     subprocess.run(
-        command,
+        notification_command(market, symbol, title, content),
         check=True,
         capture_output=True,
         text=True,
@@ -390,7 +581,9 @@ def send_notification(market, symbol, title, content):
 def run_cycle(dry_run=False):
     state = load_state()
     previous_signals = state["last_signals"]
+    previous_notified_at = state["last_notified_at"]
     updated_signals = dict(previous_signals)
+    updated_notified_at = dict(previous_notified_at)
     completed_pairs = 0
 
     request_delay = number(
@@ -406,6 +599,20 @@ def run_cycle(dry_run=False):
         return
 
     for market in smc.MARKETS:
+        diagnostics = getattr(smc, "MARKET_UNIVERSE_DIAGNOSTICS", {}).get(market, {})
+        if diagnostics:
+            logger.info(
+                "%s universe filters: markets=%d, volume-qualified=%d, "
+                "bookTicker-matched=%d, valid-bid-ask=%d, spread-qualified=%d, "
+                "selected=%d",
+                market,
+                diagnostics.get("markets_seen", 0),
+                diagnostics.get("volume_qualified", 0),
+                diagnostics.get("book_ticker_matched", 0),
+                diagnostics.get("valid_bid_ask", 0),
+                diagnostics.get("spread_qualified", 0),
+                diagnostics.get("selected_count", 0),
+            )
         market_symbols = smc.get_symbols(market)
         if len(market_symbols) < smc.MIN_ELIGIBLE_COINS:
             logger.warning(
@@ -486,6 +693,7 @@ def run_cycle(dry_run=False):
 
             if signal == "WAIT":
                 updated_signals[key] = "WAIT"
+                updated_notified_at.pop(key, None)
                 # Alert only on a transition from an actionable signal to WAIT;
                 # this avoids flooding the phone with hundreds of initial WAITs.
                 if previous in ("BUY", "SELL"):
@@ -506,8 +714,10 @@ def run_cycle(dry_run=False):
                 continue
 
             # Dry-run always previews actionable signals, even if previously alerted.
-            if not dry_run and signal == previous:
-                logger.info("%s: duplicate alert suppressed", key)
+            if not dry_run and should_suppress_duplicate(
+                signal, previous, previous_notified_at.get(key)
+            ):
+                logger.info("%s: duplicate alert suppressed (last alert is fresh)", key)
                 continue
 
             title, content = make_alert(
@@ -523,6 +733,7 @@ def run_cycle(dry_run=False):
             try:
                 send_notification(market, symbol, title, content)
                 updated_signals[key] = signal
+                updated_notified_at[key] = time.time()
                 logger.info("%s: notification sent", key)
 
             except Exception:
@@ -530,8 +741,14 @@ def run_cycle(dry_run=False):
                     "%s: notification failed; saved state unchanged", key
                 )
 
-    if not dry_run and updated_signals != previous_signals:
+    if not dry_run and (
+        updated_signals != previous_signals
+        or updated_notified_at != previous_notified_at
+        or state.get("version") != STATE_VERSION
+    ):
+        state["version"] = STATE_VERSION
         state["last_signals"] = updated_signals
+        state["last_notified_at"] = updated_notified_at
         save_state(state)
 
     logger.info(
@@ -547,8 +764,35 @@ def main():
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--interval", type=int, default=120)
+    parser.add_argument(
+        "--test-notifications",
+        action="store_true",
+        help="Send three clearly labelled test notifications; no exchange requests or orders",
+    )
 
     args = parser.parse_args()
+
+    if args.test_notifications:
+        if args.once or args.dry_run:
+            parser.error("--test-notifications cannot be combined with --once or --dry-run")
+        test_cases = (
+            ("BTC/USDT", "BUY"),
+            ("ETH/USDT", "SELL"),
+            ("SOL/USDT", "WAIT"),
+        )
+        try:
+            for symbol, signal in test_cases:
+                send_notification(
+                    "FUTURES",
+                    symbol,
+                    signal,
+                    f"TEST ONLY — {signal} notification appearance check. No market analysis, exchange request, or order was performed.",
+                )
+        except Exception as exc:
+            print(f"SI-AI NOTIFICATION TEST FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 1
+        print("SI-AI notification test sent: BUY, SELL, WAIT. These were test-only alerts; no exchange data or orders.")
+        return 0
 
     if args.interval < 60:
         parser.error("--interval must be at least 60 seconds")

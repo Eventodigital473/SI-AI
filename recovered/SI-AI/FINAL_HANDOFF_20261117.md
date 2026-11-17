@@ -1,112 +1,122 @@
-# SI-AI Final Handoff — 2026-11-17
+# SI-AI — Futures-only Release Handoff
 
-## Source of truth
-- Repository: https://github.com/Eventodigital473/SI-AI
-- Working branch: `feature/dynamic-coin-universe`
-- Latest reviewed branch head: `f146290d927c00fd510dfccd2f9e59852cf525e5`
-- Canonical source folder inside the repository: `recovered/SI-AI/`
-- `main` was not modified by this handoff. Existing recovery and feature branches are preserved.
-- This handoff adds documentation only; it does not change signal logic or trading behavior.
+Updated: 2026-11-17
 
-## Verification evidence
-- Latest branch CI run: https://github.com/Eventodigital473/SI-AI/actions/runs/44090485500
-- Exact head: `f146290d927c00fd510dfccd2f9e59852cf525e5`
-- Python dependency installation: PASS.
-- `python -m compileall -q .`: PASS.
-- JUnit evidence: 115 test cases, 0 failures, 0 errors, 0 skipped.
-- The tests are offline/software checks; they do not prove live execution reliability or profitability.
+## Active project scope
 
-## Public Spot historical backtest
-- Workflow: https://github.com/Eventodigital473/SI-AI/actions/runs/44090339921
-- Backtest source commit: `d810b505898de71821186a181ed87e6285db99b5`.
-- The later `f146290` commit only appends the separate high-leverage planner checkpoint; the Spot backtest engine, universe filters, and runner were unchanged.
-- Requested history: 180 days.
-- Selected Spot candidates: 49.
-- Complete, aligned symbols: 33.
-- Skipped for incomplete historical window: 16.
+SI-AI is now **Binance USD-M USDT perpetual Futures only**. Spot market discovery, Spot scanning, Spot API support, Spot historical-data ingestion, Spot portfolio backtesting, and Spot-specific CI have been removed from the active code path.
+
+Working branch: `feature/futures-only-backtesting`
+
+The earlier branches and `main` are preserved. This migration is isolated on a feature branch and must be reviewed and CI-verified before merge.
+
+## Safety requirements
+
+- SI-AI is a signal provider only. The user manually reviews and executes any trade.
+- No automatic Binance order placement, cancellation, amendment, or leverage-setting.
+- Public market data only; no private API keys or account endpoints.
+- Reference wallet: 100 USDT.
+- Risk budget: 0.5% per trade (0.50 USDT).
+- Margin allocation cap: 20% (20 USDT).
+- Recommended Futures leverage: conservative 1x.
+- Do not call the strategy profitable unless the fail-closed evidence gate passes with valid Futures-specific costs and risk modelling.
+
+## Futures market policy
+
+- Binance USD-M linear USDT-settled perpetual contracts only.
+- Minimum 24h quote volume: 10,000,000 USDT.
+- Maximum midpoint-relative spread: 0.15%.
+- Target universe: 50; configurable hard maximum: 100; minimum: 15.
+- BTC, ETH, BNB, and SOL are prioritized only if they pass identical eligibility filters.
+- Inactive, stablecoin-base, wrapped, leveraged-token, missing-quote, and invalid/crossed-book contracts are rejected.
+- Universe refresh: 15 minutes. Failed refreshes preserve the last-known-good set.
+
+## Signal and execution behaviour
+
 - Timeframes: 15m, 1h, 4h, 1d.
-- Downloaded datasets: 132 (33 symbols x 4 timeframes).
-- Independent archive verification: all 132 dataset SHA-256 hashes and candle counts matched their manifests.
-- Combined dataset SHA-256: `d4f0029e20832fa14cde06181ef3f56bdf09caa9318ed1df1a439f70301c6d0a`.
-- USD stablecoin bases RLUSD and XUSD are excluded from the corrected eligible universe.
-- Portfolio assumptions: 100 USDT reference wallet, 0.5% planned risk budget, 20% notional cap, one concurrent Spot position, 0.10% taker fee and 0.02% adverse slippage.
+- 1h provides the entry setup; 4h confirms direction; the full requested timeframe set must be available.
+- BUY is a Futures long setup; SELL is a Futures short setup; otherwise WAIT.
+- Entry/SL/TP and net reward-risk checks are applied before a signal is actionable.
+- No order is sent to Binance.
 
-### Out-of-sample result
-| Metric | Result |
-|---|---:|
-| Trades | 15 |
-| Win rate | 26.67% |
-| Profit factor | 0.736373 |
-| Net P&L | -0.739271 USDT |
-| Expectancy | -0.049285 USDT/trade |
-| Maximum drawdown | 1.7365% |
-| Ending equity | 99.260729 USDT |
+## Backtesting
 
-Walk-forward aggregate: 26 trades, +0.413217 USDT, profit factor 1.073834. The three folds had 16, 7, and 3 trades; the sample minimum is 20 per fold.
+Run:
 
-**Profitability gate: FAIL.** The OOS sample is below the 100-trade minimum, OOS net P&L and expectancy are negative, and OOS profit factor is below 1.20. Walk-forward fold samples are also insufficient. Do not call this strategy profitable or treat this report as permission for live trading. Do not tune parameters against this same holdout to force a PASS; use a new untouched holdout after any strategy changes.
+```bash
+cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
+python run_public_futures_backtest.py --days 180 --symbol BTC/USDT
+```
 
-Known research limitation: the current eligible-universe snapshot is applied retrospectively; historical membership is not reconstructed, so survivorship bias remains. The portfolio simulator allows one position at a time and skips overlapping opportunities.
+Repeat `--symbol` to evaluate more contracts, for example:
 
-## Futures and high-leverage boundary
-- Futures profitability certification remains INCONCLUSIVE without timestamped historical funding and a validated exchange-specific maintenance-margin/liquidation model.
-- `binance_high_leverage.py` is a standalone paper-only planner. It is not integrated into the live scanner and does not retrieve Binance brackets or call Binance.
-- The active scanner remains at 0.5% risk, 20% allocation cap, and conservative 1x Futures leverage.
-- Never paste Binance API secrets into ChatGPT. No automatic order placement, cancellation, amendment, or leverage-setting is implemented. The user manually reviews and executes any trade.
+```bash
+python run_public_futures_backtest.py --days 180 --symbol BTC/USDT --symbol ETH/USDT --symbol SOL/USDT
+```
 
-## Termux installation (safe separate folder)
-These steps preserve an existing `~/SI-AI` folder. They clone the reviewed branch into a separate `~/SI-AI_FINAL` directory. If that destination already exists, choose another new directory rather than overwriting it.
+The runner downloads 15m, 1h, 4h, and 1d closed Futures OHLCV, saves datasets with SHA-256 integrity checks, and runs the production-equivalent multi-timeframe signal callback through chronological holdout and expanding walk-forward evaluation.
+
+Each symbol currently has a separate reference-equity evaluation. This is not a shared-wallet portfolio simulation and should not be interpreted as aggregate portfolio performance.
+
+### Certification blocker
+
+The backtest engine includes OHLCV, taker fees, adverse slippage, next-candle-open fills, conservative same-bar stop handling, and an optional constant-rate funding proxy. It does not yet include:
+1. Timestamped historical Binance Futures funding-rate events.
+2. Exchange-specific maintenance-margin tiers and liquidation-price / liquidation-event modelling.
+
+The profitability gate therefore remains **INCONCLUSIVE** for Futures until both are implemented and validated. Positive OHLCV-only metrics do not override this blocker.
+
+## Termux setup
+
+Use a separate new directory. Never overwrite an existing checkout or local state:
 
 ```bash
 pkg update -y
 pkg install -y git python termux-api
-
 cd "$HOME"
-git clone --branch feature/dynamic-coin-universe --single-branch https://github.com/Eventodigital473/SI-AI.git SI-AI_FINAL
-
-cd "$HOME/SI-AI_FINAL/recovered/SI-AI"
+git clone --branch feature/futures-only-backtesting --single-branch https://github.com/Eventodigital473/SI-AI.git SI-AI_FUTURES
+cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
 python -m pip install -r requirements.txt
+python -m pip check
 python -m compileall -q .
 python -m pytest -q
 ```
 
-The Termux:API Android companion app must also be installed and notification permission granted for phone notifications. Installing the `termux-api` package alone does not install the Android companion app.
+### Safe one-cycle preview
 
-## Run modes
-
-### 1. Safe live-data preview (no notifications)
 ```bash
-cd "$HOME/SI-AI_FINAL/recovered/SI-AI"
 python si_ai_scanner.py --once --dry-run
 ```
-This makes public market-data requests and logs signal previews. It does not send notifications or place orders.
 
-### 2. Continuous scanner with Android notifications
+This uses public market data, prints/logs signal previews, sends no notification, and places no order.
+
+### Continuous scanner
+
 ```bash
-cd "$HOME/SI-AI_FINAL/recovered/SI-AI"
 python si_ai_scanner.py --interval 120
 ```
-Stop with Ctrl+C. Android notification behavior, sound, vibration, and permissions must be checked on the physical phone.
 
-### 3. Local Flask API (separate Termux session)
+Stop with Ctrl+C. Install the Android Termux:API companion app and grant notification permission separately before testing notifications.
+
+### Local API
+
 ```bash
-cd "$HOME/SI-AI_FINAL/recovered/SI-AI"
 python main.py
 ```
-Open `http://127.0.0.1:5000/status` or `http://127.0.0.1:5000/api/config` in the phone browser. Keep the process running while using the API.
 
-### 4. Re-run public Spot portfolio backtest
-```bash
-cd "$HOME/SI-AI_FINAL/recovered/SI-AI"
-python run_public_spot_portfolio.py --days 180 --symbol-limit 50 --initial-equity 100
-```
-This downloads public Spot history and can take a long time on a phone. It writes local datasets under `data/historical/` and reports under `data/reports/`; these are git-ignored. No API key is required and no order is placed. Longer windows can be requested with `--days` (120–730), but the runner requires at least 15 symbols with complete aligned history and may correctly stop if that minimum is not met.
+Local endpoints: `http://127.0.0.1:5000/status` and `http://127.0.0.1:5000/api/config`.
 
-## Device validation still required
-- Termux and Termux:API installed on the actual Android device.
-- Android notification permission, sound, and vibration checked on-device.
-- One dry-run scan and one controlled notification smoke test.
-- These device checks have not been claimed as completed by GitHub CI.
+## Historical Spot result — archived, not active strategy evidence
 
-## Completion statement
-The software test suite and the first corrected 180-day multi-symbol Spot backtest have both been run and their evidence archived. The code is runnable in Termux using the steps above, but **profitability is not certified**. Keep the system in analysis/signal-only mode until fresh out-of-sample evidence and device validation are satisfactory.
+The retired Spot portfolio test reported 15 OOS trades, 26.67% win rate, profit factor 0.736373, net P&L -0.739271 USDT, and profitability gate FAIL. That Spot implementation has been removed from the active codebase. This result is retained here only for audit history; it is not a Futures result and must not be reused as Futures evidence.
+
+## Remaining release checks
+
+1. Run GitHub Actions on this Futures-only branch; require dependency check, compileall, and all pytest tests to pass.
+2. Review any failures and correct them before treating the branch as backtesting-ready.
+3. Sync to Termux without overwriting local files, then run the same checks on-device.
+4. Run the public Futures dry-run and inspect bookTicker matching, valid bid/ask counts, spread-qualified counts, and selected contract count.
+5. Confirm Android notifications on the actual device.
+6. Implement and validate historical funding and liquidation/maintenance-margin modelling before attempting Futures profitability certification.
+
+No device validation or Futures profitability certification is claimed by this handoff until evidence is recorded in a new checkpoint.

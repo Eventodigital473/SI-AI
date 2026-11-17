@@ -1,3 +1,5 @@
+> **ARCHIVED CHECKPOINT — HISTORICAL ONLY.** SI-AI has since been migrated to Binance USD-M Futures-only. Any Spot code, Spot scanner settings, or Spot backtesting described below has been retired and removed from the active project. Do not use this checkpoint to restore Spot functionality.
+
 # SI-AI Recovery Checkpoint
 
 **Date:** 2026-11-17  
@@ -416,3 +418,378 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 4. Keep Futures certification INCONCLUSIVE until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are validated; then paper observation and final read-only Termux/Binance smoke checks remain.
 
 **Safety/state:** SI-AI remains a signal provider only. User manually executes any trade. No automatic order placement, private API keys, Telegram, or deployment added. `main` remains untouched. PR #1 remains open, draft and unmerged.
+
+
+---
+
+## SI-AI Futures-only finalization checkpoint (2026-11-18)
+
+**Current integration branch:** `fix/termux-minimal-ccxt-dependencies-2026-11-18`  
+**Current branch head at checkpoint:** `049489767df60dd15319373862f1ecfb0e95d37a`  
+**Local Termux checkout:** user device remains at `~/SI-AI_FINAL/recovered/SI-AI`; no files have been pulled or changed on the device by this session.
+
+### Completed implementation on the stacked PR branches
+
+- Active product is Binance USD-M linear USDT perpetual Futures only. Spot is excluded from the active scanner/backtest.
+- Production signal timeframes: 15m, 1h, 4h, 1d; incomplete timeframe confluence fails closed to WAIT.
+- Active paper policy remains 100 USDT reference equity, 0.5% per-trade stop-risk budget, 20% margin allocation cap, recommended 1x leverage, minimum 2:1 R:R.
+- Signal-only: no private API credentials, no order placement, no leverage-setting, no Telegram.
+- BUY/SELL notifications request green/red LED colors and include colored glyph fallbacks; WAIT is neutral. Android LED hardware/permission behavior still needs an actual device test.
+- Termux:Widget Start/Stop/Dry Run shortcuts exist; SI-AI Check performs an offline preflight. Start runs preflight before launching the scanner. Shortcut installer preserves existing user shortcuts and installs only missing shortcuts.
+- Alerts include estimated base-asset position size, notional, stop risk, estimated fees/slippage, reference equity/risk policy, and an explicit warning that liquidation is not modelled/certified.
+- Legacy standalone 10%-risk/high-leverage planner has been disabled.
+- Timestamped Binance USD-M funding downloader uses public CCXT funding history, validates raw funding time/rate/symbol and associated settlement markPrice, paginates, and saves SHA-256-verified datasets.
+- Historical backtest applies signed funding cashflows using position quantity and the event-specific markPrice. Candle-level exit-window settlements are treated conservatively; ambiguous entry/exit/intrabar settlements are flagged and block certification.
+- Public Futures backtest runner downloads the required 15m/1h/4h/1d OHLCV plus funding history. Funding integration is deterministic-tested but has not yet been smoke-tested against live Binance from the user's Termux device.
+- Added a Termux-specific minimal synchronous CCXT profile: CCXT 4.5.93 is installed with `--no-deps`; Termux supplies python-cryptography; unused async/accelerator extras are omitted. Desktop/CI continues to use the full pinned requirements file.
+
+### Pull request stack and merge state
+
+All PRs #1–#12 are open and reported mergeable; **none has been merged**. Do not merge without the user's explicit approval.
+
+- #1–#6: original recovery, dynamic universe, Futures-only, full MTF API, backtest evidence assumptions, Termux signal notifications.
+- #7: exact funding settlement mark-price certification gate.
+- #8: timestamped Binance funding integration into the Futures backtest.
+- #9: disables the legacy high-leverage planner.
+- #10: offline Termux preflight, Widget Check shortcut, richer risk alerts.
+- #11: conservative funding settlement handling for candle-level exits; fixes alert risk-config module alias.
+- #12: minimal synchronous CCXT profile for Termux.
+
+PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branch does not contain the `recovered/` project tree. After PRs #1–#12 are merged in dependency order into the recovery branch, a separate final recovery-to-`main` integration PR is still required before the README's `main`-branch clone command is valid.
+
+### Verified automated validation
+
+- PR #1–#6 head commits each had successful GitHub Actions runs.
+- PR #7 and #8 CI succeeded; PR #9 CI succeeded.
+- PR #10 final head `50c352d22524a0a8957e70179b87b02729fbb1ae`: CI succeeded.
+- PR #11 corrected head `24afbf6c3c2b66ea5a8c93583c2fc8d76169136d`: **136 passed**, 3 warnings, 4 subtests; CI succeeded.
+- PR #12 head `c7a96469061a34b92aee5f88d4c945196b11fd25`: minimal synchronous CCXT clean-venv import succeeded; full suite **136 passed**, 3 warnings, 4 subtests; CI succeeded.
+- The latest documentation-only head `049489767df60dd15319373862f1ecfb0e95d37a` has a fresh CI run pending at checkpoint time. Do not attribute the previous 136-test result to this newer head until that run succeeds.
+- CI uses deterministic fixtures/mocks. It does not prove live Binance reliability, Android notification delivery, profitability, or liquidation safety.
+
+### Remaining blockers / exact next steps
+
+1. Confirm GitHub Actions succeeds on current PR #12 head `049489767df60dd15319373862f1ecfb0e95d37a`.
+2. Obtain explicit user approval before merging PRs #1–#12 in dependency order; then create/merge the recovery-to-main integration PR.
+3. Only after the integration is available, update the user's existing Termux checkout without overwriting local data. Run SI-AI Check, one-cycle dry run, live public-data smoke tests, then the 180-day BTC/USDT historical Futures backtest.
+4. Test BUY/SELL Android notifications on the actual phone; LED behavior depends on device hardware and Android settings.
+5. Exchange-specific historical maintenance-margin/liquidation modelling remains absent. Futures profitability gate must remain **INCONCLUSIVE**; do not claim profitability or live-trading readiness until this model is independently validated.
+6. Historical funding settlement timestamp ambiguities also keep certification blocked when present. No parameter tuning against the same holdout.
+
+**Safety:** manual Binance execution only; no automatic orders. Keep the 100 USDT / 0.5% / 20% margin / 1x policy unchanged. This checkpoint records repository work only; it does not imply the user's Termux device has been updated or tested.
+
+
+---
+
+## Code audit checkpoint — 2026-11-18
+
+**Audit branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Parent integration branch:** `fix/termux-minimal-ccxt-dependencies-2026-11-18`  
+**Audit PR:** https://github.com/Eventodigital473/SI-AI/pull/14
+
+### Additional input-validation fix
+- `SI_AI_smc._finite_number()`, `backtesting._number()`, and `si_ai_scanner.number()` now reject Python booleans. Python treats `True` and `False` as numeric subclasses, so malformed market data or configuration values could otherwise be interpreted as numbers (for example, `True == 1.0`). Backtest OHLCV validation inherits the strict check through its shared numeric parser.
+- Added regression coverage for both boolean values in market-data parsing, bid/ask normalization, spread validation, backtest numeric inputs, and scanner numeric checks.
+- No strategy logic, thresholds, equity, risk, margin, leverage, or order behavior changed.
+
+### Verification
+- GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44195093952
+- Exact expanded code head tested: `1245c9e808cbbc19059fde41c9291eac6345e058`.
+- GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44195322815
+- Dependency consistency: PASS.
+- Minimal synchronous Termux CCXT profile: PASS.
+- Termux Widget shell syntax checks: PASS.
+- Python compilation: PASS.
+- Full suite: **141 passed, 3 warnings, 4 subtests passed**.
+- This is automated CI evidence only; no live Binance/Termux or Android notification test has been performed.
+
+### Repository audit findings
+- Active project tree contains no Spot scanner, Spot backtest, or portfolio-backtest modules. Remaining Spot references are historical checkpoint/documentation notes only.
+- No environment/secret files or order-execution modules were found in the audited repository tree.
+- PR #1 is merged into `recovery/restore-upload-zip`; PR #2–#12 remain open. PR #14 is open and unmerged.
+- The default `main` branch remains separate from the recovered project tree. Final integration into `main` is still pending.
+- Do not merge the stacked changes until the remaining review and integration plan are complete.
+
+### Remaining blockers
+1. Finish the source-level review and resolve any further confirmed defects.
+2. Complete the final integration PR into `recovery/restore-upload-zip`, then into `main`, after review/approval.
+3. Only after the repository project is finalized, perform the single planned Termux installation/update and live public-data/backtest/device checks.
+4. Exchange-specific maintenance-margin/liquidation modelling remains absent. Futures profitability certification must remain **INCONCLUSIVE**.
+5. Historical funding settlement timestamp ambiguities block certification whenever present.
+
+**Safety remains unchanged:** Binance manual execution only; no automatic orders, private API credentials, or leverage-setting. Paper policy remains 100 USDT equity, 0.5% risk, 20% margin cap, 1x recommendation, and minimum 2:1 R:R.
+
+
+---
+
+## SI-AI source-audit continuation checkpoint — 2026-11-18
+
+**Audit branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Source code head verified by CI:** `695618a0fbb2a8131f0e112e6c0bdbcc79bc2081`  
+**Successful GitHub Actions run:** https://github.com/Eventodigital473/SI-AI/actions/runs/44196417766
+
+### Additional defects found and corrected
+- `SI_AI_smc.validate_candles()` previously treated Python booleans as numeric OHLCV values because `bool` subclasses `int`. It now excludes booleans and rejects fractional candle timestamps while preserving existing zero-based synthetic fixtures.
+- `SI_AI_smc.validate_analysis_inputs()` now rejects boolean OHLCV values and fractional millisecond timestamps.
+- `backtesting.validate_ohlcv()` now rejects fractional millisecond timestamps; its shared numeric parser already rejects booleans.
+- `profitability_gate._finite_number()` now rejects booleans. Policy overrides now require valid positive integer sample/fold counts, finite non-negative thresholds, and a consistent positive-fold count not exceeding required folds.
+- Regression tests cover boolean values across all six OHLCV columns, fractional timestamps, boolean profitability metrics, boolean policy overrides, and invalid walk-forward policy relationships.
+- No strategy thresholds, signal logic, risk sizing, paper equity, margin, leverage, or order execution behavior changed.
+
+### Verification on exact source head
+- GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44196417766
+- Exact tested source head: `695618a0fbb2a8131f0e112e6c0bdbcc79bc2081`.
+- Dependency consistency: PASS.
+- Minimal synchronous Termux CCXT profile: PASS.
+- Termux Widget shell syntax: PASS.
+- Python compilation: PASS.
+- Full suite: **159 passed, 3 warnings, 4 subtests passed**.
+- Earlier intermediate runs failed because zero-based test fixtures were initially rejected; that compatibility issue was corrected, and the exact head above passed the full suite.
+
+### Source-audit status
+- Signal lifecycle, scanner duplicate suppression, WAIT transitions, risk-sizing caps, next-open backtest entries, stop-gap handling, stop-first same-bar resolution, timestamped funding cashflows, and funding exit-window policy have been reviewed at source level in this pass.
+- The profitability gate remains fail-closed for missing historical funding, funding mark-price evidence, funding-boundary ambiguity, or absent exchange-specific liquidation modelling.
+- No automatic order-placement functions or API-key/secret fields were found in the source files searched during this pass; this is not a claim of live-device validation.
+- The Futures bookTicker issue and earlier 182 volume-qualified contracts remain pending live Termux verification. Do not merge PR #2 until that evidence is reviewed.
+- This source audit is not yet complete. Continue reviewing the remaining CLI/configuration, notification, universe eligibility and backtest assumptions before any final integration.
+- No PRs were merged. `main` and the user's Termux checkout remain untouched.
+
+**Safety:** signal-only; user manually executes Binance trades. Paper policy remains 100 USDT equity, 0.5% risk, 20% margin cap, 1x recommendation, and minimum 2:1 R:R. Profitability remains **INCONCLUSIVE**.
+
+
+---
+
+## SI-AI Spot-residue and API-confirmation audit checkpoint — 2026-11-18
+
+**Audit branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Exact source/test head verified:** `0340ff45d34d23d648dae8ea8fbb192958bd2cfb`  
+**Successful GitHub Actions run:** https://github.com/Eventodigital473/SI-AI/actions/runs/44196753804
+
+### Additional defects found and corrected
+- Found an overlooked legacy `smc.py` module that still initialized `ccxt.binance()` (Spot). Replaced it with a compatibility shim that delegates legacy `get_candles`, `analyze`, and `run_analysis` calls to the Futures-only `SI_AI_smc` engine. It no longer creates a Spot client.
+- Added tests proving that importing/reloading the legacy module does not call `ccxt.binance()`, and that its data entry point delegates explicitly to `FUTURES`.
+- Found that Flask `/api/multi-timeframe` returned the raw weighted BUY/SELL signal without the scanner's stricter confirmation. It now applies the same `si_ai_scanner.confirm_signal()` rules (1h BOS, 1h/4h/MTF directional agreement, valid stop/target and R:R). The raw weighted result is retained as `weighted_signal`; `overall_signal` is the confirmed result and `confirmation_status` is explicit.
+- Added API regression tests for both confirmed BUY and WAIT when the 1h BOS requirement is absent.
+- README now documents `smc.py` as a Futures-only compatibility shim.
+- No Spot discovery/scanning/backtesting was reintroduced. No automatic order placement was added.
+
+### Verification on exact source/test head
+- GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44196753804
+- Exact tested source/test head: `0340ff45d34d23d648dae8ea8fbb192958bd2cfb`.
+- Dependency consistency: PASS.
+- Minimal synchronous Termux CCXT profile: PASS.
+- Termux Widget shell syntax: PASS.
+- Python compilation: PASS.
+- Full suite: **163 passed, 3 warnings, 4 subtests passed**.
+- CI is automated source validation only; it does not prove live Binance behavior, Android notification delivery, profitability, or liquidation safety.
+
+### Remaining source/device gates
+- Continue auditing remaining CLI, historical data, funding, notification, and backtest assumptions; this is not yet the final project sign-off.
+- Live Termux Futures universe/bookTicker validation remains mandatory before PR #2 can be accepted. Earlier 182 volume-qualified contracts still require fresh on-device evidence.
+- No PR merges were made. `main` and the user's Termux checkout remain untouched.
+- Exchange-specific maintenance-margin/liquidation modelling remains absent; profitability certification stays **INCONCLUSIVE**.
+- Funding settlement boundary ambiguities, when present, also block certification.
+
+**Safety:** Futures signal-only; user manually executes Binance trades. Policy unchanged: 100 USDT reference equity, 0.5% risk, 20% margin cap, recommended 1x, minimum 2:1 R:R.
+
+
+### Additional static safety scan — 2026-11-18
+- Scanned the active Python source files for order-placement entry points and private API credential fields. No `create_order`, Binance private order endpoint, API-key/secret field, or order-placement call was found in the reviewed active source.
+- Confirmed the only active exchange constructors found in the engine/helper modules are `ccxt.binanceusdm()`; the old `smc.py` Spot constructor has been removed and replaced by the Futures-only compatibility shim.
+- The API binds to `127.0.0.1` with Flask debug mode disabled. The legacy high-leverage planner raises immediately and cannot build a plan.
+- This was a source-text/static review, not a formal security audit or proof against every possible indirect behavior. No credentials were added and no live orders were sent.
+
+
+---
+
+## SI-AI candle-continuity audit checkpoint — 2026-11-18
+
+**Branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Source and regression-test head:** `e7c7e14fc6c0b1dfa37782debc3a71b9c8704ea7`  
+**Successful CI run for that exact source/test head:** https://github.com/Eventodigital473/SI-AI/actions/runs/44197545144
+
+### Additional data-integrity defect fixed
+- Found that live and historical OHLCV validators enforced strictly increasing timestamps but did not reject missing candles between otherwise valid rows.
+- Added `SI_AI_smc.validate_candle_continuity(candles, timeframe)`; live Futures candle retrieval now checks exact 15m/1h/4h/1d spacing before analysis.
+- Historical OHLCV downloads, dataset saves, and dataset loads now enforce the same exact timeframe spacing.
+- Added regression tests for missing intermediate candles during download/save and wrong timeframe spacing.
+- README documents the new fail-closed behavior.
+- No risk settings, scoring thresholds, trade rules, order execution, or leverage behavior changed.
+
+### Verification
+- Exact source/test head `e7c7e14fc6c0b1dfa37782debc3a71b9c8704ea7`: **166 passed, 3 warnings, 4 subtests passed**.
+- Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax, and Python compilation all passed in the same run.
+- One initial test-only assertion expected the wrong interval value (900,000 ms instead of the correct 3,600,000 ms for 1h); corrected the assertion and reran the full suite successfully.
+- README-only documentation commit after the tested code: `f6636f227f643febdbe7b0942a3fab80287e18b6`; its CI is being checked separately.
+
+### Still pending
+- Continue source audit for symbol amount/price precision, minimum order constraints in user-facing paper sizing, and any remaining historical/backtest assumptions.
+- Fresh live Binance USD-M Futures universe/bookTicker verification in Termux is still required. The earlier 182 volume-qualified contracts issue remains unresolved until that device evidence is reviewed; PR #2 must not be merged before then.
+- Android notification delivery/LED, Termux startup/stop behavior, and final 180-day multi-timeframe backtest are device checks still pending.
+- No PRs merged; `main` and the user's Termux checkout remain untouched.
+- Liquidation/maintenance-margin modelling is absent; profitability certification remains **INCONCLUSIVE**.
+
+**Safety policy unchanged:** Futures-only, signal provider, manual user execution; 100 USDT reference equity, 0.5% risk per trade, 20% maximum margin allocation, 1x recommendation, minimum 2:1 R:R.
+
+---
+
+## SI-AI scanner alert lifecycle and sizing disclosure checkpoint — 2026-11-18
+
+**Branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Latest code/test head:** `876ee80532750dd84697d830bf3e51b0bf067a7c`  
+**Checkpoint commit CI:** successful GitHub Actions run [44198176446](https://github.com/Eventodigital473/SI-AI/actions/runs/44198176446).  
+**Exact tested code/test head:** `876ee80532750dd84697d830bf3e51b0bf067a7c`.
+
+### New source-audit findings and changes
+- Scanner duplicate suppression previously remembered only BUY/SELL/WAIT, with no timestamp. A previously notified BUY/SELL could therefore remain suppressed indefinitely, even after a long scanner outage.
+- Upgraded scanner state to schema v2 with `last_notified_at`; v1 state migrates without losing saved signals. Invalid timestamps fail closed.
+- Repeated actionable BUY/SELL alerts are now suppressed only for six hours after a successful notification; a still-confirmed signal is refreshed after that interval. WAIT clears its actionable notification timestamp. Failed notifications do not advance the saved signal/timestamp.
+- Added tests for six-hour expiry, v1 state migration, and invalid timestamps.
+- Paper position quantity is still a theoretical sizing estimate, not rounded/validated against live Binance amount precision, minimum quantity, or minimum notional. The alert now explicitly says these filters are NOT validated, instructs the user to round down only, and to skip if minimums or the 0.50 USDT total-risk budget are violated.
+- Added an alert regression assertion for the exchange-filter warning.
+- No exchange orders, credentials, strategy thresholds, risk settings, equity, margin, or leverage behavior were changed.
+
+### Latest verification status
+- Previous exact head `2e69e8292fa0e6b044298feb29c1560a167a36a7` passed CI: **166 passed, 3 warnings, 4 subtests passed**; dependency profile, Widget shell syntax and Python compilation passed.
+- Exact CI for the checkpoint commit completed successfully: **173 passed, 3 warnings, 4 subtests passed**. Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax, and Python compilation also passed.
+- CI warning: three existing Flask `__version__` deprecation warnings in preflight tests; no test failures.
+
+### Remaining blockers
+- Actual Binance amount/price precision and minimum order filters are not yet machine-validated in the scanner; alerts explicitly disclose this limitation.
+- Fresh live Futures universe/bookTicker scan remains pending on the user's Termux device; earlier 182 volume-qualified contracts remain unresolved. Do not merge PR #2 before that evidence.
+- Continue source audit of remaining backtest assumptions, notification process behavior, and CLI/config paths.
+- Android notification/LED test, Termux startup/stop test, and final 180-day backtest remain device checks.
+- Liquidation/maintenance-margin model remains absent; profitability certification remains **INCONCLUSIVE**.
+- No PR merges; `main` and Termux checkout remain untouched.
+
+**Safety policy unchanged:** Futures-only, signal provider, manual Binance execution; 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R. No automatic order placement.
+
+---
+
+## SI-AI isolated liquidation calculator checkpoint — 2026-11-18
+
+**Branch:** `feat/binance-isolated-liquidation-model-2026-11-18`  
+**Implementation commits:** `457f073a03b193a45016ceb27bb5d1eb08ff2a89` through `e12fc252fad0e2b05bddfb9a4dfc2c2c673d76f5`  
+**Verified implementation/test head:** `8b6e341ac27d9fb2ad9c5126f62c737b29561710`  
+**Successful CI:** run [44199245439](https://github.com/Eventodigital473/SI-AI/actions/runs/44199245439) — **185 passed, 3 warnings, 4 subtests passed**. The later checkpoint-only commit records this result.
+
+### Why this was necessary
+- The previous project had no liquidation calculation at all. Binance USD-M liquidation depends on the isolated/cross wallet balance, position side/size/entry, maintenance-margin rate and maintenance amount for the correct notional tier. Binance's official formula and tier-recalculation note are documented at https://www.binance.com/en/support/faq/detail/b3c689c1f50a44cabb3a84e663b81d93.
+- Cross-margin liquidation also depends on other positions and wallet-wide maintenance margin. A generic leverage-only formula would be unsafe.
+
+### Implemented
+- Added `liquidation_model.py`: Binance USD-M one-way isolated formula; maintenance tier resolved against liquidation notional; leverage maximum checked against entry tier.
+- Requires a symbol-specific Binance tier snapshot no older than 24 hours, with exact source tag, timezone-aware timestamp, contiguous tiers, MMR, maintenance amount, notional bounds and max leverage. Missing/stale/wrong-symbol/invalid snapshots fail closed.
+- Scanner alerts now read `data/liquidation_brackets/BASE-USDT.json` when supplied and display an isolated estimate only when the tier snapshot and paper inputs validate. Otherwise the alert explicitly remains NOT CERTIFIED.
+- 1x long cases with no positive threshold are labelled as such, not reported as a fabricated positive price.
+- The model scope is explicitly isolated one-way. It does not claim to model cross margin, hedge mode, other positions, auto-add margin, fees/funding adjustments, ADL, or mark-price execution.
+- Added README instructions for supplying exact Binance symbol tier data; no fake/default MMR values are bundled.
+- Added tests for long/short formula, tier resolution, stale/future/wrong-symbol snapshots, invalid/non-contiguous tiers, leverage caps, insufficient isolated margin, and 1x no-positive-threshold behavior.
+- Found and fixed an adjacent scanner bug: a brand-new state file previously omitted `last_notified_at`, which could cause a KeyError after the schema-v2 alert lifecycle change. Fresh state now initializes both maps and has a regression test.
+
+### Still not complete
+- This calculator is not yet a full historical liquidation backtest. Historical mark-price candles and time-matched historical maintenance-tier snapshots are not present; liquidation event handling is not implemented in the backtest engine.
+- Profitability certification must remain **INCONCLUSIVE** until historical mark-price and tier data, liquidation event simulation, and validation are complete.
+- No actual Binance bracket snapshot is included; operators must supply exact current symbol-specific values. No private account endpoint, API key, or order permission has been added.
+- Initial run `44198892931` caught a literal escaped newline in a test file before tests ran; corrected.
+- Second run `44199065754` compiled successfully and found two test-only issues (missing datetime import and invalid margin fixture); both corrected.
+- Final exact code/test head `8b6e341ac27d9fb2ad9c5126f62c737b29561710` passed run `44199245439`: **185 passed, 3 warnings, 4 subtests passed**. Dependency consistency, minimal Termux CCXT profile, Widget shell syntax and Python compilation all passed.
+- No PR merge, no Termux command, and no change to `main` or the user's device.
+
+**Safety policy unchanged:** Futures-only signal provider; manual Binance execution only; 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R. No automatic orders.
+
+
+---
+
+## Consolidation checkpoint — 2026-11-18
+
+**Integration branch:** `integration/si-ai-consolidated-2026-11-18`  
+**Starting source head:** `a66ae779d881250b4fdd164db4c015db69d56c74` (PR #15)  
+
+### Consolidated changes
+- Created a single integration branch from the latest PR #15 head, preserving the full dependency chain through PR #14 and PR #2–#12, with PR #1 already merged into the recovery history.
+- Selectively brought forward the still-relevant PR #13 fixes: Termux requirements are installed before CCXT with `--no-deps` in both README and CI; offline preflight obtains package versions through `importlib.metadata` instead of deprecated Flask `__version__` access.
+- Kept the PR #14 Futures-only `smc.py` compatibility shim. PR #13's deletion of that module and its test requiring the module to be absent were intentionally not copied because PR #14's tested shim preserves legacy import compatibility while preventing Spot client construction.
+- Risk and trading policy unchanged: Futures-only, signal-only, manual execution, no private credentials/orders; 100 USDT equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R.
+
+### Validation state
+- Prior PR #15 head CI: run [44199367891](https://github.com/Eventodigital473/SI-AI/actions/runs/44199367891) succeeded; exact code/test head [8b6e341ac27d9fb2ad9c5126f62c737b29561710](https://github.com/Eventodigital473/SI-AI/commit/8b6e341ac27d9fb2ad9c5126f62c737b29561710) passed 185 tests, 3 warnings, and 4 subtests in run [44199245439](https://github.com/Eventodigital473/SI-AI/actions/runs/44199245439).
+- The consolidation-only README/preflight/CI edits require a fresh CI run on this branch; do not claim them tested until that run passes.
+- Historical liquidation event simulation remains incomplete: historical mark-price candles and timestamp-matched maintenance-tier snapshots are still required. Profitability remains INCONCLUSIVE.
+- Live Termux Futures universe/bookTicker validation, Android notifications, and final device/backtest smoke tests remain pending.
+- No merge into `main`, no Termux commands, and no changes to the user's device.
+
+
+---
+
+## Final validation continuation — 2026-11-18
+
+**Integration branch:** `integration/si-ai-consolidated-2026-11-18`
+
+### New work
+- Added `mark_price_data.py` for public Binance USD-M `GET /fapi/v1/markPriceKlines` ingestion, closed-candle filtering, strict OHLC/close-time checks, pagination, continuity validation, atomic JSON storage, and SHA-256 verification.
+- Public Futures backtest runner now downloads and archives the 1h mark-price candles alongside the 15m/1h/4h/1d last-trade OHLCV and timestamped funding datasets.
+- Backtest reports now include the mark-price dataset source, timeframe, candle count, range, and SHA-256 manifest.
+- Added mark-price downloader/storage regression tests and backtest manifest validation tests.
+- README now accurately distinguishes historical mark-price capture from actual liquidation-event simulation.
+- Spot trading/backtesting remains excluded from active SI-AI. Old portfolio experiment checkpoints are historical records only.
+
+### CI / bugs found and corrected
+- Intermediate CI caught two mark-price dataset serialization failures: save/load initially expected raw 12-field Binance rows instead of the normalized 6-field internal candle rows. Corrected save/load to validate normalized rows.
+- Intermediate CI caught the public runner test attempting a real Binance call; added deterministic mocks for mark-price fetch/save/load/hash.
+- Latest successful CI on this branch head: run [44201424671](https://github.com/Eventodigital473/SI-AI/actions/runs/44201424671), **194 passed, 4 subtests passed**. Python compilation, dependency consistency, minimal synchronous Termux CCXT profile, and Termux Widget shell syntax also passed.
+- A duplicate run on the same head was still running at checkpoint time; the successful run is sufficient evidence for the current tested head.
+
+### Still not certified / pending
+- Historical liquidation event simulation is **not implemented yet**. The 1h mark-price dataset is now archived, but time-matched historical Binance maintenance-tier snapshots are not available from the public mark-price endpoint. Do not apply today's tier values retrospectively. The isolated calculator is still an estimate only; cross margin, fee/funding/liquidation execution mechanics and historical tier changes remain out of scope.
+- Profitability gate correctly remains **INCONCLUSIVE** until liquidation simulation and its required historical tier inputs are validated.
+- Live Futures universe/bookTicker eligibility validation (including the earlier 182 volume-qualified contracts) must be run from the user's Termux phone.
+- Actual Termux runtime, Android notification permission/LED behavior, and 180-day live public-data backtest remain device tests.
+- No automatic orders, no private API keys, no Spot scanning, no changes to `main`, and no changes to the user's Termux device.
+
+
+---
+
+## Device-test handoff update — 2026-11-18
+
+- Added `python si_ai_scanner.py --test-notifications`: sends three clearly labelled TEST ONLY BUY/SELL/WAIT Android notifications, using the real Termux:API path but no Binance requests, scanner cycle, credentials, or orders.
+- Added a regression test proving the notification test CLI sends exactly the three test-only cases.
+- Added `recovered/SI-AI/TERMUX_FINAL_TEST_RUNBOOK.md` and linked it from README. It clones the consolidated validation branch into a separate folder, preserving the existing Termux checkout, then lists dependency, pytest, preflight, live dry-run, notification, 180-day backtest, and Widget checks.
+- CI after notification test addition: run [44201759094](https://github.com/Eventodigital473/SI-AI/actions/runs/44201759094), **195 passed, 4 subtests passed**. Python compilation, dependency consistency, minimal synchronous Termux CCXT profile and Widget shell checks passed.
+- README/runbook-only final commits are being rechecked by CI; the latest successful code/test head above includes all executable code changes.
+- No Termux device commands have been run by the assistant. The runbook requires the user to execute the phone-side checks and return outputs for sign-off.
+
+
+---
+
+## Final consolidated branch verification — 2026-11-18
+
+- Final branch head before this checkpoint update: `3c3c056f43811cbc61adb0b336ed015ad4c74223`.
+- Full CI rerun on that exact branch head: [44201894649](https://github.com/Eventodigital473/SI-AI/actions/runs/44201894649) — **195 passed, 4 subtests passed**. Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell validation, Python compilation, and test suite all passed.
+- PR #16 remains open and mergeable, targeting `feature/dynamic-coin-universe`; no merge has been performed and `main` remains untouched.
+- Termux execution instructions are in `recovered/SI-AI/TERMUX_FINAL_TEST_RUNBOOK.md`. They use a new validation clone folder and preserve the user's existing checkout.
+- Release/testing decision: suitable for user-side **dry-run and paper research validation only** after the runbook checks. Not certified for live trading or profitability because historical liquidation events/maintenance-tier history, live contract precision checks, and phone-side smoke tests are outstanding.
+
+
+---
+
+## Latest liquidation-data integrity validation — 2026-11-18
+
+- Added an exact timestamp-alignment gate: archived 1h Binance mark-price candles must match the primary 1h last-trade OHLCV candle timestamps one-for-one. Coverage alone is insufficient for any future liquidation event simulation.
+- Added a regression test proving a continuous but shifted mark-price series is rejected even when its declared date range covers the backtest.
+- Latest CI on code/test head `3abaf3a2296524048f995ce52fb22bc8b110d5a5`: run [44202144226](https://github.com/Eventodigital473/SI-AI/actions/runs/44202144226), **196 passed, 4 subtests passed**. Dependency checks, Termux CCXT profile, Widget shell validation, Python compilation and tests all passed.
+- This still archives mark-price data only; historical liquidation events remain unmodelled without time-matched maintenance-tier history. Profitability remains INCONCLUSIVE.
+
+## 2026-11-18 Consolidated integration audit (PR #16)
+
+- Consolidated integration PR: https://github.com/Eventodigital473/SI-AI/pull/16
+- Branch: `integration/si-ai-consolidated-2026-11-18`; head at audit: `d29c3cd4fae54d67a64681dbeb3c81ed9afef48e`.
+- PR #16 remains open and unmerged; mergeable=true. Its base is `feature/dynamic-coin-universe`, not `main`. Comparison against `main` reports the integration branch is 346 commits ahead and 4 commits behind; do not retarget/merge until the four-commit divergence is reviewed.
+- Latest CI run inspected: `44202268113`, conclusion success. Exact log: 196 passed, 4 subtests passed in 1.75s. Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax/idempotence, Python compilation all passed.
+- Spot scope verified: `recovered/SI-AI/run_public_spot_portfolio.py` and `.github/workflows/public-spot-historical-validation.yml` are deleted in the consolidated branch (confirmed by PR deletion patches). Active `SI_AI_smc.py` declares `MARKETS = ["FUTURES"]`, and `make_exchange` rejects every market except FUTURES. Keep Spot excluded.
+- Historical mark-price ingestion is present: public USD-M `/fapi/v1/markPriceKlines`, integrity-checked archive, exact timestamp alignment against primary 1h OHLCV. The public runner passes the archived mark dataset into `historical_backtest.run_dataset_backtest`.
+- Critical remaining gap confirmed in source: `backtesting.py` explicitly emits `"liquidation_modelled": False`; the archived mark-price candles are not yet used to simulate liquidation events. The profitability gate checks this flag and remains INCONCLUSIVE. Do not claim profitability or live-trading readiness.
+- Historical maintenance-tier snapshots with effective timestamps are still unavailable from the public mark-price endpoint. Do not apply current tiers retrospectively. A safe future simulation needs authenticated/operator-supplied archived snapshots with exact validity intervals, full trade-period coverage, mark-price candle checks, and conservative same-candle liquidation-vs-stop/target ordering.
+- Remaining external/device validation: live Futures universe/bookTicker eligibility (previous diagnosis had 182 volume-qualified contracts), exchange amount/price precision and minimum quantity/notional, 180-day public Futures backtest, actual Termux install/preflight/dry-run, Android notification test and permissions/LED behavior.
+- No Termux commands issued; no changes to user's phone. No Binance credentials/order permissions; no automatic orders. Risk policy unchanged: 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, 2:1 minimum R:R.
+- Exact next step: complete source audit for exchange filters and report consistency; then decide whether to add archived-tier snapshot simulation (only if data validity can be proven). After code/CI is frozen, provide the single safe Termux validation sequence. User must run device-dependent checks; assistant cannot truthfully mark them passed remotely.
