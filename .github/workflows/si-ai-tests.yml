@@ -29,6 +29,13 @@ jobs:
         working-directory: recovered/SI-AI
       - name: Check dependency consistency
         run: python -m pip check
+      - name: Verify minimal synchronous Termux CCXT profile
+        run: |
+          python -m venv /tmp/si-ai-termux-venv
+          /tmp/si-ai-termux-venv/bin/python -m pip install --no-deps "ccxt==4.5.93"
+          /tmp/si-ai-termux-venv/bin/python -m pip install -r requirements-termux.txt
+          /tmp/si-ai-termux-venv/bin/python -c "import ccxt, requests, certifi, cryptography, typing_extensions, flask, pytest; exchange = ccxt.binanceusdm(); assert callable(exchange.fetch_funding_rate_history); print('Minimal synchronous CCXT profile OK:', ccxt.__version__)"
+        working-directory: recovered/SI-AI
       - name: Validate Termux Widget shell scripts
         run: |
           bash -n termux-widget/si-ai-start
