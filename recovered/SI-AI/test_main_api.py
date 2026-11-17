@@ -60,6 +60,51 @@ class MainApiTests(unittest.TestCase):
         ):
             self.assertIn(key, analysis)
 
+    def test_single_timeframe_api_marks_signal_as_unconfirmed(self):
+        result = sample_result("1h")
+        with patch.object(main.smc, "analyze", return_value=result):
+            response = self.client.get(
+                "/api/analyze?market=FUTURES&symbol=BTC/USDT&timeframe=1h"
+            )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["analysis_scope"], "single_timeframe_only")
+        self.assertTrue(data["requires_multi_timeframe_confirmation"])
+
+    def test_api_accepts_a_market_specific_dynamic_coin(self):
+        result = sample_result("1h")
+        result["symbol"] = "SOL/USDT"
+
+        with patch.object(
+            main.smc, "get_symbols", return_value=["SOL/USDT"]
+        ), patch.object(main.smc, "analyze", return_value=result):
+            response = self.client.get(
+                "/api/analyze?market=FUTURES&symbol=SOL/USDT&timeframe=1h"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["analysis"]["symbol"], "SOL/USDT")
+
+    def test_api_config_exposes_dynamic_universe_policy(self):
+        with patch.object(main.smc, "refresh_symbol_universe"):
+            response = self.client.get("/api/config")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertIn("symbols_by_market", data)
+        self.assertIn("universe_status_by_market", data)
+        self.assertEqual(
+            data["universe_policy"]["minimum_eligible_coins"], 15
+        )
+        self.assertEqual(
+            data["universe_policy"]["maximum_coins"], 100
+        )
+        self.assertEqual(data["risk_policy"]["reference_wallet_usdt"], 100.0)
+        self.assertEqual(data["risk_policy"]["margin_allocation_percent"], 20.0)
+        self.assertEqual(data["risk_policy"]["margin_budget_usdt"], 20.0)
+        self.assertEqual(data["risk_policy"]["recommended_futures_leverage"], 1.0)
+        self.assertFalse(data["risk_policy"]["automatic_orders"])
+
     def test_invalid_timeframe_is_rejected(self):
         with patch.object(main.smc, "analyze") as mocked:
             response = self.client.get(
@@ -100,6 +145,10 @@ class MainApiTests(unittest.TestCase):
         data = response.get_json()
         self.assertTrue(data["success"])
         self.assertEqual(data["timeframe_count"], 2)
+        self.assertTrue(data["complete"])
+        self.assertEqual(
+            data["multi_timeframe"]["analysis_status"], "COMPLETE"
+        )
 
         for result in data["successful_analyses"]:
             self.assertIn("paper_quantity", result)
@@ -167,6 +216,26 @@ class MainApiTests(unittest.TestCase):
         self.assertEqual(data["timeframe_count"], 1)
         self.assertEqual(len(data["errors"]), 1)
         self.assertEqual(data["errors"][0]["timeframe"], "1h")
+        self.assertFalse(data["complete"])
+        self.assertEqual(
+            data["multi_timeframe"]["overall_signal"], "WAIT"
+        )
+        self.assertEqual(
+            data["multi_timeframe"]["analysis_status"], "INCOMPLETE"
+        )
+
+    def test_duplicate_timeframes_are_rejected(self):
+        with patch.object(main.smc, "analyze") as mocked:
+            response = self.client.post(
+                "/api/multi-timeframe",
+                json={
+                    "market": "FUTURES",
+                    "symbol": "BTC/USDT",
+                    "timeframes": ["1h", "1h"],
+                },
+            )
+        self.assertEqual(response.status_code, 400)
+        mocked.assert_not_called()
 
     def test_all_timeframe_failures_return_error(self):
         with patch.object(

@@ -20,7 +20,6 @@ LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "si_ai_scanner.log"
 
 EXPECTED_MARKETS = {"SPOT", "FUTURES"}
-EXPECTED_SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 EXPECTED_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
 STATE_VERSION = 1
 
@@ -31,19 +30,36 @@ def validate_config():
     if set(smc.MARKETS) != EXPECTED_MARKETS:
         raise RuntimeError("Unexpected MARKETS configuration")
 
-    if list(smc.SYMBOLS) != EXPECTED_SYMBOLS:
-        raise RuntimeError("Unexpected SYMBOLS configuration")
-
     if list(smc.TIMEFRAMES) != EXPECTED_TIMEFRAMES:
         raise RuntimeError("Unexpected TIMEFRAMES configuration")
 
-    for name in ("get_candles", "analyze_candles", "combine_timeframes"):
+    for name in ("get_candles", "analyze_candles", "combine_timeframes",
+                 "refresh_symbol_universe", "get_symbols",
+                 "validate_candle_freshness"):
         if not callable(getattr(smc, name, None)):
             raise RuntimeError(f"Required engine function missing: {name}")
 
     minimum_rr = float(smc.MIN_REWARD_RISK)
     if not math.isfinite(minimum_rr) or minimum_rr < 2.0:
         raise RuntimeError("Minimum reward/risk must be at least 2.0")
+
+    minimum_coins = int(smc.MIN_ELIGIBLE_COINS)
+    maximum_coins = int(smc.MAX_UNIVERSE_SIZE)
+    target_coins = int(smc.TARGET_UNIVERSE_SIZE)
+    if minimum_coins < 15 or maximum_coins < minimum_coins:
+        raise RuntimeError("Dynamic coin-universe limits are invalid")
+    if not minimum_coins <= target_coins <= maximum_coins:
+        raise RuntimeError("Target coin count must be between minimum and maximum")
+
+    risk_percent = number(getattr(smc, "RISK_PER_TRADE_PERCENT", None))
+    margin_percent = number(getattr(smc, "MARGIN_ALLOCATION_PERCENT", None))
+    leverage = number(getattr(smc, "RECOMMENDED_FUTURES_LEVERAGE", None))
+    if risk_percent is None or not math.isclose(risk_percent, 0.5, abs_tol=1e-9):
+        raise RuntimeError("Per-trade risk policy must remain at 0.5%")
+    if margin_percent is None or not math.isclose(margin_percent, 20.0, abs_tol=1e-9):
+        raise RuntimeError("Margin allocation cap must remain at 20%")
+    if leverage is None or not math.isclose(leverage, 1.0, abs_tol=1e-9):
+        raise RuntimeError("Futures leverage must remain at conservative 1x")
 
 
 def setup_logging():
@@ -77,14 +93,6 @@ def acquire_lock():
     return handle
 
 
-def allowed_state_keys():
-    return {
-        f"{market}|{symbol}"
-        for market in EXPECTED_MARKETS
-        for symbol in EXPECTED_SYMBOLS
-    }
-
-
 def load_state():
     if not STATE_FILE.exists():
         return {"version": STATE_VERSION, "last_signals": {}}
@@ -108,8 +116,14 @@ def load_state():
         raise RuntimeError("Invalid state file: last_signals must be an object")
 
     for key, value in signals.items():
-        if key not in allowed_state_keys():
-            raise RuntimeError(f"Unexpected saved state key: {key}")
+        parts = key.split("|", 1)
+        if (
+            len(parts) != 2
+            or parts[0] not in EXPECTED_MARKETS
+            or not parts[1].endswith("/USDT")
+            or parts[1].count("/") != 1
+        ):
+            raise RuntimeError(f"Invalid saved state key: {key}")
         if value not in ("BUY", "SELL", "WAIT"):
             raise RuntimeError(f"Invalid saved signal for {key}")
 
@@ -211,6 +225,14 @@ def confirm_signal(market, results, combined):
     if signal_1h != signal_4h or signal_1h != signal_mtf:
         return "WAIT"
 
+    # The 1h chart is the entry setup: require a confirmed directional
+    # structure break, not a score-only BUY/SELL assembled from lagging
+    # indicators. The 4h chart remains the directional confirmation.
+    entry_setup = results.get("1h") or {}
+    expected_bos = "Bullish" if signal_1h == "BUY" else "Bearish"
+    if str(entry_setup.get("bos", "None")).strip().title() != expected_bos:
+        return "WAIT"
+
     # Spot SELL is an exit signal, never a short entry.
     if signal_1h == "SELL" and market == "SPOT":
         return "SELL"
@@ -223,9 +245,42 @@ def confirm_signal(market, results, combined):
 
 
 def notification_id(market, symbol):
-    symbol_index = EXPECTED_SYMBOLS.index(symbol) + 1
-    market_index = 1 if market == "SPOT" else 2
-    return 1000 + market_index * 10 + symbol_index
+    # Stable across Python processes and independent of the dynamic list order.
+    import zlib
+    return 100000 + (
+        zlib.crc32(f"{market}|{symbol}".encode("utf-8")) % 900000
+    )
+
+
+COIN_NAMES = {
+    "BTC": "Bitcoin", "ETH": "Ethereum", "BNB": "BNB",
+    "SOL": "Solana", "XRP": "XRP", "ADA": "Cardano",
+    "DOGE": "Dogecoin", "TRX": "TRON", "AVAX": "Avalanche",
+    "LINK": "Chainlink", "DOT": "Polkadot", "LTC": "Litecoin",
+    "BCH": "Bitcoin Cash", "UNI": "Uniswap", "ATOM": "Cosmos",
+    "ETC": "Ethereum Classic", "XLM": "Stellar", "NEAR": "NEAR Protocol",
+    "APT": "Aptos", "ARB": "Arbitrum", "OP": "Optimism",
+    "SUI": "Sui", "FIL": "Filecoin", "ICP": "Internet Computer",
+    "AAVE": "Aave", "INJ": "Injective", "RENDER": "Render",
+    "FET": "Artificial Superintelligence Alliance", "TON": "Toncoin",
+    "SHIB": "Shiba Inu", "PEPE": "Pepe", "WIF": "dogwifhat",
+    "PENGU": "Pudgy Penguins", "SEI": "Sei", "TIA": "Celestia",
+    "MKR": "Maker", "RUNE": "THORChain", "GRT": "The Graph",
+    "VET": "VeChain", "ALGO": "Algorand", "HBAR": "Hedera",
+    "EOS": "EOS", "XTZ": "Tezos", "SAND": "The Sandbox",
+    "MANA": "Decentraland", "AXS": "Axie Infinity",
+    "CRV": "Curve DAO", "SNX": "Synthetix", "DYDX": "dYdX",
+    "EGLD": "MultiversX", "KAVA": "Kava", "ZEC": "Zcash",
+    "XMR": "Monero", "DASH": "Dash", "COMP": "Compound",
+    "LDO": "Lido DAO", "JUP": "Jupiter", "PYTH": "Pyth Network",
+    "WLD": "Worldcoin", "ONDO": "Ondo", "ENA": "Ethena",
+    "PENDLE": "Pendle", "FLOKI": "Floki", "BONK": "Bonk",
+}
+
+
+def coin_display_name(symbol):
+    base_asset = str(symbol).split("/", 1)[0].upper()
+    return COIN_NAMES.get(base_asset, "Unknown asset")
 
 
 def make_alert(market, symbol, signal, results):
@@ -239,25 +294,69 @@ def make_alert(market, symbol, signal, results):
     )
 
     lines = [
-        f"{market} | {symbol}",
+        f"Coin: {coin_display_name(symbol)} ({symbol})",
+        f"Market: {market}",
         f"Confirmed signal: {display_signal}",
+        "Entry timeframe: 1h",
+        "Confirmation timeframe: 4h",
         f"1h: {direction(results['1h'])}",
         f"4h: {direction(results['4h'])}",
     ]
 
     if price is not None:
-        lines.append(f"Price: {price:g}")
+        lines.append(f"Entry price reference (last closed 1h candle): {price:g}")
+        lines.append("Actual fill may differ; verify live price before manual entry.")
 
     if signal == "BUY" or market == "FUTURES":
         stop_loss = number(reference.get("stop_loss"))
         take_profit = number(reference.get("take_profit"))
         reward_risk = number(reference.get("reward_risk"))
+        risk_distance = (
+            abs(price - stop_loss)
+            if price is not None and stop_loss is not None
+            else None
+        )
 
-        lines.extend([
-            f"Stop Loss: {stop_loss:g}",
-            f"Take Profit: {take_profit:g}",
-            f"Reward/Risk: {reward_risk:.2f}:1",
-        ])
+        lines.append(
+            f"Stop Loss: {stop_loss:g}"
+            if stop_loss is not None else "Stop Loss: unavailable"
+        )
+        if (
+            price is not None and stop_loss is not None
+            and take_profit is not None and risk_distance is not None
+            and risk_distance > 0
+        ):
+            if signal == "BUY":
+                tp1 = price + risk_distance
+                tp2 = price + 1.5 * risk_distance
+            else:
+                tp1 = price - risk_distance
+                tp2 = price - 1.5 * risk_distance
+            lines.extend([
+                f"TP1 (1R reference): {tp1:g}",
+                f"TP2 (1.5R reference): {tp2:g}",
+                f"TP3 (engine target): {take_profit:g}",
+                "Targets are reference levels; no automatic partial exits.",
+            ])
+        else:
+            lines.append(
+                f"Take Profit: {take_profit:g}"
+                if take_profit is not None else "Take Profit: unavailable"
+            )
+        lines.append(
+            f"Reward/Risk: {reward_risk:.2f}:1"
+            if reward_risk is not None else "Reward/Risk: unavailable"
+        )
+        if market == "FUTURES":
+            leverage = number(reference.get("recommended_leverage"))
+            margin = number(reference.get("paper_margin_required_usdt"))
+            budget = number(reference.get("paper_margin_budget_usdt"))
+            if leverage is not None:
+                lines.append(f"Recommended leverage: {leverage:g}x (conservative; higher leverage disabled)")
+            if margin is not None and budget is not None:
+                lines.append(f"Estimated margin: {margin:.2f} USDT / {budget:.2f} USDT budget (20% of 100 USDT reference wallet)")
+        elif market == "SPOT":
+            lines.append("Leverage: not applicable to spot")
     else:
         lines.append("Spot exit only. No short position.")
 
@@ -300,8 +399,27 @@ def run_cycle(dry_run=False):
     if request_delay is None or request_delay < 0:
         request_delay = 0.35
 
+    try:
+        smc.refresh_symbol_universe()
+    except Exception:
+        logger.exception("Coin-universe refresh failed; no scans performed")
+        return
+
     for market in smc.MARKETS:
-        for symbol in smc.SYMBOLS:
+        market_symbols = smc.get_symbols(market)
+        if len(market_symbols) < smc.MIN_ELIGIBLE_COINS:
+            logger.warning(
+                "%s has only %d eligible coins; minimum is %d. Market skipped.",
+                market, len(market_symbols), smc.MIN_ELIGIBLE_COINS
+            )
+            continue
+        logger.info(
+            "%s universe: %d eligible USDT coins (minimum=%d, target=%d, maximum=%d, status=%s)",
+            market, len(market_symbols), smc.MIN_ELIGIBLE_COINS,
+            smc.TARGET_UNIVERSE_SIZE, smc.MAX_UNIVERSE_SIZE,
+            smc.MARKET_UNIVERSE_STATUS.get(market, "unknown")
+        )
+        for symbol in market_symbols:
             key = f"{market}|{symbol}"
             results = {}
             complete = True
@@ -368,6 +486,23 @@ def run_cycle(dry_run=False):
 
             if signal == "WAIT":
                 updated_signals[key] = "WAIT"
+                # Alert only on a transition from an actionable signal to WAIT;
+                # this avoids flooding the phone with hundreds of initial WAITs.
+                if previous in ("BUY", "SELL"):
+                    wait_content = (
+                        f"{market} | {symbol}\n"
+                        "Signal changed to WAIT. Entry conditions are no longer confirmed.\n"
+                        "Do not open a new position. Review any existing position manually."
+                    )
+                    if dry_run:
+                        logger.info("DRY RUN WAIT ALERT: %s\n%s", key, wait_content)
+                    else:
+                        try:
+                            send_notification(market, symbol, "WAIT", wait_content)
+                            logger.info("%s: WAIT transition notification sent", key)
+                        except Exception:
+                            logger.exception("%s: WAIT notification failed", key)
+                            updated_signals[key] = previous
                 continue
 
             # Dry-run always previews actionable signals, even if previously alerted.
@@ -407,7 +542,7 @@ def run_cycle(dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="SI-AI BTC/ETH signal scanner"
+        description="SI-AI dynamic Binance USDT signal scanner"
     )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")

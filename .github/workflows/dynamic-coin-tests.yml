@@ -1,0 +1,52 @@
+name: SI-AI Dynamic Coin Universe Tests
+
+on:
+  pull_request:
+    branches:
+      - recovery/restore-upload-zip
+    paths:
+      - recovered/SI-AI/**
+      - .github/workflows/dynamic-coin-tests.yml
+
+# The open PR already tests every branch update. Avoid duplicate push + PR runs.
+concurrency:
+  group: si-ai-dynamic-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: recovered/SI-AI
+    steps:
+      - name: Check out proposed changes
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: recovered/SI-AI/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile source
+        run: python -m compileall -q .
+
+      - name: Run offline test suite and create evidence report
+        run: python -m pytest -q --junitxml=test-results.xml
+
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: si-ai-test-evidence-${{ github.run_number }}
+          path: recovered/SI-AI/test-results.xml
+          if-no-files-found: warn
+          retention-days: 30

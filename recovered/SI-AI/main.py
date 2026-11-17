@@ -18,8 +18,10 @@ def validate_market_symbol(data):
     if market not in smc.MARKETS:
         raise ValueError("Unsupported market. Use FUTURES or SPOT.")
 
-    if symbol not in smc.SYMBOLS:
-        raise ValueError("Unsupported symbol. Check /api/config.")
+    if symbol not in smc.get_symbols(market):
+        smc.refresh_symbol_universe()
+    if symbol not in smc.get_symbols(market):
+        raise ValueError("Unsupported symbol for this market's selected USDT universe. Refresh /api/config.")
 
     return market, symbol
 
@@ -59,9 +61,39 @@ def status():
 
 @app.route("/api/config")
 def api_config():
+    try:
+        smc.refresh_symbol_universe()
+    except Exception:
+        # The endpoint can still report the last-known-good universe.
+        pass
     return jsonify({
         "markets": smc.MARKETS,
         "symbols": smc.SYMBOLS,
+        "symbols_by_market": {
+            market: smc.get_symbols(market) for market in smc.MARKETS
+        },
+        "universe_status_by_market": {
+            market: smc.MARKET_UNIVERSE_STATUS.get(market, "unknown")
+            for market in smc.MARKETS
+        },
+        "risk_policy": {
+            "reference_wallet_usdt": smc.PAPER_EQUITY_USDT,
+            "margin_allocation_percent": smc.MARGIN_ALLOCATION_PERCENT,
+            "margin_budget_usdt": smc.PAPER_EQUITY_USDT * smc.MARGIN_ALLOCATION_PERCENT / 100.0,
+            "risk_per_trade_percent": smc.RISK_PER_TRADE_PERCENT,
+            "recommended_futures_leverage": smc.RECOMMENDED_FUTURES_LEVERAGE,
+            "leverage_status": "conservative_1x_only_until_liquidation_model_is_validated",
+            "automatic_orders": False
+        },
+        "universe_policy": {
+            "minimum_eligible_coins": smc.MIN_ELIGIBLE_COINS,
+            "target_coins": smc.TARGET_UNIVERSE_SIZE,
+            "maximum_coins": smc.MAX_UNIVERSE_SIZE,
+            "refresh_seconds": smc.UNIVERSE_REFRESH_SECONDS,
+            "spot_min_quote_volume_usdt": smc.MIN_SPOT_QUOTE_VOLUME_USDT,
+            "futures_min_quote_volume_usdt": smc.MIN_FUTURES_QUOTE_VOLUME_USDT,
+            "maximum_spread_percent": smc.MAX_SPREAD_PERCENT
+        },
         "timeframes": smc.TIMEFRAMES,
         "default_market": "FUTURES",
         "default_symbol": "BTC/USDT",
@@ -87,6 +119,8 @@ def api_analyze():
 
         return jsonify({
             "success": True,
+            "analysis_scope": "single_timeframe_only",
+            "requires_multi_timeframe_confirmation": True,
             "analysis": result
         })
 
@@ -121,11 +155,20 @@ def api_multi_timeframe():
                 "error": "Provide a non-empty timeframe list."
             }), 400
 
-        if any(tf not in smc.TIMEFRAMES for tf in timeframes):
+        if any(
+            not isinstance(tf, str) or tf not in smc.TIMEFRAMES
+            for tf in timeframes
+        ):
             return jsonify({
                 "success": False,
                 "error": "Unsupported timeframe",
                 "available_timeframes": smc.TIMEFRAMES
+            }), 400
+
+        if len(set(timeframes)) != len(timeframes):
+            return jsonify({
+                "success": False,
+                "error": "Duplicate timeframes are not allowed."
             }), 400
 
         results = []
@@ -153,13 +196,31 @@ def api_multi_timeframe():
                 "errors": errors
             }), 502
 
-        combined = smc.combine_timeframes(results)
+        if errors:
+            # Partial timeframe data must never produce an actionable confluence.
+            combined = {
+                "weighted_score": None,
+                "overall_signal": "WAIT",
+                "analysis_status": "INCOMPLETE",
+                "reason": (
+                    "One or more requested timeframe analyses failed; "
+                    "incomplete confluence is not actionable."
+                ),
+            }
+        else:
+            combined = smc.combine_timeframes(results)
+            combined["analysis_status"] = "COMPLETE"
 
-        if market == "SPOT" and combined["overall_signal"] == "SELL":
+        if (
+            not errors
+            and market == "SPOT"
+            and combined["overall_signal"] == "SELL"
+        ):
             combined["overall_signal"] = "SELL/EXIT"
 
         return jsonify({
             "success": True,
+            "complete": not errors,
             "market": market,
             "symbol": symbol,
             "multi_timeframe": combined,

@@ -13,21 +13,54 @@ from typing import Dict, List, Optional, Tuple
 import ccxt
 
 # ----------------------------- CONFIGURATION -----------------------------
-SYMBOLS = ["BTC/USDT", "ETH/USDT"]
+# Dynamic Binance USDT universe. Symbols are canonical BASE/USDT strings.
+# The discovery layer selects liquid, actively traded markets independently for
+# SPOT and USD-M perpetual FUTURES. No order endpoints or credentials are used.
 TIMEFRAMES = ["15m", "1h", "4h", "1d"]
 CANDLE_LIMIT = 250
 MIN_CANDLES = 80
 REQUEST_DELAY_SECONDS = 0.35
 
+MIN_ELIGIBLE_COINS = 15
+TARGET_UNIVERSE_SIZE = 50
+MAX_UNIVERSE_SIZE = 100
+UNIVERSE_REFRESH_SECONDS = 900
+MIN_SPOT_QUOTE_VOLUME_USDT = 5_000_000.0
+MIN_FUTURES_QUOTE_VOLUME_USDT = 10_000_000.0
+MAX_SPREAD_PERCENT = 0.15
+PRIORITY_BASES = ("BTC", "ETH", "BNB", "SOL")
+EXCLUDED_BASES = {
+    "USDC", "FDUSD", "TUSD", "USDP", "DAI", "USDE", "USDS",
+    "BUSD", "USDD", "USD1", "RLUSD", "XUSD", "UST", "USTC", "EUR", "TRY",
+    "EURC", "EURI", "AEUR", "USYC", "USDJ", "USDX", "USDB",
+    "USDF", "USDK", "USTB", "USDH",
+    "WBTC", "WETH", "STETH", "WSTETH", "CBETH", "BETH",
+    "WBETH", "WBNB", "BTCB", "WAVAX", "WMATIC", "WFTM",
+}
+LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
+MARKET_SYMBOLS = {"FUTURES": ["BTC/USDT", "ETH/USDT"],
+                  "SPOT": ["BTC/USDT", "ETH/USDT"]}
+MARKET_UNIVERSE_STATUS = {
+    "FUTURES": "not_refreshed",
+    "SPOT": "not_refreshed",
+}
+SYMBOLS = ["BTC/USDT", "ETH/USDT"]
+_UNIVERSE_LAST_REFRESH = 0.0
+
 # Futures is intentionally analysed first. Both exchanges use public endpoints.
 MARKETS = ["FUTURES", "SPOT"]
+_MARKET_UNIVERSE_LAST_REFRESH = {market: 0.0 for market in MARKETS}
 FUTURES_EXCHANGE_ID = "binanceusdm"
 SPOT_EXCHANGE_ID = "binance"
 
 # Analysis/risk assumptions only; no account balance is queried and no orders sent.
-PAPER_EQUITY_USDT = 1000.0
+PAPER_EQUITY_USDT = 100.0
 RISK_PER_TRADE_PERCENT = 0.5
-MAX_NOTIONAL_EQUITY_MULTIPLE = 2.0
+MARGIN_ALLOCATION_PERCENT = 20.0
+RECOMMENDED_FUTURES_LEVERAGE = 1.0
+MAX_NOTIONAL_EQUITY_MULTIPLE = (
+    MARGIN_ALLOCATION_PERCENT / 100.0 * RECOMMENDED_FUTURES_LEVERAGE
+)
 MIN_REWARD_RISK = 2.0
 
 # Illustrative paper assumptions, not account-specific exchange rates.
@@ -50,6 +83,202 @@ def make_exchange(market: str):
 
 
 EXCHANGES = {market: make_exchange(market) for market in MARKETS}
+
+
+def get_symbols(market: str) -> List[str]:
+    """Return the latest selected canonical USDT symbols for one market."""
+    if market not in MARKETS:
+        raise ValueError("Unsupported market")
+    return list(MARKET_SYMBOLS.get(market, []))
+
+
+def _finite_number(value):
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _eligible_base(base: str) -> bool:
+    base = str(base or "").upper()
+    if not base or base in EXCLUDED_BASES:
+        return False
+    if base.endswith(LEVERAGED_SUFFIXES):
+        return False
+    if any(tag in base for tag in ("2L", "2S", "3L", "3S", "5L", "5S")):
+        return False
+    return True
+
+
+def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
+    """
+    Discover liquid Binance USDT spot and USD-M perpetual markets.
+    Failed refreshes preserve the last-known-good list; no synthetic symbols
+    are added to reach the minimum. A market with fewer than 15 qualifiers
+    is reported as undersized and the scanner will fail closed for that market.
+    """
+    global SYMBOLS, _UNIVERSE_LAST_REFRESH
+    now = time.monotonic()
+
+    failures = []
+    refreshed_any = False
+    for market in MARKETS:
+        last_refresh = _MARKET_UNIVERSE_LAST_REFRESH.get(market, 0.0)
+        if (
+            not force
+            and last_refresh
+            and now - last_refresh < UNIVERSE_REFRESH_SECONDS
+        ):
+            continue
+
+        exchange = EXCHANGES[market]
+        try:
+            exchange.load_markets()
+            tickers = exchange.fetch_tickers()
+            book_tickers = None
+            if market == "FUTURES":
+                # Binance USD-M 24h tickers do not reliably include bid/ask.
+                # Use CCXT's bulk bookTicker endpoint once for the whole market.
+                fetch_bids_asks = getattr(exchange, "fetch_bids_asks", None)
+                if not callable(fetch_bids_asks):
+                    raise RuntimeError(
+                        "Futures exchange does not support bulk bid/ask retrieval"
+                    )
+                book_tickers = fetch_bids_asks()
+                if not isinstance(book_tickers, dict) or not book_tickers:
+                    raise RuntimeError(
+                        "Futures bulk bookTicker response is empty or invalid"
+                    )
+            candidates = []
+            minimum_volume = (
+                MIN_FUTURES_QUOTE_VOLUME_USDT
+                if market == "FUTURES"
+                else MIN_SPOT_QUOTE_VOLUME_USDT
+            )
+
+            for exchange_symbol, metadata in exchange.markets.items():
+                if not isinstance(metadata, dict):
+                    continue
+                # Require an explicit active flag; unknown status is not eligible.
+                if metadata.get("active") is not True:
+                    continue
+                if metadata.get("quote") != "USDT":
+                    continue
+                if not _eligible_base(metadata.get("base")):
+                    continue
+
+                if market == "SPOT":
+                    if metadata.get("spot") is not True:
+                        continue
+                else:
+                    if not (
+                        metadata.get("swap") is True
+                        and metadata.get("linear") is True
+                        and metadata.get("settle") == "USDT"
+                    ):
+                        continue
+
+                canonical = f"{metadata['base']}/USDT"
+                ticker = tickers.get(exchange_symbol) or tickers.get(canonical)
+                if not isinstance(ticker, dict):
+                    continue
+
+                quote_volume = _finite_number(ticker.get("quoteVolume"))
+                book_ticker = ticker
+                if market == "FUTURES":
+                    book_ticker = (
+                        book_tickers.get(exchange_symbol)
+                        or book_tickers.get(canonical)
+                    )
+                if not isinstance(book_ticker, dict):
+                    continue
+                bid = _finite_number(book_ticker.get("bid"))
+                ask = _finite_number(book_ticker.get("ask"))
+                if quote_volume is None or quote_volume < minimum_volume:
+                    continue
+                if bid is None or ask is None or bid <= 0 or ask < bid:
+                    continue
+
+                midpoint = (bid + ask) / 2.0
+                if midpoint <= 0:
+                    continue
+                spread_percent = (ask - bid) / midpoint * 100.0
+                if spread_percent > MAX_SPREAD_PERCENT:
+                    continue
+
+                candidates.append({
+                    "symbol": canonical,
+                    "base": metadata["base"],
+                    "quote_volume": quote_volume,
+                })
+
+            candidates.sort(
+                key=lambda item: item["quote_volume"], reverse=True
+            )
+            selected = candidates[:TARGET_UNIVERSE_SIZE]
+            selected_symbols = [item["symbol"] for item in selected]
+
+            # Keep the named core assets in the candidate universe when they
+            # pass the same liquidity/spread/market filters.
+            for preferred in PRIORITY_BASES:
+                preferred_symbol = f"{preferred}/USDT"
+                if (
+                    preferred_symbol not in selected_symbols
+                    and any(item["symbol"] == preferred_symbol for item in candidates)
+                ):
+                    if len(selected_symbols) >= TARGET_UNIVERSE_SIZE:
+                        # Replace the lowest-ranked non-priority asset. Do not
+                        # repeatedly overwrite the same final slot.
+                        replace_index = next(
+                            (
+                                index
+                                for index in range(len(selected_symbols) - 1, -1, -1)
+                                if selected_symbols[index].split("/", 1)[0]
+                                not in PRIORITY_BASES
+                            ),
+                            None,
+                        )
+                        if replace_index is not None:
+                            selected_symbols[replace_index] = preferred_symbol
+                    else:
+                        selected_symbols.append(preferred_symbol)
+
+            MARKET_SYMBOLS[market] = list(dict.fromkeys(selected_symbols))
+            MARKET_UNIVERSE_STATUS[market] = (
+                "ready"
+                if len(MARKET_SYMBOLS[market]) >= MIN_ELIGIBLE_COINS
+                else "below_minimum"
+            )
+            _MARKET_UNIVERSE_LAST_REFRESH[market] = now
+            refreshed_any = True
+
+        except Exception as exc:
+            failures.append(f"{market}: {type(exc).__name__}: {exc}")
+            MARKET_UNIVERSE_STATUS[market] = (
+                "unavailable_using_last_known_good"
+                if MARKET_SYMBOLS.get(market)
+                else "unavailable"
+            )
+            # Keep the last known good universe if the exchange is temporarily
+            # unavailable. An empty initial universe remains empty (fail closed).
+
+    if refreshed_any:
+        union = []
+        for market in MARKETS:
+            for symbol in MARKET_SYMBOLS.get(market, []):
+                if symbol not in union:
+                    union.append(symbol)
+        SYMBOLS = union
+        _UNIVERSE_LAST_REFRESH = now
+
+    if failures and not any(MARKET_SYMBOLS.get(market) for market in MARKETS):
+        raise RuntimeError("Coin-universe discovery failed: " + "; ".join(failures))
+
+    return {market: get_symbols(market) for market in MARKETS}
+
+
+
 
 
 # ----------------------------- DATA SAFETY -------------------------------
@@ -82,6 +311,35 @@ def validate_candles(candles: list) -> List[list]:
     return closed
 
 
+TIMEFRAME_MILLISECONDS = {
+    "15m": 15 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "4h": 4 * 60 * 60 * 1000,
+    "1d": 24 * 60 * 60 * 1000,
+}
+
+
+def validate_candle_freshness(candles: List[list], timeframe: str, now_ms: int) -> None:
+    """Reject stale or implausibly future-dated closed candles."""
+    interval_ms = TIMEFRAME_MILLISECONDS.get(timeframe)
+    if interval_ms is None:
+        raise ValueError(f"Unsupported timeframe for freshness check: {timeframe}")
+    if not candles:
+        raise ValueError("Cannot validate freshness of an empty candle series")
+    if isinstance(now_ms, bool) or not isinstance(now_ms, (int, float)) or not math.isfinite(float(now_ms)):
+        raise ValueError("Current timestamp must be a finite number")
+
+    latest_close_ms = int(candles[-1][0]) + interval_ms
+    age_ms = float(now_ms) - latest_close_ms
+    if age_ms > 2 * interval_ms:
+        raise ValueError(
+            f"Stale {timeframe} candles: latest closed candle is "
+            f"{age_ms / interval_ms:.2f} intervals old"
+        )
+    if age_ms < -interval_ms:
+        raise ValueError("Candle series contains a future-dated closed candle")
+
+
 def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
     exchange = EXCHANGES[market]
     exchange.load_markets()
@@ -95,17 +353,32 @@ def get_candles(market: str, symbol: str, timeframe: str) -> List[list]:
         if candidate in exchange.markets:
             exchange_symbol = candidate
 
-    if exchange_symbol not in exchange.markets:
+    metadata = exchange.markets.get(exchange_symbol)
+    if (
+        not isinstance(metadata, dict)
+        or metadata.get("active") is not True
+        or metadata.get("quote") != "USDT"
+    ):
         raise ValueError(
-            f"Symbol {symbol} is unavailable on {market} exchange"
+            f"Symbol {symbol} is not confirmed as an active USDT market"
         )
+    if market == "SPOT" and metadata.get("spot") is not True:
+        raise ValueError(f"Symbol {symbol} is not an active spot market")
+    if market == "FUTURES" and not (
+        metadata.get("swap") is True
+        and metadata.get("linear") is True
+        and metadata.get("settle") == "USDT"
+    ):
+        raise ValueError(f"Symbol {symbol} is not an active USDT perpetual market")
 
     raw = exchange.fetch_ohlcv(
         exchange_symbol,
         timeframe=timeframe,
         limit=CANDLE_LIMIT
     )
-    return validate_candles(raw)
+    candles = validate_candles(raw)
+    validate_candle_freshness(candles, timeframe, exchange.milliseconds())
+    return candles
 
 
 # ----------------------------- INDICATORS ---------------------------------
@@ -181,14 +454,15 @@ def detect_market_structure(candles: List[list]) -> Dict:
 def detect_bos(candles: List[list], structure: Optional[Dict] = None) -> str:
     structure = structure or detect_market_structure(candles)
     sh, sl = structure["swing_highs"], structure["swing_lows"]
-    if not sh or not sl or len(candles) < 2:
+    if len(candles) < 2 or (not sh and not sl):
         return "None"
     previous_close, close = candles[-2][4], candles[-1][4]
-    # Ignore pivots too old to be useful; use the most recent confirmed pivot.
-    high_level, low_level = sh[-1][1], sl[-1][1]
-    if previous_close <= high_level < close:
+    # A directional BOS only needs the corresponding confirmed swing level.
+    # Requiring BOTH a high and a low pivot suppresses valid breakouts in
+    # one-sided/early structure histories.
+    if sh and previous_close <= sh[-1][1] < close:
         return "Bullish"
-    if previous_close >= low_level > close:
+    if sl and previous_close >= sl[-1][1] > close:
         return "Bearish"
     return "None"
 
@@ -260,12 +534,61 @@ def detect_order_block(candles: List[list], atr: float, scan: int = 25) -> Dict:
 # ----------------------------- SIGNAL / RISK ------------------------------
 
 
+def calculate_net_reward_risk(
+    entry: float, stop_loss: float, take_profit: float,
+    side: str, market: str, *,
+    fee_rate: Optional[float] = None,
+    slippage_rate: Optional[float] = None,
+    entry_slippage_included: bool = False,
+) -> float:
+    """Return fee/slippage-adjusted reward-to-risk for the supplied fill prices."""
+    if market not in PAPER_TAKER_FEE_RATES:
+        raise ValueError("Unsupported market for reward/risk calculation")
+    values = [_finite_number(value) for value in (entry, stop_loss, take_profit)]
+    if any(value is None or value <= 0 for value in values):
+        raise ValueError("Entry, stop-loss and take-profit must be finite positive prices")
+    entry_price, stop_price, target_price = values
+    direction = str(side).upper()
+    fee = PAPER_TAKER_FEE_RATES[market] if fee_rate is None else _finite_number(fee_rate)
+    slippage = PAPER_SLIPPAGE_RATE if slippage_rate is None else _finite_number(slippage_rate)
+    if fee is None or slippage is None or not 0 <= fee < 0.05 or not 0 <= slippage < 0.05:
+        raise ValueError("Fee and slippage rates must be finite values in [0, 5%)")
+    entry_cost = fee * entry_price
+    if not entry_slippage_included:
+        entry_cost += slippage * entry_price
+    cost_rate = fee + slippage
+    if direction == "LONG":
+        if not stop_price < entry_price < target_price:
+            raise ValueError("Long levels must satisfy stop < entry < target")
+        gross_risk = entry_price - stop_price
+        gross_reward = target_price - entry_price
+    elif direction == "SHORT":
+        if not target_price < entry_price < stop_price:
+            raise ValueError("Short levels must satisfy target < entry < stop")
+        gross_risk = stop_price - entry_price
+        gross_reward = entry_price - target_price
+    else:
+        raise ValueError("side must be LONG or SHORT")
+    net_risk = gross_risk + entry_cost + cost_rate * stop_price
+    net_reward = gross_reward - entry_cost - cost_rate * target_price
+    if net_risk <= 0 or net_reward <= 0:
+        return 0.0
+    return net_reward / net_risk
+
+
 def validate_analysis_inputs(market: str, symbol: str,
                              timeframe: str, candles: list) -> None:
     if market not in MARKETS:
         raise ValueError("Unsupported market")
-    if symbol not in SYMBOLS:
-        raise ValueError("Unsupported symbol")
+    if (
+        not isinstance(symbol, str)
+        or symbol != symbol.strip()
+        or symbol.count("/") != 1
+        or not symbol.split("/", 1)[0]
+        or symbol.split("/", 1)[1] != "USDT"
+        or symbol != symbol.upper()
+    ):
+        raise ValueError("symbol must be a canonical BASE/USDT market")
     if timeframe not in TIMEFRAMES:
         raise ValueError("Unsupported timeframe")
     if not isinstance(candles, list) or len(candles) < MIN_CANDLES:
@@ -325,10 +648,20 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
     trend = structure["trend"]
     if trend == "Bullish": score += 2; reasons.append("Bullish swing structure")
     elif trend == "Bearish": score -= 2; reasons.append("Bearish swing structure")
-    if bos == "Bullish": score += 2; reasons.append("Bullish BOS")
-    elif bos == "Bearish": score -= 2; reasons.append("Bearish BOS")
-    if choch == "Bullish": score += 2; reasons.append("Bullish CHOCH")
-    elif choch == "Bearish": score -= 2; reasons.append("Bearish CHOCH")
+    # CHOCH is the classification of a counter-trend BOS, not a second
+    # independent event. Count one structure-break contribution only.
+    if choch == "Bullish":
+        score += 2.5
+        reasons.append("Bullish CHOCH")
+    elif choch == "Bearish":
+        score -= 2.5
+        reasons.append("Bearish CHOCH")
+    elif bos == "Bullish":
+        score += 2
+        reasons.append("Bullish BOS")
+    elif bos == "Bearish":
+        score -= 2
+        reasons.append("Bearish BOS")
     if fvg["bullish_fvg"]: score += 1; reasons.append("Bullish FVG present")
     if fvg["bearish_fvg"]: score -= 1; reasons.append("Bearish FVG present")
     if order_block["bullish_ob"]: score += 1; reasons.append("Bullish order block present")
@@ -447,15 +780,17 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
                     - cost_rate * (price + take_profit)
                 )
 
-                raw_reward_risk = (
-                    net_reward_per_unit / total_risk_per_unit
-                    if total_risk_per_unit > 0
-                    else 0.0
+                raw_reward_risk = calculate_net_reward_risk(
+                    price,
+                    stop_loss,
+                    take_profit,
+                    "LONG" if signal == "BUY" else "SHORT",
+                    market,
                 )
 
                 if (
                     net_reward_per_unit <= 0
-                    or raw_reward_risk < MIN_REWARD_RISK
+                    or raw_reward_risk < MIN_REWARD_RISK - 1e-9
                 ):
                     signal = "WAIT"
                     stop_loss = take_profit = risk_distance = None
@@ -470,10 +805,15 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
                         * RISK_PER_TRADE_PERCENT / 100.0
                     )
 
-                    max_notional = (
+                    margin_budget = (
                         PAPER_EQUITY_USDT
-                        * MAX_NOTIONAL_EQUITY_MULTIPLE
+                        * MARGIN_ALLOCATION_PERCENT / 100.0
                     )
+                    recommended_leverage = (
+                        RECOMMENDED_FUTURES_LEVERAGE
+                        if market == "FUTURES" else 1.0
+                    )
+                    max_notional = margin_budget * recommended_leverage
 
                     quantity = min(
                         risk_amount / total_risk_per_unit,
@@ -521,6 +861,15 @@ def analyze_candles(market: str, symbol: str, timeframe: str, candles: List[list
         "paper_estimated_net_reward_usdt": net_reward_usdt,
         "paper_quantity": quantity,
         "paper_notional_usdt": notional,
+        "recommended_leverage": (
+            RECOMMENDED_FUTURES_LEVERAGE
+            if market == "FUTURES" and quantity is not None else None
+        ),
+        "paper_margin_required_usdt": (
+            notional / RECOMMENDED_FUTURES_LEVERAGE
+            if notional is not None and market == "FUTURES" else notional
+        ),
+        "paper_margin_budget_usdt": PAPER_EQUITY_USDT * MARGIN_ALLOCATION_PERCENT / 100.0,
         "time_utc": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -562,9 +911,17 @@ def print_result(result: Dict) -> None:
 def run_analysis() -> None:
     print("\n========== SI AI | FUTURES-FIRST MARKET INTELLIGENCE ==========")
     print("PUBLIC DATA ONLY | NO API KEYS | NO ORDERS | NOT FINANCIAL ADVICE")
+    refresh_symbol_universe(force=True)
     for market in MARKETS:
-        print(f"\n================ {market} ================")
-        for symbol in SYMBOLS:
+        symbols = get_symbols(market)
+        if len(symbols) < MIN_ELIGIBLE_COINS:
+            print(
+                f"\n{market}: only {len(symbols)} eligible coins; "
+                f"minimum is {MIN_ELIGIBLE_COINS}. Skipping this market."
+            )
+            continue
+        print(f"\n================ {market} ({len(symbols)} coins) ================")
+        for symbol in symbols:
             collected = []
             for timeframe in TIMEFRAMES:
                 try:

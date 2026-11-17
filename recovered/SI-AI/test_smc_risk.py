@@ -46,8 +46,8 @@ class RiskManagementTests(unittest.TestCase):
         self.assertAlmostEqual(result["stop_loss"], 98.0)
         self.assertAlmostEqual(result["take_profit"], 106.0)
         self.assertLess(result["paper_quantity"], 2.5)
-        self.assertAlmostEqual(result["paper_total_risk_usdt"], 5.0, places=6)
-        self.assertLessEqual(result["paper_notional_usdt"], 2000.0)
+        self.assertLessEqual(result["paper_total_risk_usdt"], 0.5)
+        self.assertLessEqual(result["paper_notional_usdt"], 20.0)
 
     def test_futures_sell_position_sizing(self):
         result = run_analysis("FUTURES", "Bearish", "Bearish")
@@ -55,7 +55,7 @@ class RiskManagementTests(unittest.TestCase):
         self.assertAlmostEqual(result["stop_loss"], 102.0)
         self.assertAlmostEqual(result["take_profit"], 94.0)
         self.assertLess(result["paper_quantity"], 2.5)
-        self.assertAlmostEqual(result["paper_total_risk_usdt"], 5.0, places=6)
+        self.assertLessEqual(result["paper_total_risk_usdt"], 0.5)
 
     def test_spot_sell_is_exit_not_short(self):
         result = run_analysis("SPOT", "Bearish", "Bearish")
@@ -66,6 +66,15 @@ class RiskManagementTests(unittest.TestCase):
         self.assertIsNone(result["paper_notional_usdt"])
         self.assertIsNone(result["paper_risk_usdt"])
         self.assertIsNone(result["paper_total_risk_usdt"])
+
+    def test_wallet_and_margin_policy_is_twenty_percent(self):
+        result = run_analysis("FUTURES", "Bullish", "Bullish")
+        self.assertEqual(si.PAPER_EQUITY_USDT, 100.0)
+        self.assertEqual(si.MARGIN_ALLOCATION_PERCENT, 20.0)
+        self.assertEqual(si.RECOMMENDED_FUTURES_LEVERAGE, 1.0)
+        self.assertAlmostEqual(result["paper_margin_budget_usdt"], 20.0)
+        self.assertAlmostEqual(result["paper_margin_required_usdt"], result["paper_notional_usdt"])
+        self.assertEqual(result["recommended_leverage"], 1.0)
 
     def test_buy_reward_risk_ratio(self):
         result = run_analysis("FUTURES", "Bullish", "Bullish")
@@ -81,8 +90,8 @@ class RiskManagementTests(unittest.TestCase):
             atr=0.1, swing_low=99.99
         )
         self.assertEqual(result["signal"], "BUY")
-        self.assertAlmostEqual(result["paper_notional_usdt"], 2000.0)
-        self.assertAlmostEqual(result["paper_quantity"], 20.0)
+        self.assertAlmostEqual(result["paper_notional_usdt"], 20.0)
+        self.assertAlmostEqual(result["paper_quantity"], 0.2)
         self.assertLessEqual(
             result["paper_total_risk_usdt"],
             si.PAPER_EQUITY_USDT * si.RISK_PER_TRADE_PERCENT / 100.0
@@ -139,6 +148,28 @@ class RiskManagementTests(unittest.TestCase):
             si.validate_analysis_inputs(
                 "FUTURES", "BTC/USDT", "15m", candles
             )
+
+    def test_historical_symbol_is_not_limited_to_live_dynamic_universe(self):
+        candles = [
+            [i, 100, 101, 99, 100, 100]
+            for i in range(si.MIN_CANDLES)
+        ]
+        with patch.object(si, "get_symbols", return_value=["BTC/USDT"]):
+            si.validate_analysis_inputs(
+                "FUTURES", "HISTORICAL/USDT", "15m", candles
+            )
+
+    def test_non_usdt_or_noncanonical_symbols_are_rejected(self):
+        candles = [
+            [i, 100, 101, 99, 100, 100]
+            for i in range(si.MIN_CANDLES)
+        ]
+        for symbol in ("BTC/BUSD", "btc/USDT", "BTCUSDT", "/USDT"):
+            with self.subTest(symbol=symbol):
+                with self.assertRaises(ValueError):
+                    si.validate_analysis_inputs(
+                        "FUTURES", symbol, "15m", candles
+                    )
 
     def test_non_numeric_atr_blocks_entry(self):
         result = run_analysis("FUTURES", "Bullish", "Bullish", atr=None)
