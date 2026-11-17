@@ -349,6 +349,35 @@ def make_alert(market, symbol, signal, results):
             if margin is not None and budget is not None:
                 lines.append(f"Estimated margin: {margin:.2f} USDT / {budget:.2f} USDT budget (20% of 100 USDT reference wallet)")
 
+            quantity = number(reference.get("paper_quantity"))
+            notional = number(reference.get("paper_notional_usdt"))
+            gross_risk = number(reference.get("paper_risk_usdt"))
+            total_risk = number(reference.get("paper_total_risk_usdt"))
+            estimated_fees = number(reference.get("paper_estimated_fees_usdt"))
+            estimated_slippage = number(reference.get("paper_estimated_slippage_usdt"))
+            base_asset = str(symbol).split("/", 1)[0]
+            if quantity is not None and notional is not None:
+                lines.append(
+                    f"Position size (paper estimate): {quantity:.8g} {base_asset}"
+                )
+                lines.append(f"Position notional (paper estimate): {notional:.4f} USDT")
+            else:
+                lines.append("Position size: unavailable; do not estimate manually from this alert")
+            if gross_risk is not None and total_risk is not None:
+                lines.append(
+                    f"Estimated stop risk: {total_risk:.4f} USDT incl. estimated costs "
+                    f"(gross price risk {gross_risk:.4f} USDT)"
+                )
+            if estimated_fees is not None and estimated_slippage is not None:
+                lines.append(
+                    f"Estimated round-trip fees: {estimated_fees:.4f} USDT; "
+                    f"slippage allowance: {estimated_slippage:.4f} USDT"
+                )
+            lines.append(
+                "Liquidation price: NOT MODELLED/NOT CERTIFIED. Keep 1x leverage; "
+                "manually verify Binance margin mode and maintenance-margin rules."
+            )
+
 
     reasons = reference.get("reasons", [])
     if isinstance(reasons, (list, tuple)):
