@@ -56,11 +56,10 @@ def _normalize_row(row, index, interval_ms):
 
 
 def mark_price_sha256(candles, timeframe):
-    interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
-    if interval_ms is None:
+    if timeframe not in smc.TIMEFRAME_MILLISECONDS:
         raise ValueError("Unsupported timeframe")
     normalized = [
-        _normalize_row(row, index, interval_ms)
+        historical_data._normalize_candle(row, index)
         for index, row in enumerate(candles)
     ]
     if not normalized:
