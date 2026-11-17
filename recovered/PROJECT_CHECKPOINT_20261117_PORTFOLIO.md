@@ -3,7 +3,8 @@
 ## Authoritative working branch
 - Repository: `Eventodigital473/SI-AI`
 - Working branch: `feature/dynamic-coin-universe`
-- Branch head at checkpoint: `3d56f3cd805933ad5c25db468c13a76931454a25`
+- Checkpoint commit: `05d71c31f0a9b90d5e04819124f26f991300eda7`
+- Source/test commit covered by the 91-test run: `3d56f3cd805933ad5c25db468c13a76931454a25`
 - Pull request: #1, still open/draft, targeting `recovery/restore-upload-zip`; do not merge to main until remaining validation gates are complete.
 - The project source of truth is `recovered/SI-AI/` on this branch. The earlier Phase B local ZIP from the separate stale workspace is not the authoritative project and must not replace this branch.
 
