@@ -477,3 +477,40 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 6. Historical funding settlement timestamp ambiguities also keep certification blocked when present. No parameter tuning against the same holdout.
 
 **Safety:** manual Binance execution only; no automatic orders. Keep the 100 USDT / 0.5% / 20% margin / 1x policy unchanged. This checkpoint records repository work only; it does not imply the user's Termux device has been updated or tested.
+
+
+---
+
+## Repository audit checkpoint — 2026-11-18 (pre-Termux)
+
+**User instruction:** complete repository-side code review and corrections first. Do not ask the user to run Termux commands or pull the project until this audit/fix cycle is complete.
+
+### Verified repository state
+- Repository: `Eventodigital473/SI-AI`.
+- PR #1 is **merged** into `recovery/restore-upload-zip` (merge commit `0525fba3562a82e1f6e13368166fad306178184f`).
+- PRs #2–#12 are open and unmerged. Their current heads each have successful GitHub Actions runs.
+- PR #2 is no longer Draft according to GitHub metadata (its title still contains the historical `[Draft]` prefix); it is mergeable, but its documented fresh live Binance/Termux bookTicker verification remains a safety blocker.
+- Default `main` remains untouched and does not yet contain the final recovered project tree.
+- No user-device files have been changed. No Termux commands are being requested during this audit phase.
+
+### Exact CI evidence inspected
+- PR #12 head: `1b510f62be5ac70f8c2ba9fca184ceef930ad7fb`.
+- GitHub Actions run: [44192861038](https://github.com/Eventodigital473/SI-AI/actions/runs/44192861038), completed successfully.
+- All workflow steps passed, including full desktop dependency consistency, minimal Termux CCXT import, Widget shell syntax/installer preservation checks, compileall, and pytest.
+- Full suite: **136 passed, 3 Python deprecation warnings, 4 subtests passed**.
+- The minimal CCXT test proved importability and presence of `fetch_funding_rate_history`; it did not prove Android/Termux installation or live Binance responses.
+
+### Repository-side fixes prepared in this follow-up branch
+- Found that CI/README installed CCXT with `--no-deps` before installing the Termux profile. Pip then emitted dependency-resolver conflict warnings for CCXT's intentionally omitted optional async/accelerator dependencies. Reordered installation: install `requirements-termux.txt` first, then install CCXT with `--no-deps`. Runtime package set is unchanged; the intended optional dependencies remain omitted.
+- Found a Flask `__version__` deprecation warning in offline preflight. Switched version reporting to `importlib.metadata.version` to avoid deprecated module attributes.
+- Follow-up branch: `fix/termux-install-order-preflight-cleanup-2026-11-18`, based on PR #12 head. These changes require a fresh CI run before being considered verified.
+
+### Remaining independent audit gates
+1. Inspect the complete active Futures scanner, signal/risk engine, historical data/funding ingestion, backtest execution assumptions, API, and Termux scripts for additional logic defects.
+2. Review the fresh CI run for the follow-up branch and fix any failures.
+3. Keep PR #2's live exchange-response confirmation pending until a later read-only public-data phase; do not relax the 0.15% spread threshold to force a universe count.
+4. Keep Futures profitability certification **INCONCLUSIVE** until exact funding settlement data is present, all funding boundary ambiguities are zero, and a validated exchange-specific maintenance-margin/liquidation model exists. No generic maintenance-margin tier may be invented.
+5. After the repository audit is complete, request explicit approval before merging PRs #2–#13 in dependency order. PR #1 is already merged. A separate recovery-to-`main` integration PR will still be required; do not merge it without approval.
+6. Only after final integration and explicit go-ahead should the existing Termux checkout at `~/SI-AI_FINAL/recovered/SI-AI` be updated safely and tested.
+
+**Safety remains unchanged:** Futures-only, signal-only, manual Binance execution, no private credentials or automatic orders; 100 USDT reference equity, 0.5% risk, 20% margin allocation, recommended 1x, minimum 2:1 R:R.
