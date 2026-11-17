@@ -591,3 +591,10 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - Funding settlement boundary ambiguities, when present, also block certification.
 
 **Safety:** Futures signal-only; user manually executes Binance trades. Policy unchanged: 100 USDT reference equity, 0.5% risk, 20% margin cap, recommended 1x, minimum 2:1 R:R.
+
+
+### Additional static safety scan — 2026-11-18
+- Scanned the active Python source files for order-placement entry points and private API credential fields. No `create_order`, Binance private order endpoint, API-key/secret field, or order-placement call was found in the reviewed active source.
+- Confirmed the only active exchange constructors found in the engine/helper modules are `ccxt.binanceusdm()`; the old `smc.py` Spot constructor has been removed and replaced by the Futures-only compatibility shim.
+- The API binds to `127.0.0.1` with Flask debug mode disabled. The legacy high-leverage planner raises immediately and cannot build a plan.
+- This was a source-text/static review, not a formal security audit or proof against every possible indirect behavior. No credentials were added and no live orders were sent.
