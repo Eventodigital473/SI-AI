@@ -276,6 +276,38 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
             self.assertEqual(report["dataset"]["mark_price"]["candle_count"], len(rows))
             self.assertEqual(report["profitability_gate"]["status"], "INCONCLUSIVE")
 
+    def test_runner_rejects_mark_price_candles_not_aligned_to_primary_ohlcv(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dataset_paths = self._save_datasets(directory)
+            primary = make_dataset_payloads()["1h"]
+            rows = primary["candles"]
+            shifted = [
+                [row[0] + historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"],
+                 row[1], row[2], row[3], row[4], 0.0]
+                for row in rows[:-1]
+            ]
+            mark_dataset = {
+                "source": "BINANCE_USDM_MARK_PRICE_KLINES",
+                "market": "FUTURES",
+                "symbol": "BTC/USDT",
+                "timeframe": "1h",
+                "start_ms": rows[0][0],
+                "end_ms": rows[-1][0] + historical_backtest.smc.TIMEFRAME_MILLISECONDS["1h"],
+                "candles": shifted,
+                "candle_count": len(shifted),
+                "data_sha256": "c" * 64,
+            }
+            with patch.object(
+                historical_backtest.mark_price_data, "load_mark_price_dataset",
+                return_value=mark_dataset,
+            ):
+                with self.assertRaisesRegex(ValueError, "timestamps must exactly match"):
+                    historical_backtest.run_dataset_backtest(
+                        dataset_paths,
+                        output_path=Path(directory) / "misaligned.json",
+                        mark_price_dataset_path=Path(directory) / "mark.json",
+                    )
+
     def test_runner_rejects_mark_price_dataset_for_wrong_symbol(self):
         with tempfile.TemporaryDirectory() as directory:
             dataset_paths = self._save_datasets(directory)
