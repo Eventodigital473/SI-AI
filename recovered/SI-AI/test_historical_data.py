@@ -11,19 +11,10 @@ class FakeExchange:
         self.market = market
         self.candles = candles
         self.calls = []
-        if market == "SPOT":
-            key = "BTC/USDT"
-            metadata = {
-                "active": True, "quote": "USDT", "spot": True,
-                "swap": False, "linear": False, "settle": None,
-            }
-        else:
-            key = "BTC/USDT:USDT"
-            metadata = {
-                "active": True, "quote": "USDT", "spot": False,
-                "swap": True, "linear": True, "settle": "USDT",
-            }
-        self.markets = {key: metadata}
+        self.markets = {"BTC/USDT:USDT": {
+            "active": True, "quote": "USDT", "swap": True,
+            "linear": True, "settle": "USDT",
+        }}
 
     def load_markets(self):
         return self.markets
@@ -46,7 +37,7 @@ def make_candles(count=7, start=1_700_000_000_000, interval=900_000):
 class HistoricalDataTests(unittest.TestCase):
     def test_download_paginates_and_uses_exclusive_end(self):
         rows = make_candles()
-        exchange = FakeExchange("SPOT", rows)
+        exchange = FakeExchange("FUTURES", rows)
         interval = 900_000
         result = historical_data.download_ohlcv(
             "SPOT", "BTC/USDT", "15m",
@@ -110,7 +101,7 @@ class HistoricalDataTests(unittest.TestCase):
     def test_inactive_or_wrong_market_is_rejected(self):
         rows = make_candles()
         exchange = FakeExchange("SPOT", rows)
-        exchange.markets["BTC/USDT"]["active"] = None
+        exchange.markets["BTC/USDT:USDT"]["active"] = None
         with self.assertRaisesRegex(ValueError, "active/inactive status"):
             historical_data.download_ohlcv(
                 "SPOT", "BTC/USDT", "15m",
