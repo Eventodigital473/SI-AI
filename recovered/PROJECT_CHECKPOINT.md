@@ -630,3 +630,34 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 - Liquidation/maintenance-margin modelling is absent; profitability certification remains **INCONCLUSIVE**.
 
 **Safety policy unchanged:** Futures-only, signal provider, manual user execution; 100 USDT reference equity, 0.5% risk per trade, 20% maximum margin allocation, 1x recommendation, minimum 2:1 R:R.
+
+---
+
+## SI-AI scanner alert lifecycle and sizing disclosure checkpoint — 2026-11-18
+
+**Branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Latest code/test head:** `876ee80532750dd84697d830bf3e51b0bf067a7c`  
+**CI for this new head:** pending retrieval; do not call these changes verified until CI passes.
+
+### New source-audit findings and changes
+- Scanner duplicate suppression previously remembered only BUY/SELL/WAIT, with no timestamp. A previously notified BUY/SELL could therefore remain suppressed indefinitely, even after a long scanner outage.
+- Upgraded scanner state to schema v2 with `last_notified_at`; v1 state migrates without losing saved signals. Invalid timestamps fail closed.
+- Repeated actionable BUY/SELL alerts are now suppressed only for six hours after a successful notification; a still-confirmed signal is refreshed after that interval. WAIT clears its actionable notification timestamp. Failed notifications do not advance the saved signal/timestamp.
+- Added tests for six-hour expiry, v1 state migration, and invalid timestamps.
+- Paper position quantity is still a theoretical sizing estimate, not rounded/validated against live Binance amount precision, minimum quantity, or minimum notional. The alert now explicitly says these filters are NOT validated, instructs the user to round down only, and to skip if minimums or the 0.50 USDT total-risk budget are violated.
+- Added an alert regression assertion for the exchange-filter warning.
+- No exchange orders, credentials, strategy thresholds, risk settings, equity, margin, or leverage behavior were changed.
+
+### Latest verification status
+- Previous exact head `2e69e8292fa0e6b044298feb29c1560a167a36a7` passed CI: **166 passed, 3 warnings, 4 subtests passed**; dependency profile, Widget shell syntax and Python compilation passed.
+- The scanner lifecycle and sizing-disclosure changes above are newer and still require a full CI run before acceptance.
+
+### Remaining blockers
+- Actual Binance amount/price precision and minimum order filters are not yet machine-validated in the scanner; alerts explicitly disclose this limitation.
+- Fresh live Futures universe/bookTicker scan remains pending on the user's Termux device; earlier 182 volume-qualified contracts remain unresolved. Do not merge PR #2 before that evidence.
+- Continue source audit of remaining backtest assumptions, notification process behavior, and CLI/config paths.
+- Android notification/LED test, Termux startup/stop test, and final 180-day backtest remain device checks.
+- Liquidation/maintenance-margin model remains absent; profitability certification remains **INCONCLUSIVE**.
+- No PR merges; `main` and Termux checkout remain untouched.
+
+**Safety policy unchanged:** Futures-only, signal provider, manual Binance execution; 100 USDT reference equity, 0.5% risk, 20% margin cap, 1x recommendation, minimum 2:1 R:R. No automatic order placement.
