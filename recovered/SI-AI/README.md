@@ -32,17 +32,20 @@ Install Termux and its Android companion app from trusted sources, then run:
 
 ```bash
 pkg update -y
-pkg install -y git python termux-api
+pkg install -y git python python-cryptography clang termux-api
 cd "$HOME"
-git clone --branch feature/futures-only-backtesting --single-branch https://github.com/Eventodigital473/SI-AI.git SI-AI_FUTURES
+git clone --branch main --single-branch https://github.com/Eventodigital473/SI-AI.git SI-AI_FUTURES
 cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
-python -m pip install -r requirements.txt
-python -m pip check
+python -m pip install --no-deps "ccxt==4.5.93"
+python -m pip install -r requirements-termux.txt
+python -c "import ccxt, requests, certifi, cryptography, typing_extensions, flask, pytest; print('SI-AI Termux dependencies OK; CCXT', ccxt.__version__)"
 python -m compileall -q .
 python -m pytest -q
 ```
 
 If the destination folder already exists, do not overwrite it. Choose a new folder or safely inspect the existing checkout first. Android notification permission must be granted to Termux:API separately.
+
+The Termux profile installs CCXT's synchronous public REST client without its unused async/accelerator extras; Termux supplies `python-cryptography`. Do not run `pip check` against this intentionally minimal CCXT install because CCXT declares optional async/accelerator packages that SI-AI does not import. The standard `requirements.txt` remains the full desktop/CI profile.
 
 ### Signal notification appearance
 
