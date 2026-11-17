@@ -51,6 +51,10 @@ def _bracket_for(notional: float, brackets: List[Dict]) -> Dict:
     for floor, cap, _, _, _, item in valid:
         if floor <= notional <= cap:
             return item
+    # If raw risk sizing exceeds the highest tier, use that tier's cap
+    # and reduce quantity below; never extrapolate beyond Binance's cap.
+    if valid and notional > valid[-1][1]:
+        return valid[-1][5]
     raise ValueError("Position notional is outside supplied Binance leverage brackets")
 
 
