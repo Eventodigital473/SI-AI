@@ -1,0 +1,42 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -eu
+
+PROJECT_DIR=""
+for candidate in "$HOME/SI-AI_FINAL/recovered/SI-AI" "$HOME/SI-AI_FUTURES/recovered/SI-AI"; do
+    if [ -f "$candidate/si_ai_scanner.py" ]; then
+        PROJECT_DIR="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PROJECT_DIR" ]; then
+    command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI project folder not found"
+    exit 1
+fi
+
+PID_FILE="$PROJECT_DIR/logs/si_ai_widget.pid"
+if [ ! -f "$PID_FILE" ]; then
+    command -v termux-toast >/dev/null 2>&1 && termux-toast "No widget-started SI-AI scanner PID"
+    exit 0
+fi
+
+SCANNER_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
+if [ -z "$SCANNER_PID" ] || ! kill -0 "$SCANNER_PID" 2>/dev/null; then
+    rm -f "$PID_FILE"
+    command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI scanner was not running"
+    exit 0
+fi
+
+SCANNER_CMD="$(ps -p "$SCANNER_PID" -o args= 2>/dev/null || true)"
+case "$SCANNER_CMD" in
+    *si_ai_scanner.py*--interval*) ;;
+    *)
+        rm -f "$PID_FILE"
+        command -v termux-toast >/dev/null 2>&1 && termux-toast "PID did not match SI-AI scanner; not killed"
+        exit 1
+        ;;
+esac
+
+kill -TERM "$SCANNER_PID"
+rm -f "$PID_FILE"
+command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI scanner stop requested"
