@@ -376,7 +376,14 @@ def validate_candles(candles: list) -> List[list]:
             continue
         ts, op, high, low, close, volume = row[:6]
         values = (ts, op, high, low, close, volume)
-        if not all(isinstance(v, (int, float)) and math.isfinite(float(v)) for v in values):
+        if not all(
+            not isinstance(value, bool)
+            and isinstance(value, (int, float))
+            and math.isfinite(float(value))
+            for value in values
+        ):
+            continue
+        if not float(ts).is_integer():
             continue
         if min(op, high, low, close) <= 0 or volume < 0 or high < low:
             continue
@@ -685,13 +692,17 @@ def validate_analysis_inputs(market: str, symbol: str,
         values = row[:6]
 
         if not all(
-            isinstance(v, (int, float))
+            not isinstance(v, bool)
+            and isinstance(v, (int, float))
             and math.isfinite(float(v))
             for v in values
         ):
             raise ValueError("OHLCV values must be finite numbers")
 
         ts, op, high, low, close, volume = map(float, values)
+
+        if ts <= 0 or not ts.is_integer():
+            raise ValueError("Candle timestamps must be positive integer milliseconds")
 
         if min(op, high, low, close) <= 0 or volume < 0:
             raise ValueError("Invalid OHLCV price or volume")
