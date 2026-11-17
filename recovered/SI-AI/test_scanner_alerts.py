@@ -202,12 +202,11 @@ def test_alert_uses_recent_symbol_specific_isolated_bracket_snapshot(tmp_path, m
     (bracket_dir / "BTC-USDT.json").write_text(
         json.dumps(snapshot), encoding="utf-8"
     )
+    case = SignalAlertTests()
+    case.setUp()
+    case.results["1h"]["paper_margin_required_usdt"] = 17.1
     _, content = scanner.make_alert(
-        "FUTURES", "BTC/USDT", "BUY", {
-            "1h": {**SignalAlertTests().results["1h"],
-                   "paper_margin_required_usdt": 17.1},
-            "4h": {"signal": "BUY"},
-        }
+        "FUTURES", "BTC/USDT", "BUY", case.results
     )
     assert "Isolated liquidation price: no positive threshold" in content
     assert "Binance USD-M tier formula" in content
