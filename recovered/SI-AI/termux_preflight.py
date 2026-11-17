@@ -112,6 +112,11 @@ def collect_preflight(project_dir=None, shortcuts_dir=None, command_lookup=None,
         "PASS" if toast else "WARN",
         toast or "termux-toast not found; optional Widget status messages unavailable",
     ))
+    checks.append(_check(
+        "android_notification_permission",
+        "INFO",
+        "Cannot be verified offline. A real phone notification and LED test is still required; Android/OEM settings may override LED requests.",
+    ))
 
     statuses = [item["status"] for item in checks]
     overall = "FAIL" if "FAIL" in statuses else "READY_WITH_WARNINGS" if "WARN" in statuses else "READY"
