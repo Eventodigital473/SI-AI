@@ -5,7 +5,7 @@ SI-AI is a market-analysis and signal-generation project. It uses public Binance
 ## Dynamic coin universe
 
 - Discovers each market independently from Binance's active USDT-quoted spot and linear USD-M perpetual markets.
-- Selects up to 100 coins per market, with a 15-coin minimum required before the scanner will scan that market. The target universe size is 50.
+- Targets 50 selected coins per market, with a 15-coin minimum required before the scanner will scan that market. 100 is the configurable hard maximum; priority assets replace the lowest-ranked eligible candidate rather than expanding the target list.
 - Ranks candidates by 24-hour quote volume; minimum quote-volume filters are 5 million USDT for spot and 10 million USDT for futures.
 - Rejects markets with a spread above 0.15%, missing bid/ask/volume data, inactive market metadata, stablecoin base assets, wrapped assets, and leveraged-token naming patterns.
 - SOL, BNB, BTC, and ETH are prioritized only if they pass the same eligibility filters.

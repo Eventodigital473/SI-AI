@@ -194,7 +194,7 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
             candidates.sort(
                 key=lambda item: item["quote_volume"], reverse=True
             )
-            selected = candidates[:MAX_UNIVERSE_SIZE]
+            selected = candidates[:TARGET_UNIVERSE_SIZE]
             selected_symbols = [item["symbol"] for item in selected]
 
             # Keep the named core assets in the candidate universe when they
@@ -205,7 +205,7 @@ def refresh_symbol_universe(force: bool = False) -> Dict[str, List[str]]:
                     preferred_symbol not in selected_symbols
                     and any(item["symbol"] == preferred_symbol for item in candidates)
                 ):
-                    if len(selected_symbols) >= MAX_UNIVERSE_SIZE:
+                    if len(selected_symbols) >= TARGET_UNIVERSE_SIZE:
                         # Replace the lowest-ranked non-priority asset. Do not
                         # repeatedly overwrite the same final slot.
                         replace_index = next(

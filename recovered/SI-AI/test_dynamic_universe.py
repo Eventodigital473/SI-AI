@@ -125,7 +125,7 @@ class DynamicUniverseTests(unittest.TestCase):
         si._MARKET_UNIVERSE_LAST_REFRESH.clear()
         si._MARKET_UNIVERSE_LAST_REFRESH.update(self.original_market_refresh)
 
-    def test_selects_up_to_100_liquid_coins_per_market_and_prioritizes_sol_bnb(self):
+    def test_selects_target_50_liquid_coins_per_market_and_prioritizes_core_assets(self):
         fake_futures = FakeExchange("FUTURES")
         fake_spot = FakeExchange("SPOT")
 
@@ -139,7 +139,10 @@ class DynamicUniverseTests(unittest.TestCase):
         for market in si.MARKETS:
             symbols = selected[market]
             self.assertGreaterEqual(len(symbols), si.MIN_ELIGIBLE_COINS)
-            self.assertLessEqual(len(symbols), si.MAX_UNIVERSE_SIZE)
+            self.assertLessEqual(len(symbols), si.TARGET_UNIVERSE_SIZE)
+            self.assertEqual(len(symbols), si.TARGET_UNIVERSE_SIZE)
+            self.assertIn("BTC/USDT", symbols)
+            self.assertIn("ETH/USDT", symbols)
             self.assertIn("SOL/USDT", symbols)
             self.assertIn("BNB/USDT", symbols)
             self.assertNotIn("USDC/USDT", symbols)

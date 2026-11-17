@@ -343,3 +343,11 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 **Exact next step:** validate the historical downloader against one bounded, read-only public Binance dataset in the final live-data phase, verify its manifest/checksum, then run the report runner. Do not use synthetic fixtures as profitability evidence.
 
 **Safety and repository state:** signal provider only; no automatic orders, no private API keys, no Telegram. Main untouched. PR #1 remains draft/open/unmerged. Verified code backup commit: `0b947b7a16b8e7bbcce8bfd30502dcbf69cd2b36`.
+
+
+### Dynamic-universe target-size enforcement (2026-11-17)
+
+- Corrected selection to target 50 symbols per market rather than scanning up to the 100-symbol hard cap by default.
+- The 100-symbol maximum remains a configuration ceiling. BTC, ETH, BNB and SOL are prioritized only when they pass the same filters and replace lower-ranked candidates without exceeding the 50-symbol target.
+- Added regression assertions for exact target size and core-asset inclusion. This reduces the default scanner request workload while preserving the minimum-15 and maximum-100 policy.
+- Pending CI verification.
