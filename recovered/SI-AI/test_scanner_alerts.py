@@ -172,3 +172,12 @@ def test_state_rejects_invalid_notification_timestamps(tmp_path, monkeypatch, ti
     with pytest.raises(RuntimeError, match="Invalid notification timestamp"):
         scanner.load_state()
 
+def test_missing_state_initializes_notification_timestamp_map(tmp_path, monkeypatch):
+    state_file = tmp_path / "scanner-state.json"
+    monkeypatch.setattr(scanner, "STATE_FILE", state_file)
+    assert scanner.load_state() == {
+        "version": 2,
+        "last_signals": {},
+        "last_notified_at": {},
+    }
+\n
