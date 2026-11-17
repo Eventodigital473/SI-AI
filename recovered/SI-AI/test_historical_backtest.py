@@ -146,7 +146,7 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
         ), patch.object(
             historical_backtest.scanner, "confirm_signal", return_value="BUY"
         ):
-            result = callback("SPOT", "BTC/USDT", "1h", history)
+            result = callback("FUTURES", "BTC/USDT", "1h", history)
 
         self.assertEqual(result["signal"], "BUY")
         self.assertEqual(set(observed), {"15m", "1h", "4h", "1d"})
@@ -182,7 +182,7 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
         ), patch.object(
             historical_backtest.scanner, "confirm_signal", return_value="BUY"
         ):
-            result = callback("SPOT", "BTC/USDT", "1h", history)
+            result = callback("FUTURES", "BTC/USDT", "1h", history)
 
         self.assertEqual(result["signal"], "BUY")
         self.assertEqual(set(observed), {"15m", "1h", "4h", "1d"})
@@ -195,7 +195,7 @@ class HistoricalBacktestRunnerTests(unittest.TestCase):
         datasets["1d"]["candles"] = datasets["1d"]["candles"][:20]
         callback = historical_backtest.build_production_signal_callback(datasets)
         result = callback(
-            "SPOT", "BTC/USDT", "1h", datasets["1h"]["candles"][:100]
+            "FUTURES", "BTC/USDT", "1h", datasets["1h"]["candles"][:100]
         )
         self.assertEqual(result["signal"], "WAIT")
 
