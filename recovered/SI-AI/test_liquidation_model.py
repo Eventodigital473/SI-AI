@@ -90,7 +90,7 @@ class LiquidationModelTests(unittest.TestCase):
                 "max_leverage": 20,
             }]), symbol="BTC/USDT", now=NOW)
 
-    def test_rejects_excessive_leverage_and_unresolved_tier(self):
+    def test_rejects_excessive_leverage(self):
         with self.assertRaisesRegex(ValueError, "maximum"):
             calculate_isolated_liquidation_price(
                 symbol="BTC/USDT", side="LONG", quantity=1, entry_price=100,
@@ -110,6 +110,50 @@ class LiquidationModelTests(unittest.TestCase):
                 symbol="BTC/USDT", side="LONG", quantity=1, entry_price=100,
                 isolated_wallet_balance=True, leverage=10,
                 bracket_snapshot=snapshot(), now=NOW,
+            )
+
+
+    def test_one_x_long_has_no_positive_threshold_and_is_not_overclaimed(self):
+        result = calculate_isolated_liquidation_price(
+            symbol="BTC/USDT", side="LONG", quantity=1, entry_price=100,
+            isolated_wallet_balance=100, leverage=1,
+            bracket_snapshot=snapshot(), now=NOW,
+        )
+        self.assertEqual(result["status"], "NO_POSITIVE_LIQUIDATION_PRICE_IN_MODEL")
+        self.assertIsNone(result["liquidation_price"])
+
+    def test_isolated_wallet_must_cover_initial_margin(self):
+        with self.assertRaisesRegex(ValueError, "below the required initial margin"):
+            calculate_isolated_liquidation_price(
+                symbol="BTC/USDT", side="LONG", quantity=1, entry_price=100,
+                isolated_wallet_balance=5, leverage=10,
+                bracket_snapshot=snapshot(), now=NOW,
+            )
+
+    def test_rejects_nonmonotonic_or_discontinuous_maintenance_tiers(self):
+        bad_rate = [
+            {"notional_floor": 0, "notional_cap": 80,
+             "maintenance_margin_rate": 0.01, "maintenance_amount": 0,
+             "max_leverage": 20},
+            {"notional_floor": 80, "notional_cap": None,
+             "maintenance_margin_rate": 0.005, "maintenance_amount": 0.4,
+             "max_leverage": 10},
+        ]
+        with self.assertRaisesRegex(ValueError, "must not decrease"):
+            validate_bracket_snapshot(
+                snapshot(tiers=bad_rate), symbol="BTC/USDT", now=NOW
+            )
+        bad_continuity = [
+            {"notional_floor": 0, "notional_cap": 80,
+             "maintenance_margin_rate": 0.005, "maintenance_amount": 0,
+             "max_leverage": 50},
+            {"notional_floor": 80, "notional_cap": None,
+             "maintenance_margin_rate": 0.01, "maintenance_amount": 0.2,
+             "max_leverage": 20},
+        ]
+        with self.assertRaisesRegex(ValueError, "not continuous"):
+            validate_bracket_snapshot(
+                snapshot(tiers=bad_continuity), symbol="BTC/USDT", now=NOW
             )
 
 
