@@ -142,9 +142,34 @@ def evaluate_profitability_evidence(
             assumptions.get("funding_settlement_boundary_ambiguities", 0)
             if isinstance(assumptions, dict) else None
         )
-        boundary_clear = boundary_ambiguities is not None and boundary_ambiguities == 0
+        oos_trades = chronological_report.get("out_of_sample_trades", [])
+        oos_boundary_count = 0
+        oos_boundary_valid = isinstance(oos_trades, list)
+        if oos_boundary_valid:
+            for trade in oos_trades:
+                if not isinstance(trade, dict):
+                    oos_boundary_valid = False
+                    break
+                value = _finite_number(trade.get("funding_boundary_ambiguities", 0))
+                if value is None or value < 0:
+                    oos_boundary_valid = False
+                    break
+                oos_boundary_count += value
+        fold_boundary_count = 0
+        fold_boundary_valid = True
+        for fold in valid_folds:
+            value = _finite_number(fold.get("funding_settlement_boundary_ambiguities", 0))
+            if value is None or value < 0:
+                fold_boundary_valid = False
+                break
+            fold_boundary_count += value
+        boundary_clear = (
+            boundary_ambiguities is not None and boundary_ambiguities == 0
+            and oos_boundary_valid and oos_boundary_count == 0
+            and fold_boundary_valid and fold_boundary_count == 0
+        )
         check("funding_settlement_boundary_ordering", boundary_clear, boundary_clear,
-              f"ambiguous_entry_or_exit_settlement_ties={boundary_ambiguities}; required=0")
+              f"oos_assumption={boundary_ambiguities}; oos_trades={oos_boundary_count}; walk_forward_folds={fold_boundary_count}; required=0")
 
         liquidation_ok = isinstance(assumptions, dict) and assumptions.get("liquidation_modelled") is True
         check("liquidation_model", liquidation_ok, liquidation_ok,
