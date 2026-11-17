@@ -97,7 +97,11 @@ def acquire_lock():
 
 def load_state():
     if not STATE_FILE.exists():
-        return {"version": STATE_VERSION, "last_signals": {}}
+        return {
+            "version": STATE_VERSION,
+            "last_signals": {},
+            "last_notified_at": {},
+        }
 
     try:
         with STATE_FILE.open("r", encoding="utf-8") as handle:
