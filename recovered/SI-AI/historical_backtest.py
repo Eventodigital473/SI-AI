@@ -14,6 +14,7 @@ from typing import Dict, Optional
 import SI_AI_smc as smc
 import backtesting
 import historical_data
+import funding_data
 import profitability_gate
 import si_ai_scanner as scanner
 
@@ -158,6 +159,7 @@ def run_dataset_backtest(
     *,
     output_path: Optional[str | Path] = None,
     initial_equity: float = 100.0,
+    funding_dataset_path: Optional[str | Path] = None,
 ) -> tuple[Dict, Path]:
     datasets = _load_timeframe_datasets(dataset_paths)
     market = datasets["1h"]["market"]
@@ -165,9 +167,22 @@ def run_dataset_backtest(
     primary_candles = datasets["1h"]["candles"]
     signal_fn = build_production_signal_callback(datasets)
 
+    funding_dataset = None
+    funding_events = None
+    if funding_dataset_path is not None:
+        funding_dataset = funding_data.load_funding_dataset(funding_dataset_path)
+        if funding_dataset.get("market") != market or funding_dataset.get("symbol") != symbol:
+            raise ValueError("Funding dataset market/symbol must match OHLCV datasets")
+        required_start = min(item[0] for item in primary_candles)
+        required_end = primary_candles[-1][0] + smc.TIMEFRAME_MILLISECONDS["1h"]
+        if funding_dataset["start_ms"] > required_start or funding_dataset["end_ms"] < required_end:
+            raise ValueError("Funding dataset must cover the complete primary 1h OHLCV time range")
+        funding_events = funding_dataset["events"]
+
     options = {
         "initial_equity": initial_equity,
         "signal_fn": signal_fn,
+        "funding_events": funding_events,
     }
     try:
         chronological = backtesting.evaluate_chronological_validation(
@@ -225,6 +240,13 @@ def run_dataset_backtest(
             "primary_timeframe": "1h",
             "timeframes": timeframe_manifest,
             "combined_data_sha256": combined_hash,
+            "funding": ({
+                "event_count": funding_dataset["event_count"],
+                "data_sha256": funding_dataset["data_sha256"],
+                "start_ms": funding_dataset["start_ms"],
+                "end_ms": funding_dataset["end_ms"],
+                "source": funding_dataset["source"],
+            } if funding_dataset is not None else None),
         },
         "strategy": (
             "Production scanner confluence: 15m, 1h, 4h and 1d; "
@@ -243,7 +265,7 @@ def run_dataset_backtest(
         "limitations": [
             "Historical results do not guarantee future returns.",
             "No automatic orders are placed.",
-            "Futures certification remains INCONCLUSIVE until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are included.",
+            ("Timestamped Binance funding events and event-specific settlement mark prices are included; exchange-specific liquidation/maintenance-margin modelling is still required." if funding_dataset is not None else "Futures certification remains INCONCLUSIVE until timestamped historical funding and exchange-specific liquidation/maintenance-margin modelling are included."),
             "Signals are evaluated only when all required timeframe histories are available and closed by the 1h signal close.",
         ],
     }
@@ -266,6 +288,7 @@ def main() -> int:
         help="Repeat four times: one verified JSON dataset each for 15m, 1h, 4h and 1d",
     )
     parser.add_argument("--output", default=None, help="Optional report JSON path")
+    parser.add_argument("--funding-dataset", default=None, help="Verified Binance funding JSON covering the full 1h dataset range")
     parser.add_argument("--initial-equity", type=float, default=100.0)
     args = parser.parse_args()
 
@@ -273,6 +296,7 @@ def main() -> int:
         args.dataset,
         output_path=args.output,
         initial_equity=args.initial_equity,
+        funding_dataset_path=args.funding_dataset,
     )
     print(f"Research report: {path}")
     print(f"Combined dataset SHA-256: {report['dataset']['combined_data_sha256']}")
