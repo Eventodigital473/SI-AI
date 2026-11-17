@@ -76,17 +76,19 @@ def run_public_futures_backtest(*, symbols=("BTC/USDT",), days=180,
             dataset_paths, output_path=report_path,
             initial_equity=initial_equity,
         )
+        chronological = report.get("chronological_validation", {})
+        assumptions = chronological.get("assumptions", {})
         results.append({
             "symbol": symbol,
             "report_path": str(saved_path),
             "dataset_sha256": report["dataset"]["combined_data_sha256"],
-            "out_of_sample": report.get("chronological_validation", {}).get("out_of_sample", {}),
+            "out_of_sample": chronological.get("out_of_sample", {}),
             "walk_forward": report.get("walk_forward", {}),
             "profitability_gate": report["profitability_gate"]["status"],
-            "funding_series_included": report.get("assumptions", {}).get(
+            "funding_series_included": assumptions.get(
                 "historical_funding_series_included", False
             ),
-            "liquidation_modelled": report.get("assumptions", {}).get(
+            "liquidation_modelled": assumptions.get(
                 "liquidation_modelled", False
             ),
             "automatic_orders": False,
