@@ -80,9 +80,7 @@ def _resolve_exchange_symbol(exchange, market: str, symbol: str) -> str:
     if not isinstance(metadata.get("active"), bool) or metadata.get("quote") != "USDT":
         raise ValueError(f"{symbol} metadata does not confirm USDT quote and active/inactive status")
 
-    if market == "SPOT" and metadata.get("spot") is not True:
-        raise ValueError(f"{symbol} is not a Binance spot market")
-    if market == "FUTURES" and not (
+    if not (
         metadata.get("swap") is True
         and metadata.get("linear") is True
         and metadata.get("settle") == "USDT"
@@ -105,7 +103,7 @@ def download_ohlcv(
 ) -> List[list]:
     """Download closed candles in [start_ms, end_ms), with guarded pagination."""
     if market not in smc.MARKETS:
-        raise ValueError("market must be SPOT or FUTURES")
+        raise ValueError("market must be FUTURES only")
     interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
     if interval_ms is None:
         raise ValueError("Unsupported timeframe")
@@ -330,7 +328,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Download public Binance historical OHLCV for SI-AI research"
     )
-    parser.add_argument("--market", required=True, choices=("SPOT", "FUTURES"))
+    parser.add_argument("--market", required=True, choices=("FUTURES",))
     parser.add_argument("--symbol", required=True, help="Canonical symbol, e.g. BTC/USDT")
     parser.add_argument("--timeframe", required=True, choices=tuple(smc.TIMEFRAME_MILLISECONDS))
     parser.add_argument("--start-ms", required=True, type=int)
