@@ -1,0 +1,20 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -eu
+
+PROJECT_DIR=""
+for candidate in "$HOME/SI-AI_FINAL/recovered/SI-AI" "$HOME/SI-AI_FUTURES/recovered/SI-AI"; do
+    if [ -f "$candidate/si_ai_scanner.py" ]; then
+        PROJECT_DIR="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PROJECT_DIR" ]; then
+    command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI project folder not found"
+    exit 1
+fi
+
+mkdir -p "$PROJECT_DIR/logs"
+cd "$PROJECT_DIR"
+python si_ai_scanner.py --once --dry-run 2>&1 | tee -a "$PROJECT_DIR/logs/si_ai_widget_dry_run.log"
+command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI dry-run finished; check log"
