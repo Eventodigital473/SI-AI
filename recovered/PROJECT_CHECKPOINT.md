@@ -351,3 +351,19 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 - The 100-symbol maximum remains a configuration ceiling. BTC, ETH, BNB and SOL are prioritized only when they pass the same filters and replace lower-ranked candidates without exceeding the 50-symbol target.
 - Added regression assertions for exact target size and core-asset inclusion. This reduces the default scanner request workload while preserving the minimum-15 and maximum-100 policy.
 - Pending CI verification.
+
+
+## Scanner workload tuning checkpoint (2026-11-17)
+
+**Latest verified code head:** `1cf8575ca5cd1c0635e04805aef0129589a9bc2b`
+
+**CI evidence:** [Run #43984040849](https://github.com/Eventodigital473/SI-AI/actions/runs/43984040849) succeeded on the exact code head.
+- Python dependency installation and compileall passed.
+- Full suite: **76 passed, 4 subtests passed in 0.61s**.
+- Evidence artifact: [si-ai-test-evidence-74](https://github.com/Eventodigital473/SI-AI/actions/runs/43984040849/artifacts/14285101349), ID `14285101349`, SHA-256 `7235e3139b69a82d32d7d2fff223c4a87b6c8e29a4004b9fde97e1f04dd9a71e`.
+
+**Performance correction:** dynamic scanner now targets 50 selected symbols per market, not 100 by default. 100 remains the hard configurable maximum; core assets are only prioritized when eligible and replace lower-ranked candidates without expanding the target.
+
+**Exact next step:** perform one bounded read-only public Binance historical OHLCV download after confirming the final Termux runtime environment, validate the dataset checksum, and run `historical_backtest.py`. Do not treat synthetic tests as market-performance evidence.
+
+**Still not production-certified:** historical sample performance, timestamped futures funding, exchange-specific liquidation/maintenance-margin model, forward paper observation, and final Termux notification/runtime checks. No automatic orders, no profitability guarantee. Main untouched; PR #1 remains draft/open/unmerged.
