@@ -19,9 +19,9 @@ def reports():
 
 
 class ProfitabilityGateTests(unittest.TestCase):
-    def test_complete_spot_evidence_can_pass(self):
+    def test_complete_futures_evidence_can_pass(self):
         oos, wf = reports()
-        result = evaluate_profitability_evidence(oos, wf, market="SPOT")
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "PASS")
         self.assertFalse(result["automatic_orders"])
 
@@ -34,18 +34,18 @@ class ProfitabilityGateTests(unittest.TestCase):
     def test_insufficient_trades_is_inconclusive(self):
         oos, wf = reports()
         oos["out_of_sample"]["trade_count"] = 10
-        result = evaluate_profitability_evidence(oos, wf, market="SPOT")
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "INCONCLUSIVE")
 
     def test_negative_oos_pnl_fails(self):
         oos, wf = reports()
         oos["out_of_sample"]["net_pnl_usdt"] = -1
-        result = evaluate_profitability_evidence(oos, wf, market="SPOT")
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
         self.assertEqual(result["status"], "FAIL")
 
     def test_missing_metrics_never_pass(self):
         result = evaluate_profitability_evidence(
-            {"out_of_sample": {}}, {"folds": []}, market="SPOT"
+            {"out_of_sample": {}}, {"folds": []}, market="FUTURES"
         )
         self.assertNotEqual(result["status"], "PASS")
 
@@ -53,7 +53,7 @@ class ProfitabilityGateTests(unittest.TestCase):
         oos, wf = reports()
         wf["folds"][0]["net_pnl_usdt"] = None
         result = evaluate_profitability_evidence(
-            oos, wf, market="SPOT"
+            oos, wf, market="FUTURES"
         )
         self.assertEqual(result["status"], "INCONCLUSIVE")
 
