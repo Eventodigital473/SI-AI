@@ -271,8 +271,20 @@ def run_backtest(
             gross_pnl = (entry - exit_fill) * quantity
         fees = (entry + exit_fill) * quantity * fee
         entry_notional = entry * quantity
+        exit_timestamp = data[exit_index][0]
+        exit_interval_ms = si.TIMEFRAME_MILLISECONDS[timeframe]
+        if exit_reason in ("STOP", "TARGET"):
+            funding_exit_timing = "intrabar"
+            funding_exit_window_end = exit_timestamp + exit_interval_ms
+        elif exit_reason == "TIME_EXIT":
+            funding_exit_timing = "close"
+            funding_exit_window_end = exit_timestamp + exit_interval_ms
+        else:
+            # STOP_GAP and SIGNAL_REVERSAL are modelled at the candle open.
+            funding_exit_timing = "open"
+            funding_exit_window_end = exit_timestamp
         funding_periods = _funding_periods_between(
-            data[entry_bar_index][0], data[exit_index][0]
+            data[entry_bar_index][0], funding_exit_window_end
         )
         funding_cost = 0.0
         funding_event_count = 0
@@ -280,7 +292,9 @@ def run_backtest(
         if market == "FUTURES" and funding_events is not None:
             funding_result = funding_data.funding_cost_for_trade(
                 funding_events, side, quantity,
-                data[entry_bar_index][0], data[exit_index][0],
+                data[entry_bar_index][0], exit_timestamp,
+                exit_window_end_timestamp=funding_exit_window_end,
+                exit_timing=funding_exit_timing,
             )
             funding_cost = funding_result["funding_cost_usdt"]
             funding_event_count = funding_result["funding_event_count"]
@@ -295,7 +309,9 @@ def run_backtest(
             "side": side,
             "signal_timestamp": history[-1][0],
             "entry_timestamp": data[entry_bar_index][0],
-            "exit_timestamp": data[exit_index][0],
+            "exit_timestamp": exit_timestamp,
+            "funding_exit_timing": funding_exit_timing,
+            "funding_exit_window_end_timestamp": funding_exit_window_end,
             "entry_price": round(entry, 10),
             "exit_price": round(exit_fill, 10),
             "stop_loss": round(stop, 10),
