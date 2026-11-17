@@ -60,7 +60,7 @@ cd "$HOME/SI-AI_FUTURES/recovered/SI-AI"
 bash termux-widget/install-shortcuts.sh
 ```
 
-Then open/refresh Termux:Widget. Run **SI-AI Check** first: it performs an offline preflight of Python/dependencies, Futures-only settings, risk limits, Widget shortcuts, and Termux:API command availability. Start launches the 120-second scanner in the background; Stop sends a graceful termination request to the scanner started by that shortcut; Dry Run performs one preview cycle without sending trade alerts or placing orders. The installer preserves existing shortcuts and installs only missing ones. To replace an older SI-AI shortcut, move/rename it yourself first, then rerun the installer. The shortcuts recognize the existing `~/SI-AI_FINAL/recovered/SI-AI` path as well as the documented fresh-install path.
+Then open/refresh Termux:Widget. Run **SI-AI Check** first: it performs an offline preflight of Python/dependencies, Futures-only settings, risk limits, Widget shortcuts, and Termux:API command availability. Start runs the offline safety preflight before launching the 120-second scanner in the background; Stop sends a graceful termination request to the scanner started by that shortcut; Dry Run performs one preview cycle without sending trade alerts or placing orders. The installer preserves existing shortcuts and installs only missing ones. To replace an older SI-AI shortcut, move/rename it yourself first, then rerun the installer. The shortcuts recognize the existing `~/SI-AI_FINAL/recovered/SI-AI` path as well as the documented fresh-install path.
 
 ## Run modes
 
