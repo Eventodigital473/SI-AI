@@ -477,3 +477,43 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 6. Historical funding settlement timestamp ambiguities also keep certification blocked when present. No parameter tuning against the same holdout.
 
 **Safety:** manual Binance execution only; no automatic orders. Keep the 100 USDT / 0.5% / 20% margin / 1x policy unchanged. This checkpoint records repository work only; it does not imply the user's Termux device has been updated or tested.
+
+
+---
+
+## Code audit checkpoint — 2026-11-18
+
+**Audit branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Parent integration branch:** `fix/termux-minimal-ccxt-dependencies-2026-11-18`  
+**Audit PR:** https://github.com/Eventodigital473/SI-AI/pull/14
+
+### Additional input-validation fix
+- `SI_AI_smc._finite_number()` now rejects Python booleans. Python treats `True` and `False` as numeric subclasses, so previously malformed market-data values could be interpreted as prices or quote volume (for example, `True == 1.0`).
+- Added parameterized regression coverage for both boolean values in numeric parsing, bid/ask normalization, and spread validation.
+- No strategy logic, thresholds, equity, risk, margin, leverage, or order behavior changed.
+
+### Verification
+- GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44195093952
+- Exact code head tested: `4a5433a8060f67af71daace758135b49a3dcd92b`.
+- Dependency consistency: PASS.
+- Minimal synchronous Termux CCXT profile: PASS.
+- Termux Widget shell syntax checks: PASS.
+- Python compilation: PASS.
+- Full suite: **138 passed, 3 warnings, 4 subtests passed**.
+- This is automated CI evidence only; no live Binance/Termux or Android notification test has been performed.
+
+### Repository audit findings
+- Active project tree contains no Spot scanner, Spot backtest, or portfolio-backtest modules. Remaining Spot references are historical checkpoint/documentation notes only.
+- No environment/secret files or order-execution modules were found in the audited repository tree.
+- PR #1 is merged into `recovery/restore-upload-zip`; PR #2–#12 remain open. PR #14 is open and unmerged.
+- The default `main` branch remains separate from the recovered project tree. Final integration into `main` is still pending.
+- Do not merge the stacked changes until the remaining review and integration plan are complete.
+
+### Remaining blockers
+1. Finish the source-level review and resolve any further confirmed defects.
+2. Complete the final integration PR into `recovery/restore-upload-zip`, then into `main`, after review/approval.
+3. Only after the repository project is finalized, perform the single planned Termux installation/update and live public-data/backtest/device checks.
+4. Exchange-specific maintenance-margin/liquidation modelling remains absent. Futures profitability certification must remain **INCONCLUSIVE**.
+5. Historical funding settlement timestamp ambiguities block certification whenever present.
+
+**Safety remains unchanged:** Binance manual execution only; no automatic orders, private API credentials, or leverage-setting. Paper policy remains 100 USDT equity, 0.5% risk, 20% margin cap, 1x recommendation, and minimum 2:1 R:R.
