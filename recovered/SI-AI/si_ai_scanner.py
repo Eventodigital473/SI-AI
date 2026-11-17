@@ -369,8 +369,8 @@ def make_alert(market, symbol, signal, results):
                     f"(gross price risk {gross_risk:.4f} USDT)"
                 )
                 lines.append(
-                    f"Risk policy: {si.RISK_PER_TRADE_PERCENT:.2f}% of "
-                    f"{si.PAPER_EQUITY_USDT:.2f} USDT reference equity"
+                    f"Risk policy: {smc.RISK_PER_TRADE_PERCENT:.2f}% of "
+                    f"{smc.PAPER_EQUITY_USDT:.2f} USDT reference equity"
                 )
             if estimated_fees is not None and estimated_slippage is not None:
                 lines.append(
