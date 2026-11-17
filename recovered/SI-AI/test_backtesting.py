@@ -158,6 +158,43 @@ class BacktestingTests(unittest.TestCase):
                 risk_percent=8.0,
             )
 
+    def test_timestamped_funding_uses_event_mark_price_and_direction(self):
+        data = candles_with_bars(86)
+        event = {"timestamp": 82, "funding_rate": 0.001, "mark_price": 100.0}
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=3, signal_fn=fixed_buy,
+            funding_events=[event],
+        )
+        self.assertEqual(len(result["trades"]), 1)
+        trade = result["trades"][0]
+        self.assertEqual(trade["funding_event_count"], 1)
+        self.assertAlmostEqual(
+            trade["funding_cost_usdt"],
+            trade["quantity"] * 100.0 * 0.001,
+            places=7,
+        )
+        self.assertTrue(result["assumptions"]["historical_funding_series_included"])
+        self.assertTrue(result["assumptions"]["funding_mark_price_exact"])
+        self.assertFalse(result["assumptions"]["liquidation_modelled"])
+
+    def test_timestamped_funding_rejects_double_counting_proxy(self):
+        with self.assertRaisesRegex(ValueError, "not both"):
+            backtesting.run_backtest(
+                candles_with_bars(), "FUTURES", "BTC/USDT", "15m",
+                funding_rate_per_8h=0.001,
+                funding_events=[{"timestamp": 100, "funding_rate": 0.001, "mark_price": 100}],
+            )
+
+    def test_exact_entry_funding_boundary_is_flagged_and_not_credited(self):
+        result = backtesting.funding_data.funding_cost_for_trade(
+            [{"timestamp": 10, "funding_rate": -0.01, "mark_price": 100.0}],
+            "LONG", 1.0, 10, 20,
+        )
+        self.assertEqual(result["funding_boundary_ambiguities"], 1)
+        self.assertEqual(result["funding_cost_usdt"], 0.0)
+
     def test_report_contains_reproducible_data_hash_and_cost_assumptions(self):
         result = backtesting.run_backtest(
             candles_with_bars(), "FUTURES", "BTC/USDT", "15m",
