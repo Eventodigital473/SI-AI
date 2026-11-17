@@ -427,6 +427,13 @@ def make_alert(market, symbol, signal, results):
                 "Liquidation price: NOT MODELLED/NOT CERTIFIED. Keep 1x leverage; "
                 "manually verify Binance margin mode and maintenance-margin rules."
             )
+            lines.append(
+                "Binance amount precision/minimum quantity/minimum notional: NOT "
+                "validated in this paper estimate. Before any manual order, check "
+                "the live contract filters, round quantity DOWN only, and skip "
+                "if the rounded size is below exchange minimums or exceeds the "
+                "0.50 USDT total-risk budget."
+            )
 
 
     reasons = reference.get("reasons", [])
