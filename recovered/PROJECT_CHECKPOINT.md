@@ -367,3 +367,12 @@ GitHub Actions run: [SI-AI Recovery Tests](https://github.com/Eventodigital473/S
 **Exact next step:** perform one bounded read-only public Binance historical OHLCV download after confirming the final Termux runtime environment, validate the dataset checksum, and run `historical_backtest.py`. Do not treat synthetic tests as market-performance evidence.
 
 **Still not production-certified:** historical sample performance, timestamped futures funding, exchange-specific liquidation/maintenance-margin model, forward paper observation, and final Termux notification/runtime checks. No automatic orders, no profitability guarantee. Main untouched; PR #1 remains draft/open/unmerged.
+
+
+### Production-equivalent multi-timeframe backtest correction (2026-11-17)
+
+- Identified that the first historical report runner used only single-timeframe SMC signals, which did not reproduce the live scanner's 15m/1h/4h/1d confluence. This was not suitable for production-strategy profitability evidence.
+- Reworked the runner to require four verified datasets for the same market/symbol and to reproduce scanner confluence at each 1h signal close. Auxiliary timeframe candles are included only when their full close time is at or before the 1h signal close.
+- Backtester now supports Spot SELL/EXIT closing an existing long at the next candle open and Futures opposite confirmed signals closing at the next candle open. Spot SELL never opens a short.
+- Added tests for multi-timeframe no-lookahead filtering, missing timeframe warm-up, spot exit, futures reversal, all-four-dataset requirement, and report integration.
+- Pending: CI verification. Futures profitability remains blocked by missing historical funding and liquidation/maintenance-margin models.

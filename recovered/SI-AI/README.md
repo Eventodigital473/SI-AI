@@ -101,11 +101,17 @@ python historical_data.py --market SPOT --symbol BTC/USDT --timeframe 1h --start
 Load and verify a saved dataset with `load_dataset(path)` before passing its candles to `backtesting.run_backtest`, `evaluate_chronological_validation`, or `evaluate_walk_forward`. The downloader uses public market-data endpoints only; it does not request API keys or place orders. Historical data is not a profitability guarantee.
 
 
-Run chronological holdout, expanding-window walk-forward evaluation, and the fail-closed profitability gate on a verified local dataset:
+Run production-equivalent chronological holdout, expanding-window walk-forward evaluation, and the fail-closed profitability gate. Supply four verified datasets for the same market and symbol:
 
 ```bash
-python historical_backtest.py --dataset data/historical/spot/BTC-USDT_1h_START_END.json
+python historical_backtest.py \
+  --dataset data/historical/spot/BTC-USDT_15m_START_END.json \
+  --dataset data/historical/spot/BTC-USDT_1h_START_END.json \
+  --dataset data/historical/spot/BTC-USDT_4h_START_END.json \
+  --dataset data/historical/spot/BTC-USDT_1d_START_END.json
 ```
+
+The runner reproduces scanner confluence: 1h entry setup, 4h directional agreement, and weighted 15m/1h/4h/1d confirmation. All auxiliary timeframe candles are filtered to those fully closed by the 1h signal close. Spot SELL/EXIT closes an existing long at the next 1h open; it never opens a short. Futures opposite signals close at the next 1h open.
 
 The runner saves a JSON report under `data/reports/` by default. Insufficient samples remain INCONCLUSIVE. Futures certification remains INCONCLUSIVE without historical funding and liquidation/maintenance-margin evidence. Synthetic test fixtures are used only to test report plumbing; they are not market-performance evidence.
 

@@ -60,6 +60,53 @@ class BacktestingTests(unittest.TestCase):
         self.assertEqual(seen[0], 80)
         self.assertLess(seen[0], data[80][0] + 1)
 
+    def test_spot_sell_signal_closes_long_at_next_candle_open(self):
+        data = candles_with_bars(84)
+        data[81] = [82, 99.0, 100.0, 98.5, 99.0, 1000.0]
+        calls = 0
+
+        def buy_then_exit(market, symbol, timeframe, history):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return {"signal": "BUY", "stop_loss": 98.0, "take_profit": 104.0}
+            if calls == 2:
+                return {"signal": "SELL/EXIT"}
+            return {"signal": "WAIT"}
+
+        result = backtesting.run_backtest(
+            data, "SPOT", "BTC/USDT", "1h",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=3, signal_fn=buy_then_exit,
+        )
+        self.assertEqual(len(result["trades"]), 1)
+        self.assertEqual(result["trades"][0]["side"], "LONG")
+        self.assertEqual(result["trades"][0]["exit_reason"], "SIGNAL_EXIT")
+        self.assertEqual(result["trades"][0]["exit_price"], 99.0)
+
+    def test_futures_opposite_signal_closes_position_at_next_open(self):
+        data = candles_with_bars(84)
+        data[81] = [82, 99.0, 100.0, 98.5, 99.0, 1000.0]
+        calls = 0
+
+        def buy_then_reverse(market, symbol, timeframe, history):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return {"signal": "BUY", "stop_loss": 98.0, "take_profit": 104.0}
+            if calls == 2:
+                return {"signal": "SELL"}
+            return {"signal": "WAIT"}
+
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "1h",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=3, signal_fn=buy_then_reverse,
+        )
+        self.assertEqual(len(result["trades"]), 1)
+        self.assertEqual(result["trades"][0]["exit_reason"], "SIGNAL_REVERSAL")
+        self.assertEqual(result["trades"][0]["exit_price"], 99.0)
+
     def test_spot_short_signals_are_not_opened(self):
         data = candles_with_bars()
 
