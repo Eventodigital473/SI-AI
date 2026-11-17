@@ -90,6 +90,12 @@ class FundingDataTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "markPrice"):
             funding_data.normalize_funding_event(row)
 
+    def test_unified_and_raw_funding_rate_mismatch_is_rejected(self):
+        row = event(1000, "0.001")
+        row["info"]["fundingRate"] = "0.002"
+        with self.assertRaisesRegex(ValueError, "rates disagree"):
+            funding_data.normalize_funding_event(row)
+
     def test_timestamp_mismatch_is_rejected(self):
         row = event(1000, "0.001")
         row["info"]["fundingTime"] = 1001
