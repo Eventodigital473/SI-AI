@@ -518,3 +518,40 @@ PR #1 targets `recovery/restore-upload-zip`. The repository default `main` branc
 5. Historical funding settlement timestamp ambiguities block certification whenever present.
 
 **Safety remains unchanged:** Binance manual execution only; no automatic orders, private API credentials, or leverage-setting. Paper policy remains 100 USDT equity, 0.5% risk, 20% margin cap, 1x recommendation, and minimum 2:1 R:R.
+
+
+---
+
+## SI-AI source-audit continuation checkpoint — 2026-11-18
+
+**Audit branch:** `fix/reject-boolean-market-data-numbers-2026-11-18`  
+**Source code head verified by CI:** `695618a0fbb2a8131f0e112e6c0bdbcc79bc2081`  
+**Successful GitHub Actions run:** https://github.com/Eventodigital473/SI-AI/actions/runs/44196417766
+
+### Additional defects found and corrected
+- `SI_AI_smc.validate_candles()` previously treated Python booleans as numeric OHLCV values because `bool` subclasses `int`. It now excludes booleans and rejects fractional candle timestamps while preserving existing zero-based synthetic fixtures.
+- `SI_AI_smc.validate_analysis_inputs()` now rejects boolean OHLCV values and fractional millisecond timestamps.
+- `backtesting.validate_ohlcv()` now rejects fractional millisecond timestamps; its shared numeric parser already rejects booleans.
+- `profitability_gate._finite_number()` now rejects booleans. Policy overrides now require valid positive integer sample/fold counts, finite non-negative thresholds, and a consistent positive-fold count not exceeding required folds.
+- Regression tests cover boolean values across all six OHLCV columns, fractional timestamps, boolean profitability metrics, boolean policy overrides, and invalid walk-forward policy relationships.
+- No strategy thresholds, signal logic, risk sizing, paper equity, margin, leverage, or order execution behavior changed.
+
+### Verification on exact source head
+- GitHub Actions run: https://github.com/Eventodigital473/SI-AI/actions/runs/44196417766
+- Exact tested source head: `695618a0fbb2a8131f0e112e6c0bdbcc79bc2081`.
+- Dependency consistency: PASS.
+- Minimal synchronous Termux CCXT profile: PASS.
+- Termux Widget shell syntax: PASS.
+- Python compilation: PASS.
+- Full suite: **159 passed, 3 warnings, 4 subtests passed**.
+- Earlier intermediate runs failed because zero-based test fixtures were initially rejected; that compatibility issue was corrected, and the exact head above passed the full suite.
+
+### Source-audit status
+- Signal lifecycle, scanner duplicate suppression, WAIT transitions, risk-sizing caps, next-open backtest entries, stop-gap handling, stop-first same-bar resolution, timestamped funding cashflows, and funding exit-window policy have been reviewed at source level in this pass.
+- The profitability gate remains fail-closed for missing historical funding, funding mark-price evidence, funding-boundary ambiguity, or absent exchange-specific liquidation modelling.
+- No automatic order-placement functions or API-key/secret fields were found in the source files searched during this pass; this is not a claim of live-device validation.
+- The Futures bookTicker issue and earlier 182 volume-qualified contracts remain pending live Termux verification. Do not merge PR #2 until that evidence is reviewed.
+- This source audit is not yet complete. Continue reviewing the remaining CLI/configuration, notification, universe eligibility and backtest assumptions before any final integration.
+- No PRs were merged. `main` and the user's Termux checkout remain untouched.
+
+**Safety:** signal-only; user manually executes Binance trades. Paper policy remains 100 USDT equity, 0.5% risk, 20% margin cap, 1x recommendation, and minimum 2:1 R:R. Profitability remains **INCONCLUSIVE**.
