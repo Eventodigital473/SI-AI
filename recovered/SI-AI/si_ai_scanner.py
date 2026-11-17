@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import subprocess
+import shutil
 import sys
 import tempfile
 import time
@@ -357,18 +358,73 @@ def make_alert(market, symbol, signal, results):
     return display_signal, "\n".join(lines)
 
 
-def send_notification(market, symbol, title, content):
+def notification_command(market, symbol, title, content):
+    signal = str(title).strip().upper()
+    if signal not in ("BUY", "SELL", "WAIT"):
+        raise ValueError(f"Unsupported notification signal: {title}")
+
+    # Android/Termux can show a colored signal glyph in the title. LED color
+    # is best-effort because many modern phones have no notification LED or
+    # Android/OEM notification settings may override it.
+    signal_style = {
+        "BUY": {
+            "title": "🟢 BUY",
+            "led": "00C853",
+            "vibrate": "0,120,80,120",
+            "priority": "high",
+            "sound": True,
+        },
+        "SELL": {
+            "title": "🔴 SELL",
+            "led": "FF1744",
+            "vibrate": "0,350,100,350",
+            "priority": "high",
+            "sound": True,
+        },
+        "WAIT": {
+            "title": "⚪ WAIT",
+            "led": None,
+            "vibrate": None,
+            "priority": "default",
+            "sound": False,
+        },
+    }[signal]
+
     command = [
         "termux-notification",
         "--id", str(notification_id(market, symbol)),
-        "--title", f"SI-AI: {title}",
+        "--title", f"SI-AI | {signal_style['title']}",
         "--content", content,
         "--group", "SI-AI",
-        "--sound"
+        "--priority", signal_style["priority"],
+        "--alert-once",
     ]
 
+    if signal_style["led"]:
+        command.extend([
+            "--led-color", signal_style["led"],
+            "--led-on", "700",
+            "--led-off", "400",
+        ])
+
+    if signal_style["vibrate"]:
+        command.extend(["--vibrate", signal_style["vibrate"]])
+
+    if signal_style["sound"]:
+        command.append("--sound")
+
+    return command
+
+
+def send_notification(market, symbol, title, content):
+    if shutil.which("termux-notification") is None:
+        raise RuntimeError(
+            "termux-notification command not found. Install the Termux:API "
+            "package and companion app, then grant notification permission."
+        )
+
     subprocess.run(
-        command,
+        notification_command(market, symbol, title, content),
         check=True,
         capture_output=True,
         text=True,
