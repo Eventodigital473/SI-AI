@@ -21,6 +21,8 @@ SignalFunction = Callable[[str, str, str, List[list]], Dict]
 
 
 def _number(value, name: str, minimum: Optional[float] = None) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be numeric, not boolean")
     try:
         result = float(value)
     except (TypeError, ValueError) as exc:
