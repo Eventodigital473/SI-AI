@@ -206,6 +206,9 @@ def run_dataset_backtest(
         "initial_equity": initial_equity,
         "signal_fn": signal_fn,
         "funding_events": funding_events,
+        "mark_price_candles": (
+            mark_dataset["candles"] if mark_dataset is not None else None
+        ),
     }
     try:
         chronological = backtesting.evaluate_chronological_validation(
@@ -299,6 +302,7 @@ def run_dataset_backtest(
             ("Timestamped Binance funding events and event-specific settlement mark prices are included." if funding_dataset is not None else "Timestamped historical funding data is not supplied."),
             ("Historical Binance mark-price OHLC is archived for the primary 1h timeframe, but liquidation events are not simulated until timestamp-matched historical maintenance-tier snapshots and conservative intrabar liquidation ordering are available." if mark_dataset is not None else "Historical mark-price candles are not supplied; liquidation events are not simulated."),
             "Futures profitability certification remains INCONCLUSIVE until exchange-specific historical liquidation and maintenance-margin modelling is validated.",
+            ("Conservative mark-price intrabar mark-to-market drawdown is included." if mark_dataset is not None else "Mark-to-market drawdown is unavailable; max drawdown is realized-only."),
             "Signals are evaluated only when all required timeframe histories are available and closed by the 1h signal close.",
         ],
     }
