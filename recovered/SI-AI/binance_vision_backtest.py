@@ -256,6 +256,12 @@ def run_archive_backtest(*, symbols=("BTC/USDT",), days=180, initial_equity=100.
         verified_mark = mark_price_data.load_mark_price_dataset(mark_path)
 
         funding_events, funding_hashes = _load_monthly_funding_rates(symbol, months)
+        funding_events = [
+            event for event in funding_events
+            if start_ms <= event["timestamp"] < end_ms
+        ]
+        if not funding_events:
+            raise ValueError(f"No Binance Vision funding events inside requested range for {symbol}")
         funding_path, funding_digest = _save_funding_rate_audit(
             symbol, start_ms, end_ms, funding_events, funding_hashes,
         )
