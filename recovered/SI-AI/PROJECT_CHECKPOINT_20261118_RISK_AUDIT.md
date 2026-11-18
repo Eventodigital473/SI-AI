@@ -5,8 +5,8 @@
 - Repository: `Eventodigital473/SI-AI`
 - Candidate branch: `fix/scanner-risk-audit-2026-11-18`
 - Draft PR: [#17 — Independently validate Futures risk sizing before alerts](https://github.com/Eventodigital473/SI-AI/pull/17)
-- Latest code/test head: `b8982eab090f209496fb4c0e8337b5c86377ead0`
-- Latest CI: [44248300121](https://github.com/Eventodigital473/SI-AI/actions/runs/44248300121) — 208 passed, 4 subtests passed; dependency consistency, minimal synchronous Termux CCXT profile, Widget shell validation and Python compilation passed.
+- Latest candidate head: `4a3181d13a2716b125184eed96fbd8874160e6ea`
+- Latest CI: [44248888464](https://github.com/Eventodigital473/SI-AI/actions/runs/44248888464) — 208 passed, 4 subtests passed; dependency consistency, minimal synchronous Termux CCXT profile, Widget shell validation and Python compilation passed.
 - PR #17 is open, draft, mergeable and unmerged. No changes were made to `main` or the user's Termux checkout.
 
 ## Verified risk and scanner work
@@ -17,7 +17,8 @@
 - Scanner startup and entry validation enforce the fixed 100 USDT reference equity, 0.5% per-trade risk, 20% margin cap and 1x leverage policy; changes fail closed.
 - Added scanner regression tests for valid BUY/SELL, forged R:R, a claimed 2:1 value when actual net R:R is below 2:1, oversized sizing, inconsistent notional and missing sizing fields.
 - Alerts now explicitly label net Reward/Risk after fees/slippage and include estimated net target reward.
-- Updated the Termux runbook to clone this isolated candidate into `~/SI-AI_FINAL_VALIDATION`, preserving the existing checkout.
+- Updated the Termux runbook to clone this isolated candidate into `~/SI-AI_FINAL_VALIDATION`, preserving the existing checkout, and install dependencies in an ignored `.venv` so global Termux Python packages are not changed.
+- Widget Start/Check/Dry Run/Stop scripts now select the validation clone first and use its `.venv` when present; existing `SI-AI_FINAL` and `SI-AI_FUTURES` paths remain fallbacks.
 - Offline Termux preflight checks for the separate `com.termux.api` companion app when Android package-manager access is available and warns when it is confirmed missing; unavailable package inspection is reported as INFO.
 - Static code search across the active engine, scanner, API, backtest, data and liquidation modules found no order-placement, cancellation, leverage-setting, private endpoint or balance-fetch calls.
 
