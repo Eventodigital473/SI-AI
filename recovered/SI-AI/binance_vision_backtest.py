@@ -107,6 +107,8 @@ def _validate_candle_coverage(candles, timeframe, start_ms, end_ms):
         isinstance(start_ms, bool) or not isinstance(start_ms, int)
         or isinstance(end_ms, bool) or not isinstance(end_ms, int)
         or end_ms <= start_ms
+        or start_ms % interval_ms
+        or end_ms % interval_ms
         or (end_ms - start_ms) % interval_ms
     ):
         raise ValueError("Requested archive window must be positive and timeframe-aligned")
