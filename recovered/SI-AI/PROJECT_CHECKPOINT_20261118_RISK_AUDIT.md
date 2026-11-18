@@ -5,8 +5,8 @@
 - Repository: `Eventodigital473/SI-AI`
 - Candidate branch: `fix/scanner-risk-audit-2026-11-18`
 - Draft PR: [#17 — Independently validate Futures risk sizing before alerts](https://github.com/Eventodigital473/SI-AI/pull/17)
-- Latest code/test head at checkpoint creation: `004416f059bc1344fd23dc6ddc30bac390e4649d`
-- Latest CI: [44247607772](https://github.com/Eventodigital473/SI-AI/actions/runs/44247607772) — 206 passed, 4 subtests passed; dependency consistency, minimal synchronous Termux CCXT profile, Widget shell validation and Python compilation passed.
+- Latest code/test head: `b8982eab090f209496fb4c0e8337b5c86377ead0`
+- Latest CI: [44248300121](https://github.com/Eventodigital473/SI-AI/actions/runs/44248300121) — 208 passed, 4 subtests passed; dependency consistency, minimal synchronous Termux CCXT profile, Widget shell validation and Python compilation passed.
 - PR #17 is open, draft, mergeable and unmerged. No changes were made to `main` or the user's Termux checkout.
 
 ## Verified risk and scanner work
@@ -14,9 +14,11 @@
 - Rechecked the fee-aware long/short formulas in `SI_AI_smc.py`; the engine's per-unit risk, net reward, quantity, notional, fees, slippage and margin calculations are algebraically consistent with the configured assumptions.
 - Added independent tests for long and short net R:R and the `entry_slippage_included=True` backtest path.
 - Hardened scanner `valid_risk()`: it now independently recomputes net R:R and theoretical position sizing, then verifies quantity, notional, gross/total risk, fees, slippage, net target reward, leverage and margin fields. Missing or inconsistent fields fail closed to WAIT.
+- Scanner startup and entry validation enforce the fixed 100 USDT reference equity, 0.5% per-trade risk, 20% margin cap and 1x leverage policy; changes fail closed.
 - Added scanner regression tests for valid BUY/SELL, forged R:R, a claimed 2:1 value when actual net R:R is below 2:1, oversized sizing, inconsistent notional and missing sizing fields.
 - Alerts now explicitly label net Reward/Risk after fees/slippage and include estimated net target reward.
 - Updated the Termux runbook to clone this isolated candidate into `~/SI-AI_FINAL_VALIDATION`, preserving the existing checkout.
+- Offline Termux preflight checks for the separate `com.termux.api` companion app when Android package-manager access is available and warns when it is confirmed missing; unavailable package inspection is reported as INFO.
 - Static code search across the active engine, scanner, API, backtest, data and liquidation modules found no order-placement, cancellation, leverage-setting, private endpoint or balance-fetch calls.
 
 ## Current policy and scope
@@ -37,7 +39,7 @@
 3. `backtesting.py` currently builds its drawdown equity curve from realized trade exits; it does not mark open positions to market between entry and exit. Reported max drawdown can therefore understate intratrade adverse excursion. This needs a separate conservative mark-to-market audit before profitability certification.
 4. No 180-day public Futures backtest has yet produced a reviewed report.
 5. The prior live-universe diagnosis found 182 volume-qualified Futures contracts; a fresh Termux bookTicker/spread diagnosis remains pending.
-6. Android notification delivery previously timed out. The separate Termux:API companion app and Android notification permission have not been confirmed. The candidate branch provides `python si_ai_scanner.py --test-notifications` for BUY/SELL/WAIT device-only smoke tests.
+6. Android notification delivery previously timed out. The separate Termux:API companion app and Android notification permission have not been confirmed. Offline preflight now checks the companion package when possible. The candidate branch provides `python si_ai_scanner.py --test-notifications` for BUY/SELL/WAIT device-only smoke tests.
 
 ## Exact next steps
 
