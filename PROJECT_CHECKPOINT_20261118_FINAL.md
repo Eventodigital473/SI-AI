@@ -1,9 +1,10 @@
-# SI-AI Resume Checkpoint — 2026-11-18
+# SI-AI Resume Checkpoint — 2026-11-18 (updated after 365-day validation)
 
 ## Candidate and safety
 - Repository: Eventodigital473/SI-AI
 - Candidate branch: fix/scanner-risk-audit-2026-11-18
-- Latest head: 853d758e3ea75ade96cd2bfdaad66dccd88cce61 (Termux runbook documentation correction only; validated Python code is unchanged from 3aa29bf61d934ca480915c64b910f2989aec617c).
+- Current branch/PR head: 3629d28e2f9f64880fcff1f181bf2cf0664f29a8 (checkpoint-document-only commit after validated code).
+- Historical validation code head: 853d758e3ea75ade96cd2bfdaad66dccd88cce61; its Python code is unchanged from 3aa29bf61d934ca480915c64b910f2989aec617c.
 - Draft PR: https://github.com/Eventodigital473/SI-AI/pull/17
 - PR #17 is open, draft, mergeable and unmerged. Do not merge without explicit user approval.
 - Futures-only; Spot excluded from the active scanner/backtest files.
@@ -11,50 +12,54 @@
 - Reference equity 100 USDT; per-trade risk 0.5%; margin allocation cap 20%; leverage guidance 1x; minimum net R:R 2:1.
 
 ## Verified automated checks
-- Latest candidate CI: https://github.com/Eventodigital473/SI-AI/actions/runs/44290166008
-- Result: 221 passed, 4 subtests passed.
-- Dependency consistency, minimal Termux CCXT profile, Widget shell validation and Python compilation passed.
+- Python/Termux CI run 44291060801: SUCCESS; 221 passed, 4 subtests passed; dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax/installer preservation, and Python compilation passed.
+- Duplicate CI run 44291070721: SUCCESS on the same candidate code.
+- CI run 44290166008: SUCCESS on code head 3aa29bf61d934ca480915c64b910f2989aec617c (221 passed, 4 subtests passed).
+- The old historical workflow 44290154788 was cancelled by the concurrency policy; it is superseded and must not be treated as a failure.
+- Replacement 365-day historical workflow 44291060559: SUCCESS on documentation-only descendant 853d758e3ea75ade96cd2bfdaad66dccd88cce61; the Python research code is equivalent to 3aa29bf.
 - Core source static review found no Spot references in SI_AI_smc.py or si_ai_scanner.py and no create_order/cancel_order/set_leverage/private/balance calls in those files.
 
-## Changes made in this continuation
-- Added checksum-verified Binance Vision monthly archive loader for USD-M OHLCV, mark-price candles and funding-rate audit files.
-- Added daily markPriceKlines archive fallback to repair missing 1h mark-price candles; no interpolation or synthetic candles are used.
-- Added tests for checksum validation, path traversal, CSV parsing, symbol validation and daily archive gap repair.
-- Added conservative intratrade mark-to-market drawdown from timestamp-aligned mark-price OHLC. The equity path assumes favourable extreme before adverse extreme per candle as a conservative intrabar bound.
-- Chronological train and walk-forward folds now slice mark-price arrays to the same prefix length as their OHLCV data.
+## Completed changes
+- Checksum-verified Binance Vision monthly archive loader for USD-M OHLCV, mark-price candles and funding-rate audit files.
+- Daily markPriceKlines archive fallback repairs identified missing 1h mark-price candles; no interpolation or synthetic candles are used.
+- Tests cover checksum validation, path traversal, CSV parsing, symbol validation and daily archive gap repair.
+- Conservative intratrade mark-to-market drawdown uses timestamp-aligned mark-price OHLC; intrabar ordering is a conservative bound.
+- Chronological training and walk-forward folds slice mark-price arrays to match their OHLCV prefixes.
 - Mark-price timestamps must exactly align; mismatch fails closed.
 - Funding settlement ambiguity for open, intrabar and close exits is aligned with funding_data.py rules.
 - Profitability gate cannot PASS with realized-only drawdown.
+- Termux runbook corrected to use binance_vision_backtest.py and explicitly state funding is audit-only, not applied to P&L.
 
-## Preliminary 180-day results (not final candidate)
-A checksum-verified 180-day Binance Vision run completed on an earlier pre-mark-to-market code revision for BTC, ETH and SOL. Fees and slippage were included; funding costs were excluded because the archive does not include exact event-specific settlement markPrice. Walk-forward net P&L was negative for all three:
-- BTC: -0.1661 USDT
-- ETH: -0.8210 USDT
-- SOL: -1.0589 USDT
-The small ETH OOS gain did not persist in walk-forward. These results are preliminary and must not be treated as final candidate metrics.
+## 365-day historical validation — completed 2026-11-18
+- Workflow: https://github.com/Eventodigital473/SI-AI/actions/runs/44291060559
+- Artifact: si-ai-futures-validation-44291060559; 71 files; 10.7 MB.
+- Artifact SHA-256: e4cf59c0018f2b7ce565b5e46aa87a6bd589a1f035d9954f20fd103a32b0460e
+- Period: 2025-11-01 through 2026-11-01 UTC (exclusive end).
+- Symbols: BTC, ETH, BNB, XRP, ADA, DOGE, LINK, AVAX, DOT, SOL.
+- Per-symbol OOS sample: 2–8 trades; 52 trades total across independent symbol runs.
+- Diagnostic sum of OOS net P&L across independent 100-USDT symbol runs: -1.892547 USDT; this is NOT a shared-wallet portfolio result.
+- Walk-forward sample: 70 trades total across independent symbol runs; diagnostic sum net P&L -5.541666 USDT; this is NOT a shared-wallet portfolio result.
+- OOS positive/negative symbols: 5 / 5. Walk-forward positive/negative symbols: 4 / 6.
+- Every symbol profitability_gate: FAIL. Overall research summary certification: INCONCLUSIVE.
+- All per-symbol OOS samples are far below the 100-trade gate; individual walk-forward folds contain 0–6 trades versus the required 20 per fold.
+- Positive individual OOS results do not persist consistently in walk-forward; no symbol is certified profitable.
 
-## Current long-run validation
-- Workflow: https://github.com/Eventodigital473/SI-AI/actions/runs/44290154788
-- Run head: 3aa29bf61d934ca480915c64b910f2989aec617c
-- Scope: 365 days, ten USD-M perpetuals: BTC, ETH, BNB, XRP, ADA, DOGE, LINK, AVAX, DOT, SOL.
-- At checkpoint creation the workflow is in progress at the historical backtest step. Its result is not yet known.
-- The obsolete intermediate run was cancelled; this latest run includes the mark-price prefix alignment and funding-boundary fixes.
-- A later documentation-only commit corrected the Termux runbook's stale historical-backtest command and removed its incorrect claim that Binance Vision funding archives contain settlement mark prices. The correct optional local runner is `binance_vision_backtest.py`; funding rates are audit-only and are not applied to P&L.
-- The documentation commit triggered fresh CI runs `44291060801` and `44291070721`, plus a queued historical workflow `44291060559`. These are not yet completed; do not count them as passed.
-- Workflow artifacts are intended to preserve historical datasets and JSON reports.
-
-## Known blockers — do not claim profitability
-1. Binance Vision funding-rate archives do not include the exact settlement markPrice. Rates are archived for audit but not applied to P&L; exact funding cashflows remain missing.
-2. Timestamp-matched historical maintenance-margin tier snapshots are unavailable, so historical liquidation events are not simulated.
-3. The current multi-symbol run uses independent 100-USDT reference equity per symbol, not a shared-wallet portfolio simulation.
-4. Termux runtime, live Binance public-data connectivity from the user's device, and Android notification delivery have not been tested on the user's phone.
-5. Profitability requires adequate OOS/walk-forward sample size and every evidence gate; no profit guarantee or claim is permitted.
+## Certification blockers — do not claim profitability
+1. Binance Vision funding-rate archives do not include exact event-specific settlement markPrice. Rates are archived for audit but not applied to P&L.
+2. Timestamp-matched historical maintenance-margin tier snapshots are unavailable; historical liquidation events are not simulated.
+3. Mark-price OHLC does not replace exact intrabar liquidation sequencing.
+4. The ten symbols use independent 100-USDT reference equity; no shared-wallet portfolio simulation exists.
+5. Trade sample size is insufficient: 2–8 OOS trades per symbol and 0–6 trades per walk-forward fold.
+6. Android/Termux runtime, live public-data connectivity and Android notification delivery have not been tested on the user's phone.
+7. Historical results do not guarantee future performance.
 
 ## Exact next steps
-1. Check workflow 44290154788 until completion; inspect its artifact and per-symbol OOS/walk-forward metrics.
-2. Fix any archive, data, backtest or CI failures, then rerun the full suite and long-run research.
-3. Update the in-repo project checkpoint after the final long-run report is reviewed.
-4. Only then prepare the single final Termux deployment/verification step. Do not ask the user to run Termux commands before the remote code and research checks are complete.
-5. Keep PR #17 draft/unmerged until the user explicitly approves integration.
+1. Continue read-only strategy/backtest audit without changing parameters based on OOS results; inspect signal scarcity, train/OOS split integrity, walk-forward aggregation, trade execution assumptions, and risk sizing.
+2. Extend the historical window toward the runner's supported 730-day maximum to seek a larger independent sample; preserve chronological OOS and walk-forward separation. Do not lower evidence thresholds just to obtain a PASS.
+3. Investigate a verifiable source for exact historical funding settlement mark prices and timestamp-matched maintenance-margin tier snapshots. If unavailable, keep the gate fail-closed.
+4. Build and test a shared-wallet multi-symbol portfolio simulator before making portfolio-level claims.
+5. Rerun full CI and historical research after any code change; update this checkpoint with exact commit, run IDs, artifact digest and observed metrics.
+6. Only after remote code/research review, prepare one final isolated Termux deployment/verification step. Do not overwrite the existing ~/SI-AI_FINAL checkout.
+7. Keep PR #17 draft/unmerged until the user explicitly approves integration.
 
 No live trading is enabled. No automatic orders are placed.
