@@ -10,6 +10,7 @@ from importlib import metadata
 import os
 import platform
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -21,7 +22,34 @@ def _check(name, status, detail):
     return {"name": name, "status": status, "detail": str(detail)}
 
 
-def collect_preflight(project_dir=None, shortcuts_dir=None, command_lookup=None, prefix=None):
+def _termux_api_companion_installed():
+    """Return True/False when Android package manager can verify the companion; None if unknown."""
+    package_manager = Path("/system/bin/pm")
+    if not package_manager.is_file():
+        return None
+    try:
+        result = subprocess.run(
+            [str(package_manager), "path", "com.termux.api"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return (
+        result.returncode == 0
+        and any(line.strip().startswith("package:") for line in result.stdout.splitlines())
+    )
+
+
+def collect_preflight(
+    project_dir=None,
+    shortcuts_dir=None,
+    command_lookup=None,
+    prefix=None,
+    package_lookup=None,
+):
     project = Path(project_dir) if project_dir is not None else BASE_DIR
     shortcuts = Path(shortcuts_dir) if shortcuts_dir is not None else Path.home() / ".shortcuts"
     lookup = command_lookup or shutil.which
@@ -105,7 +133,29 @@ def collect_preflight(project_dir=None, shortcuts_dir=None, command_lookup=None,
     checks.append(_check(
         "termux_api_command",
         "PASS" if notification else "WARN",
-        notification or "termux-notification not found; install Termux:API package and companion app",
+        notification or "termux-notification not found; install the Termux:API package",
+    ))
+    companion_lookup = package_lookup or _termux_api_companion_installed
+    companion_installed = companion_lookup()
+    if companion_installed is True:
+        companion_status = "PASS"
+        companion_detail = "Android package com.termux.api is installed"
+    elif companion_installed is False:
+        companion_status = "WARN"
+        companion_detail = (
+            "Termux:API companion app is not installed; install it from the same "
+            "signing source as Termux, then grant notification permission"
+        )
+    else:
+        companion_status = "INFO"
+        companion_detail = (
+            "Android package manager unavailable; companion-app installation "
+            "must be confirmed with a phone-side notification test"
+        )
+    checks.append(_check(
+        "termux_api_companion_app",
+        companion_status,
+        companion_detail,
     ))
     toast = lookup("termux-toast")
     checks.append(_check(
