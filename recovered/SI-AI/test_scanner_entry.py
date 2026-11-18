@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import si_ai_scanner as scanner
 
@@ -128,6 +129,11 @@ class ScannerEntryConfirmationTests(unittest.TestCase):
             scanner.confirm_signal("FUTURES", self.results, self.combined),
             "WAIT",
         )
+
+    def test_reference_paper_equity_policy_cannot_change_silently(self):
+        with patch.object(scanner.smc, "PAPER_EQUITY_USDT", 1000.0):
+            with self.assertRaisesRegex(RuntimeError, "100 USDT"):
+                scanner.validate_config()
 
 
 if __name__ == "__main__":
