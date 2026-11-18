@@ -1,16 +1,6 @@
 name: SI-AI Futures historical validation
 
 on:
-  push:
-    paths:
-      - "recovered/SI-AI/**"
-      - ".github/workflows/futures-historical-backtest.yml"
-  pull_request:
-    branches:
-      - integration/si-ai-consolidated-2026-11-18
-    paths:
-      - "recovered/SI-AI/**"
-      - ".github/workflows/futures-historical-backtest.yml"
   workflow_dispatch:
 
 permissions:
