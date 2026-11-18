@@ -3,7 +3,7 @@
 ## Candidate and safety
 - Repository: Eventodigital473/SI-AI
 - Candidate branch: fix/scanner-risk-audit-2026-11-18
-- Latest head: bb87ac221094ce4d661f2c8f53e24e41ebc906bd (documentation-only checkpoint commit; tested code is unchanged from 3aa29bf61d934ca480915c64b910f2989aec617c)
+- Latest head: 853d758e3ea75ade96cd2bfdaad66dccd88cce61 (Termux runbook documentation correction only; validated Python code is unchanged from 3aa29bf61d934ca480915c64b910f2989aec617c).
 - Draft PR: https://github.com/Eventodigital473/SI-AI/pull/17
 - PR #17 is open, draft, mergeable and unmerged. Do not merge without explicit user approval.
 - Futures-only; Spot excluded from the active scanner/backtest files.
@@ -39,6 +39,8 @@ The small ETH OOS gain did not persist in walk-forward. These results are prelim
 - Scope: 365 days, ten USD-M perpetuals: BTC, ETH, BNB, XRP, ADA, DOGE, LINK, AVAX, DOT, SOL.
 - At checkpoint creation the workflow is in progress at the historical backtest step. Its result is not yet known.
 - The obsolete intermediate run was cancelled; this latest run includes the mark-price prefix alignment and funding-boundary fixes.
+- A later documentation-only commit corrected the Termux runbook's stale historical-backtest command and removed its incorrect claim that Binance Vision funding archives contain settlement mark prices. The correct optional local runner is `binance_vision_backtest.py`; funding rates are audit-only and are not applied to P&L.
+- The documentation commit triggered fresh CI runs `44291060801` and `44291070721`, plus a queued historical workflow `44291060559`. These are not yet completed; do not count them as passed.
 - Workflow artifacts are intended to preserve historical datasets and JSON reports.
 
 ## Known blockers — do not claim profitability
