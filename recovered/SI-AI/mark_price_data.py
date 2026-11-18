@@ -145,6 +145,9 @@ def download_mark_price_ohlcv(
     if not collected:
         raise ValueError("No fully closed historical mark-price candles were returned")
     smc.validate_candle_continuity(collected, timeframe)
+    historical_data.validate_candle_window_coverage(
+        collected, timeframe, start, end, current
+    )
     return collected
 
 
@@ -167,6 +170,9 @@ def save_mark_price_dataset(symbol, timeframe, candles, *, output_path=None,
     end = _timestamp(end_ms if end_ms is not None else normalized[-1][0] + interval_ms, "end_ms")
     if end <= start or normalized[0][0] < start or normalized[-1][0] + interval_ms > end:
         raise ValueError("Mark-price candles fall outside declared [start_ms, end_ms) range")
+    historical_data.validate_candle_window_coverage(
+        normalized, timeframe, start, end, end
+    )
     digest = hashlib.sha256(json.dumps(normalized, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
     path = Path(output_path) if output_path is not None else (
         DATA_DIR / f"{symbol.replace('/', '-')}_{timeframe}_{start}_{end}.json"
@@ -228,6 +234,9 @@ def load_mark_price_dataset(path):
         raise ValueError("Mark-price dataset has an invalid time range")
     if normalized[0][0] < start or normalized[-1][0] + interval_ms > end:
         raise ValueError("Mark-price candles fall outside declared time range")
+    historical_data.validate_candle_window_coverage(
+        normalized, timeframe, start, end, end
+    )
     digest = hashlib.sha256(json.dumps(normalized, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
     if payload.get("data_sha256") != digest or payload.get("candle_count") != len(normalized):
         raise ValueError("Mark-price dataset integrity check failed")
