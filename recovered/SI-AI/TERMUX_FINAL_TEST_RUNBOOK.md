@@ -69,7 +69,7 @@ The previous Termux diagnosis found 182 volume-qualified contracts; a fresh phon
 
 ## 5. Test Android notification appearance
 
-First install/enable the Termux:API companion app from a trusted source and grant Android notification permission to Termux. Then run:
+First install/enable the Termux:API companion app from the same signing source as the main Termux app (for example, do not mix F-Droid and GitHub APK signatures), then grant Android notification permission to Termux. The offline preflight now reports a WARN if Android package manager confirms that `com.termux.api` is missing; if package inspection is unavailable, the phone-side notification test remains required. Then run:
 
 ```bash
 python si_ai_scanner.py --test-notifications
