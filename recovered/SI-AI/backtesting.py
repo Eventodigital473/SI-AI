@@ -128,7 +128,7 @@ def _validate_mark_price_candles(mark_price_candles, data):
 
 
 def _funding_cost_as_of(events, side, quantity, entry_timestamp, cutoff_timestamp,
-                        *, exit_timestamp, exit_timing):
+                        *, exit_timestamp, exit_window_end_timestamp, exit_timing):
     """Conservative funding cashflows accrued by a mark-to-market checkpoint."""
     if not events:
         return 0.0
@@ -142,8 +142,10 @@ def _funding_cost_as_of(events, side, quantity, entry_timestamp, cutoff_timestam
         ambiguous = timestamp == entry_timestamp
         if exit_timing == "open":
             ambiguous = ambiguous or timestamp == exit_timestamp
-        elif exit_timing in ("intrabar", "close"):
+        elif exit_timing == "intrabar":
             ambiguous = ambiguous or timestamp >= exit_timestamp
+        elif exit_timing == "close":
+            ambiguous = ambiguous or timestamp == exit_window_end_timestamp
         # Never assume a funding credit at an ambiguous entry/exit boundary.
         if ambiguous and cashflow < 0:
             continue
@@ -380,6 +382,7 @@ def run_backtest(
                     funding_events, side, quantity,
                     data[entry_bar_index][0], cutoff_timestamp,
                     exit_timestamp=exit_timestamp,
+                    exit_window_end_timestamp=funding_exit_window_end,
                     exit_timing=funding_exit_timing,
                 )
                 for mark_price in checkpoint_prices:
