@@ -45,9 +45,9 @@ jobs:
         run: python -m pytest -q
         working-directory: recovered/SI-AI
 
-      - name: Run 180-day public Binance USD-M Futures backtest
+      - name: Run 180-day checksum-verified Binance Vision USD-M Futures backtest
         run: |
-          python run_public_futures_backtest.py \
+          python binance_vision_backtest.py \
             --days 180 \
             --symbol BTC/USDT \
             --symbol ETH/USDT \
