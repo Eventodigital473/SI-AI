@@ -54,9 +54,12 @@ def validate_config():
     if not minimum_coins <= target_coins <= maximum_coins:
         raise RuntimeError("Target coin count must be between minimum and maximum")
 
+    paper_equity = number(getattr(smc, "PAPER_EQUITY_USDT", None))
     risk_percent = number(getattr(smc, "RISK_PER_TRADE_PERCENT", None))
     margin_percent = number(getattr(smc, "MARGIN_ALLOCATION_PERCENT", None))
     leverage = number(getattr(smc, "RECOMMENDED_FUTURES_LEVERAGE", None))
+    if paper_equity is None or not math.isclose(paper_equity, 100.0, abs_tol=1e-9):
+        raise RuntimeError("Reference paper equity must remain at 100 USDT")
     if risk_percent is None or not math.isclose(risk_percent, 0.5, abs_tol=1e-9):
         raise RuntimeError("Per-trade risk policy must remain at 0.5%")
     if margin_percent is None or not math.isclose(margin_percent, 20.0, abs_tol=1e-9):
@@ -290,10 +293,10 @@ def valid_risk(market, signal, result):
         if (
             fee_rate < 0 or fee_rate >= 0.05
             or slippage_rate < 0 or slippage_rate >= 0.05
-            or equity <= 0
-            or risk_percent <= 0 or risk_percent > 100
-            or margin_percent <= 0 or margin_percent > 100
-            or leverage <= 0
+            or not math.isclose(equity, 100.0, abs_tol=1e-9)
+            or not math.isclose(risk_percent, 0.5, abs_tol=1e-9)
+            or not math.isclose(margin_percent, 20.0, abs_tol=1e-9)
+            or not math.isclose(leverage, 1.0, abs_tol=1e-9)
             or minimum_rr < 2.0
         ):
             return False
