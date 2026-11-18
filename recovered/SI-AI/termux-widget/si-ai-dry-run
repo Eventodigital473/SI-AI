@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR=""
-for candidate in "$HOME/SI-AI_FINAL/recovered/SI-AI" "$HOME/SI-AI_FUTURES/recovered/SI-AI"; do
+for candidate in "$HOME/SI-AI_FINAL_VALIDATION/recovered/SI-AI" "$HOME/SI-AI_FINAL/recovered/SI-AI" "$HOME/SI-AI_FUTURES/recovered/SI-AI"; do
     if [ -f "$candidate/si_ai_scanner.py" ]; then
         PROJECT_DIR="$candidate"
         break
@@ -14,7 +14,12 @@ if [ -z "$PROJECT_DIR" ]; then
     exit 1
 fi
 
+PYTHON_BIN="$PROJECT_DIR/.venv/bin/python"
+if [ ! -x "$PYTHON_BIN" ]; then
+    PYTHON_BIN="$(command -v python)" || exit 1
+fi
+
 mkdir -p "$PROJECT_DIR/logs"
 cd "$PROJECT_DIR"
-python si_ai_scanner.py --once --dry-run 2>&1 | tee -a "$PROJECT_DIR/logs/si_ai_widget_dry_run.log"
+"$PYTHON_BIN" si_ai_scanner.py --once --dry-run 2>&1 | tee -a "$PROJECT_DIR/logs/si_ai_widget_dry_run.log"
 command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI dry-run finished; check log"
