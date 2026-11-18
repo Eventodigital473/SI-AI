@@ -29,6 +29,7 @@ class SharedWalletTests(unittest.TestCase):
             "entry_timestamp": entry, "exit_timestamp": exit,
             "entry_price": price, "stop_loss": stop,
             "quantity": 0.1, "net_pnl_usdt": pnl,
+            "funding_exit_timing": "intrabar",
         }
 
     def test_single_trade_is_sized_and_closed(self):
@@ -62,6 +63,21 @@ class SharedWalletTests(unittest.TestCase):
         self.assertEqual(result["capacity_skipped_trade_count"], 1)
         self.assertEqual(result["candidate_trade_count"], 2)
 
+    def test_open_exit_releases_margin_before_same_timestamp_entry(self):
+        first = self.trade("BTC/USDT", entry=self.t0, exit=self.t0 + HOUR_MS)
+        first["funding_exit_timing"] = "open"
+        second = self.trade("ETH/USDT", entry=self.t0 + HOUR_MS, exit=self.t0 + 2 * HOUR_MS)
+        result = simulate_shared_wallet([first, second], self.marks)
+        self.assertEqual(result["executed_trade_count"], 2)
+        self.assertEqual(result["capacity_skipped_trade_count"], 0)
+
+    def test_open_exit_does_not_mark_the_following_candle(self):
+        first = self.trade("BTC/USDT", entry=self.t0, exit=self.t0 + HOUR_MS)
+        first["funding_exit_timing"] = "open"
+        self.marks["BTC/USDT"][1][3] = 1.0
+        result = simulate_shared_wallet([first], self.marks)
+        self.assertLess(result["max_drawdown_percent"], 5.0)
+
     def test_missing_mark_candle_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "missing BTC/USDT mark candle"):
             simulate_shared_wallet(
@@ -77,13 +93,20 @@ class SharedWalletTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "overlapping trades"):
             simulate_shared_wallet(trades, self.marks)
 
-    def test_same_symbol_exit_entry_boundary_is_rejected_as_ambiguous(self):
+    def test_same_symbol_intrabar_exit_entry_boundary_is_rejected_as_ambiguous(self):
         trades = [
             self.trade(entry=self.t0, exit=self.t0 + HOUR_MS),
             self.trade(entry=self.t0 + HOUR_MS, exit=self.t0 + 2 * HOUR_MS),
         ]
         with self.assertRaisesRegex(ValueError, "overlapping trades"):
             simulate_shared_wallet(trades, self.marks)
+
+    def test_same_symbol_open_exit_entry_boundary_is_allowed(self):
+        first = self.trade(entry=self.t0, exit=self.t0 + HOUR_MS)
+        first["funding_exit_timing"] = "open"
+        second = self.trade(entry=self.t0 + HOUR_MS, exit=self.t0 + 2 * HOUR_MS)
+        result = simulate_shared_wallet([first, second], self.marks)
+        self.assertEqual(result["executed_trade_count"], 2)
 
     def test_bad_stop_direction_rejected(self):
         trade = self.trade(side="LONG")
