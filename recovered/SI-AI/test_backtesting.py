@@ -345,6 +345,22 @@ class BacktestingTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["trade_count"], 0)
 
 
+    def test_mark_to_market_funding_keeps_unambiguous_close_bar_credit(self):
+        events = [
+            {"timestamp": 20, "funding_rate": -0.01, "mark_price": 100.0},
+            {"timestamp": 30, "funding_rate": -0.01, "mark_price": 100.0},
+        ]
+        cost = backtesting._funding_cost_as_of(
+            events, "LONG", 1.0, 10, 30,
+            exit_timestamp=20,
+            exit_window_end_timestamp=30,
+            exit_timing="close",
+        )
+        # The funding event at the exit candle open is unambiguous; only the
+        # exact candle-close settlement boundary must not assume a credit.
+        self.assertAlmostEqual(cost, -1.0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
