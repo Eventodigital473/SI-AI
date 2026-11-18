@@ -5,13 +5,19 @@ on:
     paths:
       - "recovered/SI-AI/**"
       - ".github/workflows/futures-historical-backtest.yml"
+  pull_request:
+    branches:
+      - integration/si-ai-consolidated-2026-11-18
+    paths:
+      - "recovered/SI-AI/**"
+      - ".github/workflows/futures-historical-backtest.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: si-ai-futures-historical-validation-${{ github.ref }}
+  group: si-ai-futures-historical-validation-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
