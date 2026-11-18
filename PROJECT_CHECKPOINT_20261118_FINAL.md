@@ -73,3 +73,16 @@
 7. Keep PR #17 draft/unmerged until the user explicitly approves integration.
 
 No live trading is enabled. No automatic orders are placed.
+
+
+## Resume update — 2026-11-18 16:09 UTC
+
+- Latest code commit: `9528aa872453d90699a2783c6db4fb1b1f49585e`.
+- Fixed Binance Vision CSV parsing: only documented `open_time` and `calc_time` headers are skipped; an arbitrary malformed first row now raises an error rather than silently dropping the first candle/funding record.
+- Added regression test for malformed first archive data row.
+- Latest full PR CI: [44343719061](https://github.com/Eventodigital473/SI-AI/actions/runs/44343719061) — SUCCESS; **232 passed, 8 subtests passed in 1.42s**. Dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax and Python compilation also passed.
+- Latest 730-day historical validation for this exact code commit: [44343707734](https://github.com/Eventodigital473/SI-AI/actions/runs/44343707734) — still running at 16:09 UTC. Dependency, compile and full test stages passed; the archive backtest step is in progress. No report/artifact or historical outcome is claimed yet.
+- Previous 730-day attempts on older commits were cancelled when newer candidate commits superseded them; do not use their partial state as a completed result.
+- Workflow now runs on integration PR changes as well as pushes/manual dispatch.
+- PR #17 remains draft and unmerged. No automatic order placement or private account API has been enabled.
+- Next exact step: wait for run 44343707734 to finish, inspect its report and dataset artifacts, then fix any archive/data/backtest failures. Do not certify profitability if funding or historical liquidation evidence remains incomplete.
