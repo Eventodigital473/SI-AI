@@ -320,6 +320,31 @@ class BacktestingTests(unittest.TestCase):
             )
 
 
+    def test_chronological_validation_slices_mark_prices_for_train_prefix(self):
+        data = candles_with_bars(180)
+        mark = [list(row) for row in data]
+        result = backtesting.evaluate_chronological_validation(
+            data, "FUTURES", "BTC/USDT", "15m",
+            train_fraction=0.70,
+            signal_fn=lambda *args: {"signal": "WAIT"},
+            mark_price_candles=mark,
+        )
+        self.assertTrue(result["assumptions"]["mark_price_mtm_drawdown_included"])
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+
+    def test_walk_forward_slices_mark_prices_for_each_expanding_prefix(self):
+        data = candles_with_bars(180)
+        mark = [list(row) for row in data]
+        result = backtesting.evaluate_walk_forward(
+            data, "FUTURES", "BTC/USDT", "15m",
+            folds=3,
+            signal_fn=lambda *args: {"signal": "WAIT"},
+            mark_price_candles=mark,
+        )
+        self.assertEqual(len(result["folds"]), 3)
+        self.assertEqual(result["metrics"]["trade_count"], 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
