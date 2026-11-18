@@ -4,6 +4,8 @@ This runbook tests the consolidated Futures-only signal-provider branch in a **n
 
 ## Safety and scope
 
+This validation branch includes the scanner's independent net Reward/Risk and position-sizing checks. It is an isolated draft validation candidate; it has not been merged into the integration branch or main.
+
 - Binance USD-M USDT perpetual Futures only. Spot scanning/backtesting is excluded.
 - Signal provider only. SI-AI does not place, amend, or cancel orders.
 - No Binance API key or private account permission is needed.
@@ -24,7 +26,7 @@ if [ -e "$HOME/SI-AI_FINAL_VALIDATION" ]; then
   exit 1
 fi
 
-git clone --branch integration/si-ai-consolidated-2026-11-18 --single-branch https://github.com/Eventodigital473/SI-AI.git "$HOME/SI-AI_FINAL_VALIDATION" || exit 1
+git clone --branch fix/scanner-risk-audit-2026-11-18 --single-branch https://github.com/Eventodigital473/SI-AI.git "$HOME/SI-AI_FINAL_VALIDATION" || exit 1
 cd "$HOME/SI-AI_FINAL_VALIDATION/recovered/SI-AI" || exit 1
 ```
 
