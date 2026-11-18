@@ -3,7 +3,7 @@
 ## Candidate and safety
 - Repository: Eventodigital473/SI-AI
 - Candidate branch: fix/scanner-risk-audit-2026-11-18
-- Latest head: 3aa29bf61d934ca480915c64b910f2989aec617c
+- Latest head: bb87ac221094ce4d661f2c8f53e24e41ebc906bd (documentation-only checkpoint commit; tested code is unchanged from 3aa29bf61d934ca480915c64b910f2989aec617c)
 - Draft PR: https://github.com/Eventodigital473/SI-AI/pull/17
 - PR #17 is open, draft, mergeable and unmerged. Do not merge without explicit user approval.
 - Futures-only; Spot excluded from the active scanner/backtest files.
