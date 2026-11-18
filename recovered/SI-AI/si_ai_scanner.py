@@ -223,6 +223,10 @@ def number(value):
     return result if math.isfinite(result) else None
 
 
+def _is_http_451(exc):
+    return "451" in str(exc)
+
+
 def direction(result):
     if not isinstance(result, dict):
         return "WAIT"
@@ -716,9 +720,16 @@ def run_cycle(dry_run=False):
 
     try:
         smc.refresh_symbol_universe()
-    except Exception:
+    except Exception as exc:
         logger.exception("Coin-universe refresh failed; no scans performed")
-        return
+        if _is_http_451(exc):
+            raise RuntimeError(
+                "Binance Futures API returned HTTP 451; access is restricted "
+                "from this network. Scanner stopped without attempting a bypass."
+            ) from exc
+        raise RuntimeError(
+            "Coin-universe refresh failed; scanner cycle aborted without scanning."
+        ) from exc
 
     for market in smc.MARKETS:
         diagnostics = getattr(smc, "MARKET_UNIVERSE_DIAGNOSTICS", {}).get(market, {})
@@ -771,11 +782,16 @@ def run_cycle(dry_run=False):
 
                     results[timeframe] = result
 
-                except Exception:
+                except Exception as exc:
                     logger.exception(
                         "Analysis failed: %s %s %s",
                         market, symbol, timeframe
                     )
+                    if _is_http_451(exc):
+                        raise RuntimeError(
+                            "Binance Futures API returned HTTP 451 during candle "
+                            "retrieval; scanner stopped without further requests."
+                        ) from exc
                     complete = False
                     break
 
@@ -863,6 +879,21 @@ def run_cycle(dry_run=False):
                     "%s: notification failed; saved state unchanged", key
                 )
 
+    if completed_pairs == 0:
+        raise RuntimeError(
+            "Scanner cycle failed: no symbol was successfully analysed."
+        )
+    if dry_run and completed_pairs < int(smc.MIN_ELIGIBLE_COINS):
+        raise RuntimeError(
+            f"Dry-run incomplete: only {completed_pairs} fully analysed pairs; "
+            f"minimum required is {smc.MIN_ELIGIBLE_COINS}."
+        )
+    if not dry_run and completed_pairs < int(smc.MIN_ELIGIBLE_COINS):
+        logger.warning(
+            "Partial live scan: %d fully analysed pairs; configured minimum is %d.",
+            completed_pairs, smc.MIN_ELIGIBLE_COINS
+        )
+
     if not dry_run and (
         updated_signals != previous_signals
         or updated_notified_at != previous_notified_at
@@ -877,6 +908,7 @@ def run_cycle(dry_run=False):
         "Cycle complete. Successfully analyzed pairs: %d",
         completed_pairs
     )
+    return completed_pairs
 
 
 def main():
