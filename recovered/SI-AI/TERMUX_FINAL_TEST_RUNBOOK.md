@@ -80,23 +80,23 @@ First install/enable the Termux:API companion app from the same signing source a
 
 It sends three clearly labelled TEST ONLY notifications: BUY (green styling), SELL (red styling), and WAIT (neutral). These are not trading signals and do not contact Binance. Check notification permission, title markers, sound/vibration, and whether the phone hardware actually supports notification LED behavior.
 
-## 6. Run a 180-day Futures historical backtest
+## 6. Run the Binance Vision Futures archive backtest (optional on-device check)
 
-Start with BTC only:
+The current archive runner is `binance_vision_backtest.py`. Start with BTC only:
 
 ```bash
-.venv/bin/python run_public_futures_backtest.py --days 180 --symbol BTC/USDT
+.venv/bin/python binance_vision_backtest.py --days 180 --symbol BTC/USDT
 ```
 
-The runner downloads 15m, 1h, 4h, 1d last-trade OHLCV, timestamped funding history with its associated settlement mark prices, and 1h mark-price candles. It verifies local datasets and writes JSON reports under `data/reports/`; historical datasets are under `data/historical/`.
+It downloads checksum-verified Binance Vision monthly USD-M archives for 15m, 1h, 4h and 1d OHLCV, plus 1h mark-price candles. It also archives and checksum-verifies historical funding rates for audit. **Funding is not applied to P&L** because those monthly funding files do not contain the exact event-specific settlement markPrice required for an exact cashflow calculation. Mark-price candles are used for conservative intratrade drawdown; historical liquidation events are not simulated because timestamp-matched maintenance-tier snapshots are unavailable. Reports are written under `data/reports/`; historical datasets are under `data/historical/binance_vision/`.
 
 Only after BTC completes successfully, optionally test more symbols:
 
 ```bash
-.venv/bin/python run_public_futures_backtest.py --days 180 --symbol BTC/USDT --symbol ETH/USDT --symbol SOL/USDT
+.venv/bin/python binance_vision_backtest.py --days 180 --symbol BTC/USDT --symbol ETH/USDT --symbol SOL/USDT
 ```
 
-Reports are per-symbol with separate reference equity; they are not a shared-wallet portfolio simulation. The profitability gate is expected to remain INCONCLUSIVE until historical liquidation event simulation and timestamp-matched maintenance-tier snapshots are implemented and validated.
+Reports use independent reference equity per symbol; they are not a shared-wallet portfolio simulation. The profitability gate must remain INCONCLUSIVE until exact historical funding cashflows, liquidation modelling with valid historical maintenance tiers, and sufficient out-of-sample evidence are all available. Historical results are not a guarantee of future performance.
 
 ## 7. Install Termux:Widget shortcuts (optional)
 
