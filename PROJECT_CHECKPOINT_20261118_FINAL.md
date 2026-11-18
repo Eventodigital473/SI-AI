@@ -96,3 +96,32 @@ No live trading is enabled. No automatic orders are placed.
 - GitHub job-log download endpoint returned 404 for the active job; job status and step summaries remain accessible. This is not evidence of a backtest failure.
 - PR #17 remains open, draft and unmerged. No live order placement.
 - Exact next step: poll 44343916868; once complete, fetch artifacts, inspect checksums and all per-symbol reports. If it remains in progress unusually long, investigate archive download/runner timeout rather than claiming success.
+
+
+## Resume update — 2026-11-19: 730-day validation completed and independently audited
+
+- Candidate branch: `fix/scanner-risk-audit-2026-11-18`; PR #17 remains open, draft, mergeable and unmerged. Do not merge without explicit user approval.
+- Current branch head observed: `d0d2cb995f4b26cea5fe078cf5f7cba6f6691fc2` (checkpoint/PR status update after code changes). Latest PR-head workflows:
+  - Python tests run [44344222581](https://github.com/Eventodigital473/SI-AI/actions/runs/44344222581): SUCCESS.
+  - 730-day Futures historical validation [44344222453](https://github.com/Eventodigital473/SI-AI/actions/runs/44344222453): SUCCESS.
+- Exact latest test log: **232 passed, 8 subtests passed in 2.18s**. Dependency consistency, compilation, and the 730-day historical job all completed successfully.
+- Downloaded validation artifact: `si-ai-futures-validation-44344222453`, 71 JSON files, 21.8 MB. GitHub artifact digest: `sha256:e0846b4b30a4fda934faf041ba2af1109196e78f99452df8f9ad51769265c64d`; independently downloaded ZIP SHA-256 matched exactly. ZIP CRC passed.
+- Independent artifact audit: all 10 per-symbol reports parsed; report schema, OOS trade counts, three walk-forward folds per symbol, fold trade counts and `automatic_orders=false` were cross-checked. All 50 historical candle datasets with embedded candles passed their declared SHA-256 and candle-count checks.
+- Actual period: 2024-11-01 through 2026-11-01 UTC (730 days). OOS trades: 117 total across 10 independently sized symbol runs; walk-forward trades: 170 total. OOS profitable symbols: 4/10; walk-forward profitable symbols: 5/10. All 10 per-symbol profitability gates are FAIL; overall certification is INCONCLUSIVE.
+- Per-symbol OOS trade counts are only 8–15; walk-forward folds contain only 2–9 trades each. Do not weaken the gate thresholds to force PASS.
+- The 730-day Vision archive stores funding-rate history but does not apply it to P&L because archive records lack the exact event-specific settlement markPrice. Historical liquidation is not modelled because timestamp-matched maintenance tiers and exact intrabar liquidation sequencing are unavailable. The archive summary explicitly records no shared-wallet portfolio simulation.
+- Additional exploratory-only shared-wallet diagnostic was run against the downloaded OOS trades and matching mark-price OHLC. Under the 100 USDT reference wallet, 0.5% per-trade risk, 20% aggregate notional cap, 1x leverage, dynamic sizing, conservative adverse mark-price MTM, and no funding/liquidation, 104 of 117 candidate entries were admitted; 13 were skipped for capacity. Realized net P&L was approximately -1.9886 USDT; conservative mark-price max drawdown approximately 4.7333%. This is a research diagnostic script, not an integrated or CI-certified production simulator; do not use it as a final portfolio report.
+- Exploratory shared-wallet walk-forward fold diagnostics: fold 1 +5.0965 USDT; fold 2 -0.4995 USDT; fold 3 -1.5395 USDT, under the same simplified assumptions. Only 1/3 folds positive. These results further do not support profitability certification.
+- Termux runbook and widget scripts were inspected. The user has already cloned to `~/SI-AI_FINAL_VALIDATION` and installed the isolated Termux dependencies through CCXT 4.5.93; do not ask them to clone or reinstall. Device preflight, Python 3.14 runtime, live Binance public-data access, Android Termux:API companion/permissions, notification behavior and phone-side dry-run remain unverified.
+- No changes were made to main, the integration branch, or the user's existing `~/SI-AI_FINAL` project. No private Binance credentials, account endpoints, or automatic orders were used.
+
+## Exact next engineering steps
+
+1. Implement a formal, deterministic shared-wallet portfolio backtest in the candidate branch. It must replay all symbols on one chronological event timeline, use shared equity and aggregate margin allocation, size from the shared 0.5% risk budget, define simultaneous entry/exit ordering, prevent double-counting, and calculate portfolio mark-price drawdown. Add regression tests for overlapping positions, simultaneous entries/exits, capacity rejection/scaling, equity changes, and missing mark candles.
+2. Integrate exact timestamped Binance funding events with their event-specific settlement markPrice over the full historical period; verify pagination, event completeness, boundary handling and API retention. Never substitute OHLCV close for settlement markPrice. If the endpoint cannot provide full history, retain the limitation and block certification.
+3. Continue fail-closed liquidation research. Do not claim liquidation safety from mark OHLC alone; historical maintenance tiers and intrabar sequencing limitations must be explicit.
+4. Re-run full CI and 730-day research on the exact updated code commit. Keep all existing profitability thresholds; evaluate portfolio OOS and every walk-forward fold.
+5. Only after remote code and research review, run the already-installed isolated Termux validation path. The user should not receive another setup/install command. Prepare one final command sequence for local compile/tests, offline preflight, public Futures dry-run, and a separate notification test only after confirming the Termux:API companion app.
+6. Keep PR #17 draft/unmerged and automatic orders disabled. Do not label the project profitability-certified or ready for live trading.
+
+No live trading is enabled. No automatic orders are placed.
