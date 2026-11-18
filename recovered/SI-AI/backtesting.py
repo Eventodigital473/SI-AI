@@ -105,6 +105,54 @@ def _metrics(trades: List[Dict], equity_curve: List[float], initial_equity: floa
     }
 
 
+def _validate_mark_price_candles(mark_price_candles, data):
+    """Require exact timestamp alignment before using mark OHLC for drawdown."""
+    if not isinstance(mark_price_candles, list) or len(mark_price_candles) != len(data):
+        raise ValueError("mark_price_candles must exactly match the primary OHLCV length")
+    normalized = []
+    for index, row in enumerate(mark_price_candles):
+        if not isinstance(row, (list, tuple)) or len(row) < 6:
+            raise ValueError(f"Invalid mark-price OHLC row at index {index}")
+        timestamp, op, high, low, close, volume = [
+            _number(value, f"mark_price_candles[{index}]")
+            for value in row[:6]
+        ]
+        if not timestamp.is_integer() or int(timestamp) != data[index][0]:
+            raise ValueError("Mark-price timestamps must exactly match primary OHLCV timestamps")
+        if min(op, high, low, close) <= 0 or volume < 0:
+            raise ValueError(f"Invalid mark-price OHLC values at index {index}")
+        if high < max(op, close, low) or low > min(op, close, high):
+            raise ValueError(f"Invalid mark-price OHLC relationship at index {index}")
+        normalized.append([int(timestamp), op, high, low, close, volume])
+    return normalized
+
+
+def _funding_cost_as_of(events, side, quantity, entry_timestamp, cutoff_timestamp,
+                        *, exit_timestamp, exit_window_end_timestamp, exit_timing):
+    """Conservative funding cashflows accrued by a mark-to-market checkpoint."""
+    if not events:
+        return 0.0
+    total = 0.0
+    direction = 1.0 if side == "LONG" else -1.0
+    for event in events:
+        timestamp = event["timestamp"]
+        if timestamp < entry_timestamp or timestamp > cutoff_timestamp:
+            continue
+        cashflow = quantity * event["mark_price"] * event["funding_rate"] * direction
+        ambiguous = timestamp == entry_timestamp
+        if exit_timing == "open":
+            ambiguous = ambiguous or timestamp == exit_timestamp
+        elif exit_timing == "intrabar":
+            ambiguous = ambiguous or timestamp >= exit_timestamp
+        elif exit_timing == "close":
+            ambiguous = ambiguous or timestamp == exit_window_end_timestamp
+        # Never assume a funding credit at an ambiguous entry/exit boundary.
+        if ambiguous and cashflow < 0:
+            continue
+        total += cashflow
+    return total
+
+
 def run_backtest(
     candles: list,
     market: str,
@@ -120,6 +168,7 @@ def run_backtest(
     start_index: int = si.MIN_CANDLES,
     funding_rate_per_8h: Optional[float] = None,
     funding_events: Optional[List[Dict]] = None,
+    mark_price_candles: Optional[List[list]] = None,
 ) -> Dict:
     """Run a single-position, next-open backtest over chronological OHLCV.
 
@@ -151,6 +200,10 @@ def run_backtest(
         raise ValueError("Use timestamped funding events or the constant funding proxy, not both")
     if funding_events is not None:
         funding_events = funding_data.validate_normalized_funding_events(funding_events)
+    mark_data = (
+        _validate_mark_price_candles(mark_price_candles, data)
+        if mark_price_candles is not None else None
+    )
     if isinstance(max_holding_bars, bool) or not isinstance(max_holding_bars, int) or max_holding_bars < 1:
         raise ValueError("max_holding_bars must be a positive integer")
 
@@ -307,6 +360,50 @@ def run_backtest(
             funding_boundary_ambiguities_total += funding_boundary_ambiguities
         elif market == "FUTURES" and funding_rate is not None:
             funding_cost = entry_notional * funding_rate * funding_periods * (1.0 if side == "LONG" else -1.0)
+        # Build a conservative mark-to-market equity path while the position
+        # is open. For each candle, assume the favourable extreme occurs before
+        # the adverse extreme; this deliberately bounds intrabar drawdown.
+        if mark_data is not None:
+            interval_ms = si.TIMEFRAME_MILLISECONDS[timeframe]
+            for mark_index in range(entry_bar_index, exit_index + 1):
+                mark_bar = mark_data[mark_index]
+                is_open_time_exit_bar = (
+                    mark_index == exit_index and funding_exit_timing == "open"
+                )
+                if is_open_time_exit_bar:
+                    checkpoint_prices = [mark_bar[1]]
+                    cutoff_timestamp = mark_bar[0]
+                else:
+                    favourable_price = mark_bar[2] if side == "LONG" else mark_bar[3]
+                    adverse_price = mark_bar[3] if side == "LONG" else mark_bar[2]
+                    checkpoint_prices = [favourable_price, adverse_price]
+                    cutoff_timestamp = mark_bar[0] + interval_ms
+                accrued_funding = _funding_cost_as_of(
+                    funding_events, side, quantity,
+                    data[entry_bar_index][0], cutoff_timestamp,
+                    exit_timestamp=exit_timestamp,
+                    exit_window_end_timestamp=funding_exit_window_end,
+                    exit_timing=funding_exit_timing,
+                )
+                for mark_price in checkpoint_prices:
+                    unrealized = (
+                        (mark_price - entry) * quantity
+                        if side == "LONG"
+                        else (entry - mark_price) * quantity
+                    )
+                    estimated_exit_costs = (
+                        mark_price * quantity * fee
+                        + mark_price * quantity * slippage
+                    )
+                    mark_equity = max(
+                        0.0,
+                        equity + unrealized
+                        - entry * quantity * fee
+                        - estimated_exit_costs
+                        - accrued_funding,
+                    )
+                    equity_curve.append(mark_equity)
+
         net_pnl = gross_pnl - fees - funding_cost
         equity = max(0.0, equity + net_pnl)
         trades.append({
@@ -366,6 +463,15 @@ def run_backtest(
             "funding_cost_method": ("timestamped Binance funding events; each cashflow uses the event-specific exchange markPrice and position quantity" if funding_events is not None else "constant user-supplied rate proxy at UTC 8-hour boundaries; not historical exchange funding" if funding_rate is not None else "excluded; provide a verified Binance funding dataset"),
             "funding_exit_window_policy": ("intrabar exits include settlements through the exit candle close conservatively and flag them ambiguous; TIME_EXIT includes settlements through candle close; open-time exits stop at the exit candle open" if funding_events is not None else "not applicable"),
             "liquidation_modelled": False,
+            "mark_price_mtm_drawdown_included": mark_data is not None,
+            "drawdown_basis": (
+                "conservative_mark_price_intrabar_mtm"
+                if mark_data is not None else "realized_trade_exits_only"
+            ),
+            "mark_to_market_intrabar_ordering": (
+                "favourable extreme then adverse extreme per candle; conservative bound"
+                if mark_data is not None else "not available; drawdown is realized-only"
+            ),
         },
         "metrics": metrics,
         "trades": trades,
@@ -389,17 +495,18 @@ def evaluate_chronological_validation(
     split = int(len(data) * fraction)
     if split < si.MIN_CANDLES or len(data) - split < 3:
         raise ValueError("Not enough candles for chronological train/holdout split")
-    train = run_backtest(data[:split], market, symbol, timeframe, **backtest_options)
+    train_options = dict(backtest_options)
+    if train_options.get("mark_price_candles") is not None:
+        train_options["mark_price_candles"] = train_options["mark_price_candles"][:split]
+    train = run_backtest(data[:split], market, symbol, timeframe, **train_options)
     oos_options = dict(backtest_options)
     # First OOS entry is at split; its signal may use only candles before split.
     oos_options["start_index"] = split
     holdout = run_backtest(data, market, symbol, timeframe, **oos_options)
     oos_trades = holdout["trades"]
-    initial = _number(oos_options.get("initial_equity", si.PAPER_EQUITY_USDT), "initial_equity", 0.01)
-    curve = [initial]
-    for trade in oos_trades:
-        curve.append(max(0.0, curve[-1] + trade["net_pnl_usdt"]))
-    oos_metrics = _metrics(oos_trades, curve, initial)
+    # Reuse the holdout equity path so intratrade mark-to-market drawdown is
+    # preserved instead of rebuilding a realized-exits-only curve.
+    oos_metrics = holdout["metrics"]
     return {
         "split_index": split,
         "split_timestamp": data[split][0],
@@ -446,13 +553,18 @@ def evaluate_walk_forward(
         options["initial_equity"] = current_equity
         # The first fold entry is at test_start, using only prior candles.
         options["start_index"] = test_start
+        # Keep mark-price candles aligned with this expanding chronological prefix.
+        if options.get("mark_price_candles") is not None:
+            options["mark_price_candles"] = options["mark_price_candles"][:test_end]
         segment = run_backtest(
             data[:test_end], market, symbol, timeframe, **options
         )
         trades = segment["trades"]
-        for trade in trades:
-            current_equity = max(0.0, current_equity + trade["net_pnl_usdt"])
-            equity_curve.append(current_equity)
+        segment_curve = segment["equity_curve"]
+        if not isinstance(segment_curve, list) or not segment_curve:
+            raise RuntimeError("Walk-forward segment returned an invalid equity curve")
+        equity_curve.extend(segment_curve[1:])
+        current_equity = segment["metrics"]["ending_equity_usdt"]
         all_trades.extend(trades)
         fold_reports.append({
             "fold": fold + 1,
@@ -461,6 +573,7 @@ def evaluate_walk_forward(
             "trade_count": len(trades),
             "net_pnl_usdt": round(sum(t["net_pnl_usdt"] for t in trades), 8),
             "ending_equity_usdt": round(current_equity, 8),
+            "max_drawdown_percent": segment["metrics"]["max_drawdown_percent"],
             "funding_settlement_boundary_ambiguities": sum(
                 int(trade.get("funding_boundary_ambiguities", 0)) for trade in trades
             ),

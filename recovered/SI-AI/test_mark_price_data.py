@@ -43,6 +43,30 @@ class MarkPriceDataTests(unittest.TestCase):
         self.assertEqual(calls[0][2], mark_price_data.REQUEST_TIMEOUT_SECONDS)
         self.assertEqual(candles[0][5], 0.0)
 
+    def test_download_rejects_missing_first_or_last_candle(self):
+        for raw in ([row(2 * HOUR), row(3 * HOUR)],
+                    [row(HOUR), row(2 * HOUR)]):
+            with self.subTest(first=raw[0][0], last=raw[-1][0]):
+                with self.assertRaisesRegex(ValueError, "Incomplete historical 1h"):
+                    mark_price_data.download_mark_price_ohlcv(
+                        "BTC/USDT", "1h", HOUR, 4 * HOUR,
+                        http_get=lambda *a, **k: self.response(raw),
+                        now_ms=4 * HOUR,
+                    )
+
+    def test_save_rejects_missing_edge_coverage(self):
+        candles = [
+            [2 * HOUR, 100.0, 102.0, 98.0, 101.0, 0.0],
+            [3 * HOUR, 101.0, 103.0, 99.0, 102.0, 0.0],
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "Incomplete historical 1h"):
+                mark_price_data.save_mark_price_dataset(
+                    "BTC/USDT", "1h", candles,
+                    output_path=Path(directory) / "partial.json",
+                    start_ms=HOUR, end_ms=4 * HOUR,
+                )
+
     def test_excludes_unclosed_mark_price_candle(self):
         candles = mark_price_data.download_mark_price_ohlcv(
             "BTC/USDT", "1h", HOUR, 3 * HOUR,

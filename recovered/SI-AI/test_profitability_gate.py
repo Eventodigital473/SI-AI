@@ -16,6 +16,8 @@ def reports():
     return {"out_of_sample": oos, "assumptions": {
         "historical_funding_series_included": True,
         "funding_mark_price_exact": True,
+        "mark_price_mtm_drawdown_included": True,
+        "drawdown_basis": "conservative_mark_price_intrabar_mtm",
         "liquidation_modelled": True,
     }}, wf
 
@@ -86,8 +88,6 @@ class ProfitabilityGateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluate_profitability_evidence({}, {}, market="MARGIN")
 
-
-
     def test_boolean_metrics_are_not_treated_as_numbers(self):
         oos, wf = reports()
         oos["out_of_sample"]["trade_count"] = True
@@ -112,6 +112,40 @@ class ProfitabilityGateTests(unittest.TestCase):
                     "minimum_positive_walk_forward_folds": 3,
                 },
             )
+
+    def test_realized_only_drawdown_cannot_pass_futures_certification(self):
+        oos, wf = reports()
+        oos["assumptions"]["mark_price_mtm_drawdown_included"] = False
+        oos["assumptions"]["drawdown_basis"] = "realized_trade_exits_only"
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+        check = next(
+            item for item in result["checks"]
+            if item["name"] == "mark_to_market_drawdown"
+        )
+        self.assertEqual(check["status"], "INCONCLUSIVE")
+
+    def test_every_extra_walk_forward_fold_is_checked(self):
+        oos, wf = reports()
+        wf["folds"].append({"trade_count": 25, "net_pnl_usdt": -2.0})
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "FAIL")
+        check = next(
+            item for item in result["checks"]
+            if item["name"] == "fold_4_positive_net_pnl"
+        )
+        self.assertEqual(check["status"], "FAIL")
+
+    def test_malformed_extra_walk_forward_fold_cannot_be_ignored(self):
+        oos, wf = reports()
+        wf["folds"].append("malformed fold")
+        result = evaluate_profitability_evidence(oos, wf, market="FUTURES")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+        check = next(
+            item for item in result["checks"]
+            if item["name"] == "walk_forward_fold_structure"
+        )
+        self.assertEqual(check["status"], "INCONCLUSIVE")
 
 
 if __name__ == "__main__":

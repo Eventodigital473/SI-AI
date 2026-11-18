@@ -28,6 +28,7 @@ class FakeExchange:
 
 
 def make_candles(count=7, start=1_700_000_000_000, interval=900_000):
+    start = ((start + interval - 1) // interval) * interval
     return [
         [start + index * interval, 100, 101, 99, 100, 1000]
         for index in range(count)
@@ -59,6 +60,30 @@ class HistoricalDataTests(unittest.TestCase):
         self.assertEqual(result[0][0], rows[0][0])
         self.assertEqual(result[-1][0], rows[-1][0])
         self.assertGreaterEqual(len(exchange.calls), 3)
+
+    def test_download_rejects_missing_first_or_last_candle(self):
+        rows = make_candles()
+        interval = 900_000
+        for incomplete in (rows[1:], rows[:-1]):
+            with self.subTest(first=incomplete[0][0], last=incomplete[-1][0]):
+                exchange = FakeExchange("FUTURES", incomplete)
+                with self.assertRaisesRegex(ValueError, "Incomplete historical 15m"):
+                    historical_data.download_ohlcv(
+                        "FUTURES", "BTC/USDT", "15m",
+                        rows[0][0], rows[-1][0] + interval,
+                        exchange=exchange, now_ms=rows[-1][0] + interval,
+                    )
+
+    def test_save_rejects_missing_edge_coverage(self):
+        rows = make_candles()
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "Incomplete historical 15m"):
+                historical_data.save_dataset(
+                    "FUTURES", "BTC/USDT", "15m", rows[1:],
+                    output_path=Path(directory) / "partial.json",
+                    start_ms=rows[0][0],
+                    end_ms=rows[-1][0] + 900_000,
+                )
 
     def test_download_rejects_missing_intermediate_candle(self):
         rows = make_candles()

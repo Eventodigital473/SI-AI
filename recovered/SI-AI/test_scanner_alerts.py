@@ -15,17 +15,18 @@ class SignalAlertTests(unittest.TestCase):
                 "signal": "BUY",
                 "price": 142.5,
                 "stop_loss": 138.0,
-                "take_profit": 151.5,
-                "reward_risk": 2.0,
+                "take_profit": 152.25,
+                "reward_risk": 2.0321,
                 "recommended_leverage": 1.0,
-                "paper_margin_required_usdt": 17.1,
+                "paper_margin_required_usdt": 15.17135647896771,
                 "paper_margin_budget_usdt": 20.0,
-                "paper_quantity": 0.12,
-                "paper_notional_usdt": 17.1,
-                "paper_risk_usdt": 0.42,
-                "paper_total_risk_usdt": 0.49,
-                "paper_estimated_fees_usdt": 0.0171,
-                "paper_estimated_slippage_usdt": 0.00684,
+                "paper_quantity": 0.10646565950152778,
+                "paper_notional_usdt": 15.17135647896771,
+                "paper_risk_usdt": 0.479095467756875,
+                "paper_total_risk_usdt": 0.5,
+                "paper_estimated_fees_usdt": 0.014931808745089273,
+                "paper_estimated_slippage_usdt": 0.005972723498035709,
+                "paper_estimated_net_reward_usdt": 1.0160736529432433,
                 "reasons": ["Bullish structure"],
             },
             "4h": {"signal": "BUY"},
@@ -48,19 +49,22 @@ class SignalAlertTests(unittest.TestCase):
         self.assertIn("Stop Loss: 138", content)
         self.assertIn("TP1 (1R reference): 147", content)
         self.assertIn("TP2 (1.5R reference): 149.25", content)
-        self.assertIn("TP3 (engine target): 151.5", content)
+        self.assertIn("TP3 (engine target): 152.25", content)
+        self.assertIn("Net Reward/Risk (fees + slippage): 2.03:1", content)
+        self.assertIn("Estimated net target reward: 1.0161 USDT after estimated fees/slippage", content)
         self.assertIn("Recommended leverage: 1x", content)
-        self.assertIn("Estimated margin: 17.10 USDT / 20.00 USDT budget", content)
+        self.assertIn("Estimated margin: 15.17 USDT / 20.00 USDT budget", content)
 
     def test_alert_includes_position_size_risk_costs_and_liquidation_warning(self):
         _, content = scanner.make_alert(
             "FUTURES", "BTC/USDT", "BUY", self.results
         )
-        self.assertIn("Position size (paper estimate): 0.12 BTC", content)
-        self.assertIn("Position notional (paper estimate): 17.1000 USDT", content)
-        self.assertIn("Estimated stop risk: 0.4900 USDT incl. estimated costs", content)
+        self.assertIn("Position size (paper estimate): 0.10646566 BTC", content)
+        self.assertIn("Position notional (paper estimate): 15.1714 USDT", content)
+        self.assertIn("Estimated stop risk: 0.5000 USDT incl. estimated costs", content)
+        self.assertIn("gross price risk 0.4791 USDT", content)
         self.assertIn("Risk policy: 0.50% of 100.00 USDT reference equity", content)
-        self.assertIn("Estimated round-trip fees: 0.0171 USDT", content)
+        self.assertIn("Estimated round-trip fees: 0.0149 USDT", content)
         self.assertIn("Liquidation price: NOT CERTIFIED; no current symbol-specific", content)
         self.assertIn("Model scope: isolated one-way only", content)
         self.assertIn("amount precision/minimum quantity/minimum notional: NOT", content)
@@ -72,7 +76,15 @@ class SignalAlertTests(unittest.TestCase):
             "price": 100.0,
             "stop_loss": 102.0,
             "take_profit": 94.0,
-            "reward_risk": 2.5,
+            "reward_risk": 2.7385,
+            "paper_quantity": 0.2,
+            "paper_notional_usdt": 20.0,
+            "paper_risk_usdt": 0.4,
+            "paper_total_risk_usdt": 0.42828,
+            "paper_estimated_fees_usdt": 0.0202,
+            "paper_estimated_slippage_usdt": 0.00808,
+            "paper_estimated_net_reward_usdt": 1.17284,
+            "paper_margin_required_usdt": 20.0,
         })
         self.results["4h"]["signal"] = "SELL"
         _, content = scanner.make_alert(
@@ -221,7 +233,7 @@ def test_alert_uses_recent_symbol_specific_isolated_bracket_snapshot(tmp_path, m
     )
     case = SignalAlertTests()
     case.setUp()
-    case.results["1h"]["paper_margin_required_usdt"] = 17.1
+    case.results["1h"]["paper_margin_required_usdt"] = 15.17135647896771
     _, content = scanner.make_alert(
         "FUTURES", "BTC/USDT", "BUY", case.results
     )

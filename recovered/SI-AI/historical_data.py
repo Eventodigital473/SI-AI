@@ -60,6 +60,37 @@ def _normalize_candle(row, index: int) -> List[float]:
     return [int(timestamp), open_price, high, low, close, volume]
 
 
+def validate_candle_window_coverage(candles, timeframe, start_ms, end_ms, now_ms):
+    """Require every fully closed candle in the requested [start, end) window."""
+    interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
+    if interval_ms is None:
+        raise ValueError("Unsupported timeframe for candle coverage")
+    start = _integer_timestamp(start_ms, "start_ms")
+    end = _integer_timestamp(end_ms, "end_ms")
+    current = _integer_timestamp(now_ms, "now_ms")
+    if end <= start:
+        raise ValueError("end_ms must be greater than start_ms")
+    expected_start = ((start + interval_ms - 1) // interval_ms) * interval_ms
+    effective_end = min(end, current)
+    expected_end = (effective_end // interval_ms) * interval_ms
+    if expected_end <= expected_start:
+        raise ValueError("Requested window contains no fully closed candles")
+    expected_count = (expected_end - expected_start) // interval_ms
+    if (
+        not candles
+        or candles[0][0] != expected_start
+        or candles[-1][0] != expected_end - interval_ms
+        or len(candles) != expected_count
+    ):
+        first = candles[0][0] if candles else None
+        last = candles[-1][0] if candles else None
+        raise ValueError(
+            f"Incomplete historical {timeframe} candle coverage: "
+            f"expected first={expected_start}, last={expected_end - interval_ms}, "
+            f"count={expected_count}; received first={first}, last={last}, count={len(candles)}"
+        )
+
+
 def _resolve_exchange_symbol(exchange, market: str, symbol: str) -> str:
     if not isinstance(symbol, str) or symbol != symbol.strip() or symbol.count("/") != 1:
         raise ValueError("symbol must be a canonical BASE/USDT string")
@@ -179,6 +210,9 @@ def download_ohlcv(
     if not collected:
         raise ValueError("No fully closed historical candles were returned")
     smc.validate_candle_continuity(collected, timeframe)
+    validate_candle_window_coverage(
+        collected, timeframe, start, end, current_ms
+    )
     return collected
 
 
@@ -262,6 +296,9 @@ def save_dataset(
         raise ValueError("end_ms must be greater than start_ms")
     if normalized[0][0] < start_value or normalized[-1][0] + interval_ms > end_value:
         raise ValueError("Dataset candles fall outside the declared [start_ms, end_ms) range")
+    validate_candle_window_coverage(
+        normalized, timeframe, start_value, end_value, end_value
+    )
 
     digest = dataset_sha256(normalized)
     path = Path(output_path) if output_path is not None else (
@@ -318,6 +355,9 @@ def load_dataset(path: str | Path) -> Dict:
     interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
     if normalized[0][0] < start_value or normalized[-1][0] + interval_ms > end_value:
         raise ValueError("Historical dataset candles fall outside declared time range")
+    validate_candle_window_coverage(
+        normalized, timeframe, start_value, end_value, end_value
+    )
     digest = dataset_sha256(normalized)
     if payload.get("data_sha256") != digest:
         raise ValueError("Historical dataset SHA-256 mismatch")

@@ -5,6 +5,34 @@ import main
 
 
 def sample_result(timeframe, signal="BUY"):
+    if signal == "SELL":
+        risk_fields = {
+            "price": 100.0,
+            "stop_loss": 102.0,
+            "take_profit": 94.0,
+            "reward_risk": 2.7385,
+            "paper_risk_usdt": 0.4,
+            "paper_total_risk_usdt": 0.42828,
+            "paper_quantity": 0.2,
+            "paper_notional_usdt": 20.0,
+            "paper_estimated_fees_usdt": 0.0202,
+            "paper_estimated_slippage_usdt": 0.00808,
+            "paper_estimated_net_reward_usdt": 1.17284,
+        }
+    else:
+        risk_fields = {
+            "price": 100.0,
+            "stop_loss": 98.0,
+            "take_profit": 106.0,
+            "reward_risk": 2.7381,
+            "paper_risk_usdt": 0.4,
+            "paper_total_risk_usdt": 0.42772,
+            "paper_quantity": 0.2,
+            "paper_notional_usdt": 20.0,
+            "paper_estimated_fees_usdt": 0.0198,
+            "paper_estimated_slippage_usdt": 0.00792,
+            "paper_estimated_net_reward_usdt": 1.17116,
+        }
     return {
         "market": "FUTURES",
         "symbol": "BTC/USDT",
@@ -12,17 +40,10 @@ def sample_result(timeframe, signal="BUY"):
         "signal": signal,
         "bos": "Bullish" if signal == "BUY" else "Bearish" if signal == "SELL" else "None",
         "score": 4.5,
-        "price": 100.0,
-        "stop_loss": 98.0,
-        "take_profit": 106.0,
-        "reward_risk": 2.0,
-        "paper_risk_usdt": 4.0,
-        "paper_total_risk_usdt": 5.0,
-        "paper_quantity": 2.0,
-        "paper_notional_usdt": 200.0,
-        "paper_estimated_fees_usdt": 0.2,
-        "paper_estimated_slippage_usdt": 0.1,
-        "paper_estimated_net_reward_usdt": 10.0,
+        **risk_fields,
+        "recommended_leverage": 1.0,
+        "paper_margin_required_usdt": 20.0,
+        "paper_margin_budget_usdt": 20.0,
     }
 
 

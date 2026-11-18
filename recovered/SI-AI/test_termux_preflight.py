@@ -49,8 +49,23 @@ class TermuxPreflightTests(unittest.TestCase):
                 shortcuts_dir=shortcuts,
                 command_lookup=lambda name: "/usr/bin/" + name,
                 prefix="/data/data/com.termux/files/usr",
+                package_lookup=lambda: True,
             )
         self.assertEqual(report["status"], "READY")
+
+    def test_preflight_warns_when_termux_api_companion_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = termux_preflight.collect_preflight(
+                project_dir=termux_preflight.BASE_DIR,
+                shortcuts_dir=Path(directory),
+                command_lookup=lambda name: "/usr/bin/" + name,
+                prefix="/data/data/com.termux/files/usr",
+                package_lookup=lambda: False,
+            )
+        checks = {item["name"]: item for item in report["checks"]}
+        self.assertEqual(checks["termux_api_companion_app"]["status"], "WARN")
+        self.assertIn("same signing source", checks["termux_api_companion_app"]["detail"])
+        self.assertEqual(report["status"], "READY_WITH_WARNINGS")
 
 
 if __name__ == "__main__":

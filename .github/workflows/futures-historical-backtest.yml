@@ -1,0 +1,78 @@
+name: SI-AI Futures historical validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: si-ai-futures-historical-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: recovered/SI-AI/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+        working-directory: recovered/SI-AI
+
+      - name: Verify dependency consistency
+        run: python -m pip check
+        working-directory: recovered/SI-AI
+
+      - name: Compile project
+        run: python -m compileall -q .
+        working-directory: recovered/SI-AI
+
+      - name: Run full automated test suite
+        run: python -m pytest -q
+        working-directory: recovered/SI-AI
+
+      - name: Run 730-day checksum-verified Binance Vision USD-M Futures backtest
+        run: |
+          python binance_vision_backtest.py \
+            --days 730 \
+            --symbol BTC/USDT \
+            --symbol ETH/USDT \
+            --symbol BNB/USDT \
+            --symbol XRP/USDT \
+            --symbol ADA/USDT \
+            --symbol DOGE/USDT \
+            --symbol LINK/USDT \
+            --symbol AVAX/USDT \
+            --symbol DOT/USDT \
+            --symbol SOL/USDT
+        working-directory: recovered/SI-AI
+
+      - name: Run shared-wallet OOS and walk-forward portfolio replay
+        run: |
+          python shared_wallet_backtest.py \
+            --reports-dir data/reports \
+            --mark-price-dir data/historical/mark_price \
+            --output data/reports/futures_shared_wallet_730d.json \
+            --initial-equity 100
+        working-directory: recovered/SI-AI
+
+      - name: Preserve historical datasets and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: si-ai-futures-validation-${{ github.run_id }}
+          path: |
+            recovered/SI-AI/data/historical/**
+            recovered/SI-AI/data/reports/**
+          if-no-files-found: warn
+          retention-days: 30
