@@ -67,6 +67,15 @@ jobs:
             --symbol SOL/USDT
         working-directory: recovered/SI-AI
 
+      - name: Run shared-wallet OOS and walk-forward portfolio replay
+        run: |
+          python shared_wallet_backtest.py \
+            --reports-dir data/reports \
+            --mark-price-dir data/historical/mark_price \
+            --output data/reports/futures_shared_wallet_730d.json \
+            --initial-equity 100
+        working-directory: recovered/SI-AI
+
       - name: Preserve historical datasets and reports
         if: always()
         uses: actions/upload-artifact@v4
