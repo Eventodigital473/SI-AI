@@ -136,5 +136,75 @@ class ScannerEntryConfirmationTests(unittest.TestCase):
                 scanner.validate_config()
 
 
+
+
+class ScannerCycleFailClosedTests(unittest.TestCase):
+    def setUp(self):
+        self.empty_state = {
+            "version": 2,
+            "last_signals": {},
+            "last_notified_at": {},
+        }
+
+    def test_http_451_during_universe_refresh_stops_cycle(self):
+        with (
+            patch.object(scanner, "load_state", return_value=self.empty_state),
+            patch.object(
+                scanner.smc,
+                "refresh_symbol_universe",
+                side_effect=RuntimeError("HTTP 451 restricted location"),
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 451"):
+                scanner.run_cycle(dry_run=True)
+
+    def test_http_451_during_candle_fetch_stops_without_scanning_more_symbols(self):
+        with (
+            patch.object(scanner, "load_state", return_value=self.empty_state),
+            patch.object(scanner.smc, "refresh_symbol_universe"),
+            patch.object(scanner.smc, "get_symbols", return_value=["BTC/USDT"]),
+            patch.object(scanner.smc, "MIN_ELIGIBLE_COINS", 1),
+            patch.object(
+                scanner.smc,
+                "get_candles",
+                side_effect=RuntimeError("HTTP 451 restricted location"),
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 451"):
+                scanner.run_cycle(dry_run=True)
+
+    def test_dry_run_rejects_fewer_than_minimum_successfully_analysed_pairs(self):
+        def candles_for_symbol(market, symbol, timeframe):
+            if symbol == "ETH/USDT":
+                raise RuntimeError("temporary data failure")
+            return [[1, 100, 101, 99, 100, 1]]
+
+        with (
+            patch.object(scanner, "load_state", return_value=self.empty_state),
+            patch.object(scanner.smc, "refresh_symbol_universe"),
+            patch.object(
+                scanner.smc,
+                "get_symbols",
+                return_value=["BTC/USDT", "ETH/USDT"],
+            ),
+            patch.object(scanner.smc, "MIN_ELIGIBLE_COINS", 2),
+            patch.object(scanner.smc, "get_candles", side_effect=candles_for_symbol),
+            patch.object(
+                scanner.smc,
+                "analyze_candles",
+                return_value={"signal": "WAIT"},
+            ),
+            patch.object(
+                scanner.smc,
+                "combine_timeframes",
+                return_value={"overall_signal": "WAIT"},
+            ),
+            patch.object(scanner, "confirm_signal", return_value="WAIT"),
+            patch.object(scanner.time, "sleep"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "minimum required is 2"):
+                scanner.run_cycle(dry_run=True)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
