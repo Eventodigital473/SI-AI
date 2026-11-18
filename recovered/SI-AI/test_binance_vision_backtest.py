@@ -85,6 +85,16 @@ def test_numeric_csv_parser_skips_one_header_and_rejects_later_bad_rows():
 
 
 
+def test_numeric_csv_parser_does_not_skip_unknown_malformed_first_row():
+    with pytest.raises(ValueError, match="non-numeric CSV row 0"):
+        vision._parse_numeric_rows(
+            [["corrupt-first-record", "8", "0.0001"],
+             ["1000", "8", "0.0002"]],
+            expected_columns=3,
+            label="funding",
+        )
+
+
 def test_archive_coverage_accepts_exact_requested_window():
     interval = vision.smc.TIMEFRAME_MILLISECONDS["1h"]
     start = (1_700_000_000_000 // interval) * interval
