@@ -2,7 +2,7 @@
 set -eu
 
 find_project() {
-    for candidate in "$HOME/SI-AI_FINAL/recovered/SI-AI" "$HOME/SI-AI_FUTURES/recovered/SI-AI"; do
+    for candidate in "$HOME/SI-AI_FINAL_VALIDATION/recovered/SI-AI" "$HOME/SI-AI_FINAL/recovered/SI-AI" "$HOME/SI-AI_FUTURES/recovered/SI-AI"; do
         if [ -f "$candidate/si_ai_scanner.py" ]; then
             printf '%s\n' "$candidate"
             return 0
@@ -15,6 +15,11 @@ PROJECT_DIR="$(find_project)" || {
     command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI project folder not found"
     exit 1
 }
+PYTHON_BIN="$PROJECT_DIR/.venv/bin/python"
+if [ ! -x "$PYTHON_BIN" ]; then
+    PYTHON_BIN="$(command -v python)" || exit 1
+fi
+
 LOG_DIR="$PROJECT_DIR/logs"
 PID_FILE="$LOG_DIR/si_ai_widget.pid"
 mkdir -p "$LOG_DIR"
@@ -23,7 +28,7 @@ if [ ! -f "$PROJECT_DIR/termux_preflight.py" ]; then
     command -v termux-toast >/dev/null 2>&1 && termux-toast "SI-AI preflight file missing"
     exit 1
 fi
-python -u "$PROJECT_DIR/termux_preflight.py" >> "$LOG_DIR/si_ai_preflight.log" 2>&1
+"$PYTHON_BIN" -u "$PROJECT_DIR/termux_preflight.py" >> "$LOG_DIR/si_ai_preflight.log" 2>&1
 
 if [ -f "$PID_FILE" ]; then
     OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
@@ -40,7 +45,7 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 cd "$PROJECT_DIR"
-nohup python -u si_ai_scanner.py --interval 120 >> "$LOG_DIR/si_ai_widget.log" 2>&1 < /dev/null &
+nohup "$PYTHON_BIN" -u si_ai_scanner.py --interval 120 >> "$LOG_DIR/si_ai_widget.log" 2>&1 < /dev/null &
 SCANNER_PID=$!
 printf '%s\n' "$SCANNER_PID" > "$PID_FILE"
 sleep 2
