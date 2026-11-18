@@ -8,7 +8,7 @@ import historical_data
 import historical_backtest
 
 
-BASE = 1_700_000_000_000
+BASE = ((1_700_000_000_000 + 86_400_000 - 1) // 86_400_000) * 86_400_000
 
 
 def candle_rows(count, start, interval):
