@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: si-ai-futures-historical-validation-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   validate-and-backtest:
