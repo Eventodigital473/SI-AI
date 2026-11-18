@@ -122,14 +122,23 @@ def evaluate_profitability_evidence(
           drawdown is not None, f"observed={drawdown}; maximum={rules['maximum_drawdown_percent']}")
 
     required_folds = rules["required_walk_forward_folds"]
-    valid_folds = [f for f in folds if isinstance(f, dict)]
-    check("required_fold_count", len(valid_folds) >= required_folds,
-          len(valid_folds) >= required_folds,
+    valid_folds = [fold for fold in folds if isinstance(fold, dict)]
+    fold_structure_valid = len(valid_folds) == len(folds)
+    check(
+        "walk_forward_fold_structure",
+        fold_structure_valid,
+        fold_structure_valid,
+        f"valid_entries={len(valid_folds)}; total_entries={len(folds)}",
+    )
+    enough_fold_count = len(valid_folds) >= required_folds
+    check("required_fold_count", enough_fold_count, enough_fold_count,
           f"observed={len(valid_folds)}; required={required_folds}")
 
     positive_folds = 0
-    fold_evidence_complete = len(valid_folds) >= required_folds
-    for index, fold in enumerate(valid_folds[:required_folds], start=1):
+    fold_evidence_complete = enough_fold_count and fold_structure_valid
+    # Inspect EVERY supplied fold. Checking only the first required folds could
+    # silently ignore a later losing or undersampled fold and falsely certify.
+    for index, fold in enumerate(valid_folds, start=1):
         trades = _finite_number(fold.get("trade_count"))
         pnl = _finite_number(fold.get("net_pnl_usdt"))
         enough = trades is not None and trades >= rules["minimum_trades_per_fold"]
