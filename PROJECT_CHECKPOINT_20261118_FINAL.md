@@ -3,8 +3,8 @@
 ## Candidate and safety
 - Repository: Eventodigital473/SI-AI
 - Candidate branch: `fix/scanner-risk-audit-2026-11-18`
-- Current branch/PR head: `395a943ac52db1cb812eeab2c06f600588caf388`
-- Latest Python code under test is on ancestor `d083ec091a343c2c84d28044237b3ef53f2feaaa`; the latest `395a943` commit only refreshes this checkpoint document.
+- Current branch/PR head: `8db3277a0d80c3981ebced5f096c70e0a79ba475`
+- Latest candidate commit `8db3277a` includes the strict archive coverage and test fixture alignment changes; see CI run below.
 - Draft PR: https://github.com/Eventodigital473/SI-AI/pull/17
 - PR #17 is open, draft, mergeable and unmerged. Do not merge without explicit user approval.
 - Futures-only; Spot excluded from the active scanner/backtest files.
@@ -12,11 +12,11 @@
 - Reference equity 100 USDT; per-trade risk 0.5% (0.50 USDT); margin allocation cap 20%; leverage guidance 1x; minimum net R:R 2:1.
 
 ## Latest verified automated checks
-- Latest CI on current PR head: https://github.com/Eventodigital473/SI-AI/actions/runs/44342174543 — SUCCESS.
-- Exact pytest output: **231 passed, 8 subtests passed in 1.24 seconds**.
+- Latest CI on current PR head: https://github.com/Eventodigital473/SI-AI/actions/runs/44342780258 — SUCCESS.
+- Exact pytest output: **231 passed, 8 subtests passed in 2.15 seconds**.
 - Dependency consistency passed; minimal synchronous Termux CCXT profile passed with CCXT 4.5.93; Termux Widget shell syntax and installer preservation passed; Python compilation passed.
-- Previous CI run on the exact research-code commit: https://github.com/Eventodigital473/SI-AI/actions/runs/44341693784 — SUCCESS, same 231 passed and 8 subtests.
-- 730-day historical workflow: https://github.com/Eventodigital473/SI-AI/actions/runs/44341693703 — last checked 2026-11-18 16:03 UTC, still IN_PROGRESS. Dependency installation, compile, and full automated tests passed; 730-day checksum-verified Binance Vision backtest step remained in progress. No artifact was available yet. Its job-log endpoint returned NOT_FOUND while running, so no further output or completion is claimed.
+- Previous CI run: https://github.com/Eventodigital473/SI-AI/actions/runs/44342174543 — SUCCESS, same 231 passed and 8 subtests.
+- 730-day historical workflow: https://github.com/Eventodigital473/SI-AI/actions/runs/44341693703 — last checked 2026-11-18 16:04 UTC, still IN_PROGRESS. Dependency installation, compile, and full automated tests passed; 730-day checksum-verified Binance Vision backtest step remained in progress. No artifact was available yet. Its job-log endpoint returned NOT_FOUND while running, so no further output or completion is claimed.
 - Earlier intermediate CI failures on commits `6c80f59`, `ceedcd6`, `a5bb89c`, and `ddda39f` were due to synthetic fixtures with non-UTC-aligned candle timestamps after strict coverage validation. Fixtures were corrected; later CI on `d083ec0` and `395a943` passed.
 - Historical 365-day baseline run: https://github.com/Eventodigital473/SI-AI/actions/runs/44291060559 — SUCCESS.
 - Core scanner static review found no Spot references in `SI_AI_smc.py` or `si_ai_scanner.py` and no `create_order`, `cancel_order`, `set_leverage`, private account, or balance calls in those core files.
@@ -27,6 +27,15 @@
 3. **Public OHLCV and mark-price coverage:** shared full-window coverage validation is used by historical OHLCV and mark-price downloads, saved datasets and loaded datasets. Edge gaps fail closed.
 4. **Regression tests:** added edge-gap, malformed-fold, and UTC-boundary tests; synthetic fixture timestamps were aligned to real Binance UTC candle boundaries.
 5. **Historical research window:** GitHub historical workflow extended from 365 to 730 days for BTC, ETH, BNB, XRP, ADA, DOGE, LINK, AVAX, DOT and SOL.
+
+## Resume update — 2026-11-18 16:05 UTC
+
+- Re-read the current candidate's funding path and backtest integration.
+- Confirmed the public funding downloader validates the raw Binance event symbol, funding timestamp/rate agreement, and event-specific settlement markPrice; the historical backtest applies timestamped funding cashflows when this verified dataset is supplied.
+- Confirmed the Vision archive workflow intentionally does not pass monthly funding-rate CSV values into P&L because those CSVs do not include exact event markPrice. It records this as an explicit limitation rather than silently substituting candle close.
+- Confirmed funding settlement ambiguity counts propagate from trade records into OOS and every walk-forward fold; the profitability gate requires zero ambiguities.
+- Latest test output and candidate head are recorded above. No Termux device run has been performed in this session.
+- The 730-day workflow remains in progress at the backtest step; do not assume it succeeded or failed until GitHub reports a terminal state and artifacts are inspected.
 
 ## 365-day historical validation baseline
 - Workflow: https://github.com/Eventodigital473/SI-AI/actions/runs/44291060559
