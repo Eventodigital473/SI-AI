@@ -42,11 +42,9 @@ def _termux_api_companion_installed():
     ):
         return True
     output = (result.stdout + "\\n" + result.stderr).lower()
-    if any(marker in output for marker in (
-        "package com.termux.api was not found",
-        "unknown package: com.termux.api",
-        "unable to find package com.termux.api",
-    )):
+    if "com.termux.api" in output and any(
+        marker in output for marker in ("not found", "unknown package", "unable to find")
+    ):
         return False
     return None
 
