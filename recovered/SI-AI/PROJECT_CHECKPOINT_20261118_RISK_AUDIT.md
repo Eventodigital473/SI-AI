@@ -51,3 +51,13 @@
 5. Do not merge PR #17, PR #16, or any branch into `main` without explicit user approval.
 
 **Safety remains unchanged:** SI-AI only generates signals and notifications. No Binance orders are ever placed by the project.
+
+
+## Update — CI-backed historical validation workflow
+
+- Added `.github/workflows/futures-historical-backtest.yml` on 2026-11-18.
+- Workflow runs dependency consistency, Python compilation, the full pytest suite, then a 180-day public Binance USD-M Futures research run for BTC/USDT, ETH/USDT and SOL/USDT.
+- It preserves generated historical datasets and JSON reports as a GitHub Actions artifact, including partial artifacts if a later stage fails.
+- Workflow commit: `408e5ed1ab7a296569eb38f9bb4d5f4128fa6c73`.
+- This workflow has been added but its execution/result is NOT yet verified. No backtest result or profitability conclusion is claimed from the workflow definition alone.
+- The workflow uses public market data only and does not call order/account endpoints or place trades.
