@@ -288,6 +288,38 @@ class BacktestingTests(unittest.TestCase):
         self.assertFalse(assumptions["liquidation_modelled"])
 
 
+    def test_mark_price_intratrade_excursion_is_included_in_drawdown(self):
+        data = candles_with_bars(82)
+        mark = [list(row) for row in data]
+        mark[80] = [81, 100.0, 110.0, 90.0, 100.0, 0.0]
+
+        result = backtesting.run_backtest(
+            data, "FUTURES", "BTC/USDT", "15m",
+            fee_rate=0.0, slippage_rate=0.0,
+            max_holding_bars=1, signal_fn=fixed_buy,
+            mark_price_candles=mark,
+        )
+
+        self.assertEqual(len(result["trades"]), 1)
+        self.assertGreater(result["metrics"]["max_drawdown_percent"], 0.0)
+        self.assertTrue(result["assumptions"]["mark_price_mtm_drawdown_included"])
+        self.assertEqual(
+            result["assumptions"]["drawdown_basis"],
+            "conservative_mark_price_intrabar_mtm",
+        )
+
+    def test_mark_price_timestamp_mismatch_is_rejected(self):
+        data = candles_with_bars(82)
+        mark = [list(row) for row in data]
+        mark[80][0] += 1
+
+        with self.assertRaisesRegex(ValueError, "timestamps must exactly match"):
+            backtesting.run_backtest(
+                data, "FUTURES", "BTC/USDT", "15m",
+                signal_fn=fixed_buy, mark_price_candles=mark,
+            )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
