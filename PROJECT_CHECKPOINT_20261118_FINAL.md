@@ -86,3 +86,13 @@ No live trading is enabled. No automatic orders are placed.
 - Workflow now runs on integration PR changes as well as pushes/manual dispatch.
 - PR #17 remains draft and unmerged. No automatic order placement or private account API has been enabled.
 - Next exact step: wait for run 44343707734 to finish, inspect its report and dataset artifacts, then fix any archive/data/backtest failures. Do not certify profitability if funding or historical liquidation evidence remains incomplete.
+
+## Resume update — 2026-11-18 16:11 UTC
+
+- Current PR head: `e490e0b5cfd0ec6682fc779bf65f92adb16e7dff`; this commit updates the PR description/checkpoint only after the last tested code commit `9528aa872453d90699a2783c6db4fb1b1f49585e`.
+- Latest CI on current PR head: [44343916874](https://github.com/Eventodigital473/SI-AI/actions/runs/44343916874) — SUCCESS. The complete job passed dependency consistency, synchronous Termux CCXT profile, Termux Widget shell checks, compilation and the full test suite. The exact test count remains 232 passed, 8 subtests from the immediately preceding code commit's test output.
+- Current-head 730-day PR validation: [44343916868](https://github.com/Eventodigital473/SI-AI/actions/runs/44343916868) — in progress. Setup, dependency consistency, compilation and full automated tests have passed; 730-day Binance Vision archive backtest is still in progress. No artifacts are available yet.
+- Earlier same-code push validation [44343707734](https://github.com/Eventodigital473/SI-AI/actions/runs/44343707734) also remains reported in progress but is stale; prefer current PR run 44343916868 for candidate validation.
+- GitHub job-log download endpoint returned 404 for the active job; job status and step summaries remain accessible. This is not evidence of a backtest failure.
+- PR #17 remains open, draft and unmerged. No live order placement.
+- Exact next step: poll 44343916868; once complete, fetch artifacts, inspect checksums and all per-symbol reports. If it remains in progress unusually long, investigate archive download/runner timeout rather than claiming success.
