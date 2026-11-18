@@ -174,3 +174,13 @@ GitHub CI verifies dependency consistency, Python compilation, Termux shell synt
 - `termux_preflight.py` — offline Android/Termux runtime, dependency, Widget, and safety-policy checks.
 
 The previous Spot portfolio experiment is retired and is not part of the active SI-AI codebase. Its historical result is not evidence for the Futures strategy.
+
+## Binance Vision 730-day research validation
+
+The checksum-verified archive workflow is a separate research path from the public Futures funding API backtest. It downloads monthly USD-M OHLCV, mark-price OHLC, and funding-rate archives, verifies each ZIP checksum, and rejects missing candle coverage at either requested-window edge. A daily mark-price archive may repair an identified internal 1h gap; no price is interpolated.
+
+**Funding limitation:** monthly Binance Vision funding-rate CSV rows do not contain the exact event settlement markPrice. The archive runner preserves the funding-rate evidence but deliberately does not apply estimated funding cashflows to P&L. For exact funding cashflows, use the public timestamped funding endpoint path in `funding_data.py` and the `run_public_futures_backtest.py` workflow. Never substitute candle close for settlement markPrice.
+
+**Research limitations:** historical mark-price OHLC is retained, but liquidation is not simulated without historical timestamp-matched maintenance-margin tiers and exact intrabar liquidation sequencing. Each symbol is tested with independent reference equity; the multi-symbol output is not a shared-wallet portfolio. The profitability certification remains INCONCLUSIVE until every required sample, cost, drawdown, funding, and liquidation gate has evidence.
+
+The GitHub Actions workflow `.github/workflows/futures-historical-backtest.yml` runs the full automated tests before the 730-day, ten-symbol archive research. Its report and dataset artifacts must be inspected before recording any backtest result. A workflow still marked in progress, or one running an older commit, is not a completed validation.
