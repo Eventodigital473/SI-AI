@@ -87,7 +87,7 @@ def test_numeric_csv_parser_skips_one_header_and_rejects_later_bad_rows():
 
 def test_archive_coverage_accepts_exact_requested_window():
     interval = vision.smc.TIMEFRAME_MILLISECONDS["1h"]
-    start = 1_700_000_000_000
+    start = (1_700_000_000_000 // interval) * interval
     candles = [
         [start, 100, 101, 99, 100, 0],
         [start + interval, 100, 101, 99, 100, 0],
@@ -100,7 +100,7 @@ def test_archive_coverage_accepts_exact_requested_window():
 @pytest.mark.parametrize("missing", ["first", "last"])
 def test_archive_coverage_rejects_missing_edge_candles(missing):
     interval = vision.smc.TIMEFRAME_MILLISECONDS["1h"]
-    start = 1_700_000_000_000
+    start = (1_700_000_000_000 // interval) * interval
     candles = [
         [start, 100, 101, 99, 100, 0],
         [start + interval, 100, 101, 99, 100, 0],
@@ -118,7 +118,7 @@ def test_archive_coverage_rejects_missing_edge_candles(missing):
 
 def test_archive_coverage_rejects_unaligned_requested_window():
     interval = vision.smc.TIMEFRAME_MILLISECONDS["1h"]
-    start = 1_700_000_000_000
+    start = (1_700_000_000_000 // interval) * interval
     with pytest.raises(ValueError, match="timeframe-aligned"):
         vision._validate_candle_coverage(
             [], "1h", start, start + interval + 1
