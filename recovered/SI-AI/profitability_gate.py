@@ -150,6 +150,16 @@ def evaluate_profitability_evidence(
 
     assumptions = chronological_report.get("assumptions", {})
     if market == "FUTURES":
+        mark_mtm_ok = (
+            isinstance(assumptions, dict)
+            and assumptions.get("mark_price_mtm_drawdown_included") is True
+            and assumptions.get("drawdown_basis") == "conservative_mark_price_intrabar_mtm"
+        )
+        check(
+            "mark_to_market_drawdown", mark_mtm_ok, mark_mtm_ok,
+            "Futures certification requires conservative intratrade drawdown measured from timestamp-aligned mark-price OHLC.",
+        )
+
         funding_ok = isinstance(assumptions, dict) and assumptions.get("historical_funding_series_included") is True
         check("historical_funding_series", funding_ok, funding_ok,
               "Futures evidence must include timestamped historical funding events.")
