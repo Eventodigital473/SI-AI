@@ -132,7 +132,68 @@ def _load_monthly_candles(symbol, timeframe, start_ms, end_ms, months, *, mark=F
     candles = [collected[key] for key in sorted(collected)]
     if not candles:
         raise ValueError(f"No Binance Vision {kind} data for {symbol} {timeframe}")
-    smc.validate_candle_continuity(candles, timeframe)
+
+    # Binance publishes daily markPriceKlines archives as well as monthly
+    # archives. Use a checksum-verified daily file only to fill an identified
+    # missing interval; never interpolate or synthesize a mark price.
+    if mark and timeframe == "1h":
+        interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
+        missing = []
+        for previous, current in zip(candles, candles[1:]):
+            delta = current[0] - previous[0]
+            if delta > interval_ms and delta % interval_ms == 0:
+                missing.extend(range(previous[0] + interval_ms, current[0], interval_ms))
+            elif delta != interval_ms:
+                raise ValueError(
+                    f"Irregular {kind} timestamps for {symbol} {timeframe}: "
+                    f"{previous[0]} -> {current[0]} ({delta} ms)"
+                )
+        if missing:
+            raw_symbol = symbol.replace("/", "")
+            missing_by_day = {}
+            for timestamp in missing:
+                day = datetime.fromtimestamp(timestamp / 1000, timezone.utc).strftime("%Y-%m-%d")
+                missing_by_day.setdefault(day, set()).add(timestamp)
+            for day, required_timestamps in sorted(missing_by_day.items()):
+                filename = f"{raw_symbol}-{timeframe}-{day}.zip"
+                relative = f"daily/{kind}/{raw_symbol}/{timeframe}/{filename}"
+                rows, archive_hash = _download_verified_zip(relative)
+                values = _parse_numeric_rows(
+                    rows, expected_columns=7,
+                    label=f"{symbol} {timeframe} {kind} daily fallback {day}",
+                )
+                archive_hashes.append({
+                    "date": day, "zip_sha256": archive_hash, "daily_gap_repair": True,
+                })
+                for row in values:
+                    timestamp = int(row[0])
+                    if timestamp not in required_timestamps:
+                        continue
+                    if int(row[6]) != timestamp + interval_ms - 1:
+                        raise ValueError(
+                            f"Daily mark-price close-time mismatch for {symbol} at {timestamp}"
+                        )
+                    collected[timestamp] = [
+                        timestamp, row[1], row[2], row[3], row[4], 0.0,
+                    ]
+            candles = [collected[key] for key in sorted(collected)]
+
+    try:
+        smc.validate_candle_continuity(candles, timeframe)
+    except ValueError as exc:
+        interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
+        gap = next(
+            ((left[0], right[0], right[0] - left[0])
+             for left, right in zip(candles, candles[1:])
+             if right[0] - left[0] != interval_ms),
+            None,
+        )
+        if gap:
+            raise ValueError(
+                f"Binance Vision {kind} coverage gap for {symbol} {timeframe}: "
+                f"{gap[0]} -> {gap[1]} ({gap[2]} ms); daily archive fallback did not repair it"
+            ) from exc
+        raise
     return candles, archive_hashes
 
 
