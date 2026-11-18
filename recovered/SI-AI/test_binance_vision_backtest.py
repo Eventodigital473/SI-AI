@@ -84,6 +84,47 @@ def test_numeric_csv_parser_skips_one_header_and_rejects_later_bad_rows():
         )
 
 
+
+def test_archive_coverage_accepts_exact_requested_window():
+    interval = vision.smc.TIMEFRAME_MILLISECONDS["1h"]
+    start = 1_700_000_000_000
+    candles = [
+        [start, 100, 101, 99, 100, 0],
+        [start + interval, 100, 101, 99, 100, 0],
+    ]
+    vision._validate_candle_coverage(
+        candles, "1h", start, start + 2 * interval
+    )
+
+
+@pytest.mark.parametrize("missing", ["first", "last"])
+def test_archive_coverage_rejects_missing_edge_candles(missing):
+    interval = vision.smc.TIMEFRAME_MILLISECONDS["1h"]
+    start = 1_700_000_000_000
+    candles = [
+        [start, 100, 101, 99, 100, 0],
+        [start + interval, 100, 101, 99, 100, 0],
+        [start + 2 * interval, 100, 101, 99, 100, 0],
+    ]
+    if missing == "first":
+        candles = candles[1:]
+    else:
+        candles = candles[:-1]
+    with pytest.raises(ValueError, match="Incomplete Binance Vision"):
+        vision._validate_candle_coverage(
+            candles, "1h", start, start + 3 * interval
+        )
+
+
+def test_archive_coverage_rejects_unaligned_requested_window():
+    interval = vision.smc.TIMEFRAME_MILLISECONDS["1h"]
+    start = 1_700_000_000_000
+    with pytest.raises(ValueError, match="timeframe-aligned"):
+        vision._validate_candle_coverage(
+            [], "1h", start, start + interval + 1
+        )
+
+
 def test_symbol_validation_is_futures_only_and_deduplicates():
     assert vision._validate_symbols(["BTC/USDT", "ETH/USDT", "BTC/USDT"]) == [
         "BTC/USDT", "ETH/USDT"
