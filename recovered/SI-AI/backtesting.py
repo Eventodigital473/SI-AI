@@ -498,11 +498,9 @@ def evaluate_chronological_validation(
     oos_options["start_index"] = split
     holdout = run_backtest(data, market, symbol, timeframe, **oos_options)
     oos_trades = holdout["trades"]
-    initial = _number(oos_options.get("initial_equity", si.PAPER_EQUITY_USDT), "initial_equity", 0.01)
-    curve = [initial]
-    for trade in oos_trades:
-        curve.append(max(0.0, curve[-1] + trade["net_pnl_usdt"]))
-    oos_metrics = _metrics(oos_trades, curve, initial)
+    # Reuse the holdout equity path so intratrade mark-to-market drawdown is
+    # preserved instead of rebuilding a realized-exits-only curve.
+    oos_metrics = holdout["metrics"]
     return {
         "split_index": split,
         "split_timestamp": data[split][0],
@@ -553,9 +551,11 @@ def evaluate_walk_forward(
             data[:test_end], market, symbol, timeframe, **options
         )
         trades = segment["trades"]
-        for trade in trades:
-            current_equity = max(0.0, current_equity + trade["net_pnl_usdt"])
-            equity_curve.append(current_equity)
+        segment_curve = segment["equity_curve"]
+        if not isinstance(segment_curve, list) or not segment_curve:
+            raise RuntimeError("Walk-forward segment returned an invalid equity curve")
+        equity_curve.extend(segment_curve[1:])
+        current_equity = segment["metrics"]["ending_equity_usdt"]
         all_trades.extend(trades)
         fold_reports.append({
             "fold": fold + 1,
@@ -564,6 +564,7 @@ def evaluate_walk_forward(
             "trade_count": len(trades),
             "net_pnl_usdt": round(sum(t["net_pnl_usdt"] for t in trades), 8),
             "ending_equity_usdt": round(current_equity, 8),
+            "max_drawdown_percent": segment["metrics"]["max_drawdown_percent"],
             "funding_settlement_boundary_ambiguities": sum(
                 int(trade.get("funding_boundary_ambiguities", 0)) for trade in trades
             ),
