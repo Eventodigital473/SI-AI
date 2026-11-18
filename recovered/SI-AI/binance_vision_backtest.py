@@ -98,6 +98,34 @@ def _parse_numeric_rows(rows, *, expected_columns, label):
     return parsed
 
 
+def _validate_candle_coverage(candles, timeframe, start_ms, end_ms):
+    """Require exact requested start/end coverage after internal continuity checks."""
+    interval_ms = smc.TIMEFRAME_MILLISECONDS.get(timeframe)
+    if interval_ms is None:
+        raise ValueError(f"Unsupported timeframe for archive coverage: {timeframe}")
+    if (
+        isinstance(start_ms, bool) or not isinstance(start_ms, int)
+        or isinstance(end_ms, bool) or not isinstance(end_ms, int)
+        or end_ms <= start_ms
+        or (end_ms - start_ms) % interval_ms
+    ):
+        raise ValueError("Requested archive window must be positive and timeframe-aligned")
+    expected_count = (end_ms - start_ms) // interval_ms
+    if (
+        not candles
+        or candles[0][0] != start_ms
+        or candles[-1][0] != end_ms - interval_ms
+        or len(candles) != expected_count
+    ):
+        first = candles[0][0] if candles else None
+        last = candles[-1][0] if candles else None
+        raise ValueError(
+            f"Incomplete Binance Vision {timeframe} archive coverage: "
+            f"expected start={start_ms}, end={end_ms} exclusive, candles={expected_count}; "
+            f"received first={first}, last={last}, candles={len(candles)}"
+        )
+
+
 def _load_monthly_candles(symbol, timeframe, start_ms, end_ms, months, *, mark=False):
     kind = "markPriceKlines" if mark else "klines"
     interval_ms = smc.TIMEFRAME_MILLISECONDS[timeframe]
@@ -194,6 +222,7 @@ def _load_monthly_candles(symbol, timeframe, start_ms, end_ms, months, *, mark=F
                 f"{gap[0]} -> {gap[1]} ({gap[2]} ms); daily archive fallback did not repair it"
             ) from exc
         raise
+    _validate_candle_coverage(candles, timeframe, start_ms, end_ms)
     return candles, archive_hashes
 
 
