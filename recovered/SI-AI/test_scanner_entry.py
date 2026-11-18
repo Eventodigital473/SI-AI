@@ -98,6 +98,16 @@ class ScannerEntryConfirmationTests(unittest.TestCase):
             "WAIT",
         )
 
+    def test_subminimum_actual_net_reward_risk_fails_even_if_field_claims_two(self):
+        self.results["1h"].update({
+            "take_profit": 102.5,
+            "reward_risk": 2.0,
+        })
+        self.assertEqual(
+            scanner.confirm_signal("FUTURES", self.results, self.combined),
+            "WAIT",
+        )
+
     def test_inconsistent_notional_fails_closed(self):
         self.results["1h"]["paper_notional_usdt"] = 19.9
         self.assertEqual(
