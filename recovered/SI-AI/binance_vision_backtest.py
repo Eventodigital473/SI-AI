@@ -87,8 +87,13 @@ def _parse_numeric_rows(rows, *, expected_columns, label):
             values = [float(value) for value in row[:expected_columns]]
         except (TypeError, ValueError):
             if index == 0:
-                # Binance archive CSVs may contain a column-name header.
-                continue
+                # Skip only the documented Binance CSV headers. Treating any
+                # malformed first record as a header could silently discard a
+                # real first funding event or candle.
+                first_cell = str(row[0]).strip().lower()
+                expected_header = "calc_time" if expected_columns == 3 else "open_time"
+                if first_cell == expected_header:
+                    continue
             raise ValueError(f"{label}: non-numeric CSV row {index}")
         if not all(math.isfinite(value) for value in values):
             raise ValueError(f"{label}: non-finite CSV row {index}")
