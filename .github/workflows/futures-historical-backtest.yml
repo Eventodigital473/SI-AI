@@ -1,0 +1,66 @@
+name: SI-AI Futures historical validation
+
+on:
+  push:
+    paths:
+      - "recovered/SI-AI/**"
+      - ".github/workflows/futures-historical-backtest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: si-ai-futures-historical-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-and-backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: recovered/SI-AI/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+        working-directory: recovered/SI-AI
+
+      - name: Verify dependency consistency
+        run: python -m pip check
+        working-directory: recovered/SI-AI
+
+      - name: Compile project
+        run: python -m compileall -q .
+        working-directory: recovered/SI-AI
+
+      - name: Run full automated test suite
+        run: python -m pytest -q
+        working-directory: recovered/SI-AI
+
+      - name: Run 180-day public Binance USD-M Futures backtest
+        run: |
+          python run_public_futures_backtest.py \
+            --days 180 \
+            --symbol BTC/USDT \
+            --symbol ETH/USDT \
+            --symbol SOL/USDT
+        working-directory: recovered/SI-AI
+
+      - name: Preserve historical datasets and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: si-ai-futures-validation-${{ github.run_id }}
+          path: |
+            recovered/SI-AI/data/historical/**
+            recovered/SI-AI/data/reports/**
+          if-no-files-found: warn
+          retention-days: 30
