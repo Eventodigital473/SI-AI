@@ -92,3 +92,49 @@ def test_symbol_validation_is_futures_only_and_deduplicates():
         vision._validate_symbols(["BTC/USD"])
     with pytest.raises(ValueError):
         vision._validate_symbols(["BTC/USDT", "btc/USDT"])
+
+
+def test_mark_price_daily_archive_repairs_a_full_day_gap_without_interpolation(monkeypatch):
+    start = 1782687600000  # 2026-06-28 23:00:00 UTC
+    next_day_after_gap = start + 25 * 60 * 60 * 1000
+
+    def mark_row(timestamp):
+        return [
+            str(timestamp), "100", "101", "99", "100", "0",
+            str(timestamp + 60 * 60 * 1000 - 1),
+        ]
+
+    monthly_rows = [
+        ["open_time", "open", "high", "low", "close", "ignore", "close_time"],
+        mark_row(start),
+        mark_row(next_day_after_gap),
+    ]
+    daily_rows = [
+        ["open_time", "open", "high", "low", "close", "ignore", "close_time"]
+    ]
+    required = set(range(start + 60 * 60 * 1000, next_day_after_gap, 60 * 60 * 1000))
+    for timestamp in sorted(required):
+        daily_rows.append(mark_row(timestamp))
+
+    calls = []
+
+    def fake_archive(relative_path):
+        calls.append(relative_path)
+        if relative_path.startswith("monthly/"):
+            return monthly_rows, "a" * 64
+        if relative_path == "daily/markPriceKlines/BTCUSDT/1h/BTCUSDT-1h-2026-06-29.zip":
+            return daily_rows, "b" * 64
+        raise AssertionError(f"Unexpected archive request: {relative_path}")
+
+    monkeypatch.setattr(vision, "_download_verified_zip", fake_archive)
+    candles, hashes = vision._load_monthly_candles(
+        "BTC/USDT", "1h", start, next_day_after_gap + 60 * 60 * 1000,
+        ["2026-06"], mark=True,
+    )
+
+    assert len(candles) == 26
+    assert [row[0] for row in candles] == sorted(
+        [start, next_day_after_gap] + list(required)
+    )
+    assert any(item.get("daily_gap_repair") for item in hashes)
+    assert any(path.startswith("daily/") for path in calls)
