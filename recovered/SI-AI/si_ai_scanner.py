@@ -38,7 +38,7 @@ def validate_config():
 
     for name in ("get_candles", "analyze_candles", "combine_timeframes",
                  "refresh_symbol_universe", "get_symbols",
-                 "validate_candle_freshness"):
+                 "validate_candle_freshness", "calculate_net_reward_risk"):
         if not callable(getattr(smc, name, None)):
             raise RuntimeError(f"Required engine function missing: {name}")
 
@@ -234,7 +234,24 @@ def direction(result):
     return "WAIT"
 
 
+def _matches_expected_risk_value(result, field, expected):
+    actual = number(result.get(field))
+    if actual is None or not math.isfinite(expected):
+        return False
+    return math.isclose(
+        actual, expected, rel_tol=1e-6, abs_tol=1e-8
+    )
+
+
 def valid_risk(market, signal, result):
+    """Independently verify the engine's net R:R and complete paper sizing."""
+    if not isinstance(result, dict) or market != "FUTURES":
+        return False
+
+    signal = str(signal).strip().upper()
+    if signal not in ("BUY", "SELL"):
+        return False
+
     price = number(result.get("price"))
     stop_loss = number(result.get("stop_loss"))
     take_profit = number(result.get("take_profit"))
@@ -242,20 +259,117 @@ def valid_risk(market, signal, result):
 
     if None in (price, stop_loss, take_profit, reward_risk):
         return False
-
     if min(price, stop_loss, take_profit) <= 0:
         return False
 
-    if reward_risk < float(smc.MIN_REWARD_RISK):
+    if signal == "BUY":
+        if not stop_loss < price < take_profit:
+            return False
+        side = "LONG"
+        gross_reward_per_unit = take_profit - price
+    else:
+        if not take_profit < price < stop_loss:
+            return False
+        side = "SHORT"
+        gross_reward_per_unit = price - take_profit
+
+    try:
+        fee_rate = number(smc.PAPER_TAKER_FEE_RATES.get(market))
+        slippage_rate = number(smc.PAPER_SLIPPAGE_RATE)
+        equity = number(smc.PAPER_EQUITY_USDT)
+        risk_percent = number(smc.RISK_PER_TRADE_PERCENT)
+        margin_percent = number(smc.MARGIN_ALLOCATION_PERCENT)
+        leverage = number(smc.RECOMMENDED_FUTURES_LEVERAGE)
+        minimum_rr = number(smc.MIN_REWARD_RISK)
+
+        if None in (
+            fee_rate, slippage_rate, equity, risk_percent,
+            margin_percent, leverage, minimum_rr,
+        ):
+            return False
+        if (
+            fee_rate < 0 or fee_rate >= 0.05
+            or slippage_rate < 0 or slippage_rate >= 0.05
+            or equity <= 0
+            or risk_percent <= 0 or risk_percent > 100
+            or margin_percent <= 0 or margin_percent > 100
+            or leverage <= 0
+            or minimum_rr < 2.0
+        ):
+            return False
+
+        expected_rr = smc.calculate_net_reward_risk(
+            price, stop_loss, take_profit, side, market
+        )
+    except (AttributeError, KeyError, TypeError, ValueError, ZeroDivisionError):
         return False
 
-    if signal == "BUY":
-        return stop_loss < price < take_profit
+    if (
+        not math.isfinite(expected_rr)
+        or expected_rr < minimum_rr - 1e-9
+        or not math.isclose(
+            reward_risk, round(expected_rr, 4),
+            rel_tol=0.0, abs_tol=1e-9,
+        )
+    ):
+        return False
 
-    if signal == "SELL" and market == "FUTURES":
-        return take_profit < price < stop_loss
+    cost_rate = fee_rate + slippage_rate
+    gross_risk_per_unit = abs(price - stop_loss)
+    total_risk_per_unit = (
+        gross_risk_per_unit + cost_rate * (price + stop_loss)
+    )
+    net_reward_per_unit = (
+        gross_reward_per_unit - cost_rate * (price + take_profit)
+    )
+    if (
+        not math.isfinite(total_risk_per_unit)
+        or not math.isfinite(net_reward_per_unit)
+        or total_risk_per_unit <= 0
+        or net_reward_per_unit <= 0
+    ):
+        return False
 
-    return False
+    risk_budget = equity * risk_percent / 100.0
+    margin_budget = equity * margin_percent / 100.0
+    maximum_notional = margin_budget * leverage
+    expected_quantity = min(
+        risk_budget / total_risk_per_unit,
+        maximum_notional / price,
+    )
+    if not math.isfinite(expected_quantity) or expected_quantity <= 0:
+        return False
+
+    expected_notional = expected_quantity * price
+    expected_values = {
+        "paper_quantity": expected_quantity,
+        "paper_notional_usdt": expected_notional,
+        "paper_risk_usdt": expected_quantity * gross_risk_per_unit,
+        "paper_total_risk_usdt": expected_quantity * total_risk_per_unit,
+        "paper_estimated_fees_usdt": (
+            expected_quantity * (price + stop_loss) * fee_rate
+        ),
+        "paper_estimated_slippage_usdt": (
+            expected_quantity * (price + stop_loss) * slippage_rate
+        ),
+        "paper_estimated_net_reward_usdt": (
+            expected_quantity * net_reward_per_unit
+        ),
+        "recommended_leverage": leverage,
+        "paper_margin_required_usdt": expected_notional / leverage,
+        "paper_margin_budget_usdt": margin_budget,
+    }
+
+    for field, expected in expected_values.items():
+        if not _matches_expected_risk_value(result, field, expected):
+            return False
+
+    actual_total_risk = number(result.get("paper_total_risk_usdt"))
+    actual_notional = number(result.get("paper_notional_usdt"))
+    return (
+        actual_total_risk <= risk_budget + max(1e-8, risk_budget * 1e-6)
+        and actual_notional <= maximum_notional + max(1e-8, maximum_notional * 1e-6)
+    )
 
 
 def confirm_signal(market, results, combined):
@@ -355,6 +469,7 @@ def make_alert(market, symbol, signal, results):
         stop_loss = number(reference.get("stop_loss"))
         take_profit = number(reference.get("take_profit"))
         reward_risk = number(reference.get("reward_risk"))
+        net_reward = number(reference.get("paper_estimated_net_reward_usdt"))
         risk_distance = (
             abs(price - stop_loss)
             if price is not None and stop_loss is not None
@@ -388,9 +503,13 @@ def make_alert(market, symbol, signal, results):
                 if take_profit is not None else "Take Profit: unavailable"
             )
         lines.append(
-            f"Reward/Risk: {reward_risk:.2f}:1"
-            if reward_risk is not None else "Reward/Risk: unavailable"
+            f"Net Reward/Risk (fees + slippage): {reward_risk:.2f}:1"
+            if reward_risk is not None else "Net Reward/Risk: unavailable"
         )
+        if net_reward is not None:
+            lines.append(
+                f"Estimated net target reward: {net_reward:.4f} USDT after estimated fees/slippage"
+            )
         if market == "FUTURES":
             leverage = number(reference.get("recommended_leverage"))
             margin = number(reference.get("paper_margin_required_usdt"))
