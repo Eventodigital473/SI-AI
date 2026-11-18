@@ -125,3 +125,22 @@ No live trading is enabled. No automatic orders are placed.
 6. Keep PR #17 draft/unmerged and automatic orders disabled. Do not label the project profitability-certified or ready for live trading.
 
 No live trading is enabled. No automatic orders are placed.
+
+
+## Resume update — 2026-11-19: shared-wallet engine and public API access finding
+
+- Latest branch head: `0ea57105628bf8d24ebc85a43ca9d8028f009b41`. PR #17 remains open, draft, mergeable and unmerged.
+- Added `recovered/SI-AI/shared_wallet_backtest.py`: deterministic shared-equity sizing, aggregate notional admission cap, pro-rata simultaneous entries, mark-price adverse OHLC drawdown, fail-closed data checks, atomic JSON output, and portfolio-level OOS/three-fold reporting.
+- Added `recovered/SI-AI/test_shared_wallet_backtest.py`: 12 regression tests covering shared cap, simultaneous allocation, open/intrabar exit ordering, ambiguous same-symbol boundaries, missing mark candles, long/short adverse marks, and accounting.
+- Shared-wallet engine was run locally against the previously downloaded 730-day artifact. It validates the mark-price dataset manifest and SHA-256 hashes, uses the report's exact 0.5% risk / 20% margin / 1x leverage / fee / slippage assumptions, and explicitly excludes funding and liquidation. The initial exploratory Vision OOS result was 104 executed / 13 capacity-skipped from 117 candidates, net P&L about -1.9886 USDT, adverse mark-price max drawdown about 4.7333%. Walk-forward folds were approximately +5.0965, -0.4995, and -1.5395 USDT. These are research diagnostics, not certification.
+- Latest Python CI run [44402897751](https://github.com/Eventodigital473/SI-AI/actions/runs/44402897751): **244 passed, 8 subtests passed**; dependency consistency, minimal Termux CCXT profile, widget shell checks, and compilation passed.
+- Latest 730-day Vision + shared-wallet workflow [44402897767](https://github.com/Eventodigital473/SI-AI/actions/runs/44402897767) is still in progress at this checkpoint. Inspect its final shared-wallet step and artifact before claiming completion.
+- A separate attempt to validate exact settlement funding through Binance USD-M Futures REST was blocked before data retrieval: GitHub-hosted runner received HTTP **451** from `https://fapi.binance.com/fapi/v1/exchangeInfo`, with Binance response stating service unavailable from a restricted location. This is an external access/eligibility restriction, not a Python test failure. No VPN, proxy, alternate routing or other restriction bypass was attempted.
+- Removed the auto-triggering GitHub public-Futures workflow after the 451 finding to avoid repeated prohibited/pointless requests. The existing `run_public_futures_backtest.py` and exact funding parser remain in the repository, but actual public API retrieval is unverified from the GitHub runner. The user’s Termux access is unknown and must be tested only through the normal official endpoint; if it returns 451, stop and do not try to circumvent it.
+- The Binance Vision 730-day archive workflow remains the available historical dataset source. Its funding archive has rates but not exact settlement markPrice, so it cannot certify funding cashflows. Historical liquidation remains unmodelled.
+- The user’s Termux folder and venv already exist at `~/SI-AI_FINAL_VALIDATION/recovered/SI-AI/.venv`; do not request another clone or dependency installation. Final phone-side compile/tests, preflight, and one public Futures dry-run remain pending. No automatic orders are enabled.
+
+## Exact next step
+1. Wait for workflow `44402897767` and independently inspect its shared-wallet JSON artifact and job logs.
+2. Keep PR #17 draft/unmerged. Keep profitability certification blocked/inconclusive; do not tune thresholds to force a pass.
+3. Only after the above, give the user one reviewed Termux update-and-validation command sequence using the existing clone and venv. The phone-side public API dry-run must stop on HTTP 451; do not propose a VPN/proxy workaround.
