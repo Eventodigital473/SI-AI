@@ -169,5 +169,60 @@ class RiskManagementTests(unittest.TestCase):
         self.assertIsNone(result["stop_loss"])
 
 
+class NetRewardRiskFormulaTests(unittest.TestCase):
+
+    def test_long_net_reward_risk_includes_both_sides_fees_and_slippage(self):
+        fee = si.PAPER_TAKER_FEE_RATES["FUTURES"]
+        slippage = si.PAPER_SLIPPAGE_RATE
+        costs = fee + slippage
+        expected_risk = (100.0 - 98.0) + costs * (100.0 + 98.0)
+        expected_reward = (106.0 - 100.0) - costs * (100.0 + 106.0)
+
+        actual = si.calculate_net_reward_risk(
+            100.0, 98.0, 106.0, "LONG", "FUTURES"
+        )
+
+        self.assertAlmostEqual(actual, expected_reward / expected_risk, places=12)
+
+    def test_short_net_reward_risk_includes_both_sides_fees_and_slippage(self):
+        fee = si.PAPER_TAKER_FEE_RATES["FUTURES"]
+        slippage = si.PAPER_SLIPPAGE_RATE
+        costs = fee + slippage
+        expected_risk = (102.0 - 100.0) + costs * (100.0 + 102.0)
+        expected_reward = (100.0 - 94.0) - costs * (100.0 + 94.0)
+
+        actual = si.calculate_net_reward_risk(
+            100.0, 102.0, 94.0, "SHORT", "FUTURES"
+        )
+
+        self.assertAlmostEqual(actual, expected_reward / expected_risk, places=12)
+
+    def test_entry_slippage_is_not_double_counted_when_fill_already_includes_it(self):
+        entry = 100.02
+        stop = 98.0
+        target = 106.0
+        fee = si.PAPER_TAKER_FEE_RATES["FUTURES"]
+        slippage = si.PAPER_SLIPPAGE_RATE
+        expected_risk = (
+            entry - stop + fee * entry + (fee + slippage) * stop
+        )
+        expected_reward = (
+            target - entry - fee * entry - (fee + slippage) * target
+        )
+
+        actual = si.calculate_net_reward_risk(
+            entry, stop, target, "LONG", "FUTURES",
+            entry_slippage_included=True,
+        )
+
+        self.assertAlmostEqual(actual, expected_reward / expected_risk, places=12)
+
+    def test_net_reward_risk_rejects_wrong_directional_levels(self):
+        with self.assertRaises(ValueError):
+            si.calculate_net_reward_risk(
+                100.0, 102.0, 106.0, "LONG", "FUTURES"
+            )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
