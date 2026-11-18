@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: si-ai-public-funding-validation-\${{ github.event.pull_request.number || github.ref }}
+  group: si-ai-public-funding-validation-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -84,7 +84,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: si-ai-public-funding-validation-\${{ github.run_id }}
+          name: si-ai-public-funding-validation-${{ github.run_id }}
           path: |
             recovered/SI-AI/data/historical/**
             recovered/SI-AI/data/reports/**
