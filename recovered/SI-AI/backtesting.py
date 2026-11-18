@@ -492,7 +492,10 @@ def evaluate_chronological_validation(
     split = int(len(data) * fraction)
     if split < si.MIN_CANDLES or len(data) - split < 3:
         raise ValueError("Not enough candles for chronological train/holdout split")
-    train = run_backtest(data[:split], market, symbol, timeframe, **backtest_options)
+    train_options = dict(backtest_options)
+    if train_options.get("mark_price_candles") is not None:
+        train_options["mark_price_candles"] = train_options["mark_price_candles"][:split]
+    train = run_backtest(data[:split], market, symbol, timeframe, **train_options)
     oos_options = dict(backtest_options)
     # First OOS entry is at split; its signal may use only candles before split.
     oos_options["start_index"] = split
@@ -547,6 +550,9 @@ def evaluate_walk_forward(
         options["initial_equity"] = current_equity
         # The first fold entry is at test_start, using only prior candles.
         options["start_index"] = test_start
+        # Keep mark-price candles aligned with this expanding chronological prefix.
+        if options.get("mark_price_candles") is not None:
+            options["mark_price_candles"] = options["mark_price_candles"][:test_end]
         segment = run_backtest(
             data[:test_end], market, symbol, timeframe, **options
         )
