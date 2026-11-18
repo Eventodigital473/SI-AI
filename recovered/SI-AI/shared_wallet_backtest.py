@@ -68,6 +68,9 @@ def _normalize_trades(trades: Iterable[Mapping]) -> List[dict]:
         stop = _positive(raw.get("stop_loss"), f"trade {index} stop_loss")
         quantity = _positive(raw.get("quantity"), f"trade {index} quantity")
         pnl = _finite(raw.get("net_pnl_usdt"), f"trade {index} net_pnl_usdt")
+        exit_timing = raw.get("funding_exit_timing")
+        if exit_timing not in ("open", "intrabar", "close"):
+            raise ValueError(f"trade {index} has invalid or missing funding_exit_timing")
         if (side == "LONG" and stop >= entry) or (side == "SHORT" and stop <= entry):
             raise ValueError(f"trade {index} stop-loss is on the wrong side of entry")
         item = dict(raw)
@@ -76,6 +79,7 @@ def _normalize_trades(trades: Iterable[Mapping]) -> List[dict]:
             "entry_timestamp": entry_ts, "exit_timestamp": exit_ts,
             "entry_price": entry, "stop_loss": stop,
             "quantity": quantity, "net_pnl_usdt": pnl,
+            "exit_timing": exit_timing,
         })
         result.append(item)
     if not result:
@@ -83,10 +87,21 @@ def _normalize_trades(trades: Iterable[Mapping]) -> List[dict]:
     result.sort(key=lambda item: (item["entry_timestamp"], item["symbol"], item["exit_timestamp"]))
     previous_by_symbol = {}
     for trade in result:
-        previous_exit = previous_by_symbol.get(trade["symbol"])
-        if previous_exit is not None and trade["entry_timestamp"] <= previous_exit:
-            raise ValueError(f"overlapping trades for {trade['symbol']} are not supported")
-        previous_by_symbol[trade["symbol"]] = trade["exit_timestamp"]
+        previous = previous_by_symbol.get(trade["symbol"])
+        if previous is not None:
+            previous_exit, previous_timing, previous_entry = previous
+            same_open_boundary = (
+                trade["entry_timestamp"] == previous_exit
+                and previous_timing == "open"
+                and previous_entry < previous_exit
+            )
+            if trade["entry_timestamp"] < previous_exit or (
+                trade["entry_timestamp"] == previous_exit and not same_open_boundary
+            ):
+                raise ValueError(f"overlapping trades for {trade['symbol']} are not supported")
+        previous_by_symbol[trade["symbol"]] = (
+            trade["exit_timestamp"], trade["exit_timing"], trade["entry_timestamp"]
+        )
     return result
 
 
@@ -152,6 +167,17 @@ def _metrics(trades: Sequence[Mapping], equity: float, initial_equity: float,
     }
 
 
+def _settle_position(position: Mapping, equity: float, completed: list) -> float:
+    trade = position["trade"]
+    scaled_pnl = trade["net_pnl_usdt"] * position["quantity"] / trade["quantity"]
+    item = dict(trade)
+    item["allocated_quantity"] = position["quantity"]
+    item["scaled_net_pnl_usdt"] = scaled_pnl
+    item["quantity_scale"] = position["quantity"] / trade["quantity"]
+    completed.append(item)
+    return equity + scaled_pnl
+
+
 def simulate_shared_wallet(
     trades: Iterable[Mapping],
     mark_candles_by_symbol: Mapping[str, Sequence[Sequence]],
@@ -203,6 +229,15 @@ def simulate_shared_wallet(
     peak_open_notional = 0.0
 
     for timestamp in range(start, end + 1, HOUR_MS):
+        # Open-time exits occur at this candle's open. Settle them before
+        # marking this candle or admitting new entries.
+        open_exits = [position for position in open_positions
+                      if position["trade"]["exit_timestamp"] == timestamp
+                      and position["trade"]["exit_timing"] == "open"]
+        for position in open_exits:
+            equity = _settle_position(position, equity, completed)
+            open_positions.remove(position)
+
         # Existing positions are marked first; this is the equity used to size
         # new trades and calculate the remaining shared margin capacity.
         existing_unrealized = 0.0
@@ -268,16 +303,10 @@ def simulate_shared_wallet(
         # Same-hour entries are opened before exits are settled, conservatively
         # retaining existing margin through the full candle.
         closing = [position for position in open_positions
-                   if position["trade"]["exit_timestamp"] == timestamp]
+                   if position["trade"]["exit_timestamp"] == timestamp
+                   and position["trade"]["exit_timing"] in ("intrabar", "close")]
         for position in closing:
-            trade = position["trade"]
-            scaled_pnl = trade["net_pnl_usdt"] * position["quantity"] / trade["quantity"]
-            equity += scaled_pnl
-            item = dict(trade)
-            item["allocated_quantity"] = position["quantity"]
-            item["scaled_net_pnl_usdt"] = scaled_pnl
-            item["quantity_scale"] = position["quantity"] / trade["quantity"]
-            completed.append(item)
+            equity = _settle_position(position, equity, completed)
             open_positions.remove(position)
 
     if open_positions:
@@ -302,6 +331,8 @@ def simulate_shared_wallet(
             "Funding cashflows are not included; exact timestamped settlement mark prices are required.",
             "Exchange-specific maintenance-margin liquidation and exact intrabar liquidation sequencing are not modelled.",
             "Adverse mark-price OHLC drawdown is a conservative candle-level bound, not tick-level execution replay.",
+            "Exchange quantity precision, minimum quantity and minimum notional filters are not simulated.",
+            "Open positions are not forcibly reduced if later mark-to-market equity falls below the entry-time margin budget.",
             "Historical results do not guarantee future performance.",
         ],
         "automatic_orders": False,
@@ -404,6 +435,7 @@ def run_report_directory(reports_dir: str | Path, mark_price_dir: str | Path,
     marks = {}
     fold_trades = None
     fold_windows = None
+    shared_policy = None
     for report_path in report_paths:
         with report_path.open("r", encoding="utf-8") as handle:
             report = json.load(handle)
@@ -419,6 +451,25 @@ def run_report_directory(reports_dir: str | Path, mark_price_dir: str | Path,
         assumptions = chrono.get("assumptions", {})
         if assumptions.get("funding_costs_included") is not False:
             raise ValueError(f"{symbol}: Vision funding must remain explicitly excluded")
+        if (assumptions.get("mark_price_mtm_drawdown_included") is not True
+                or assumptions.get("drawdown_basis") != "conservative_mark_price_intrabar_mtm"):
+            raise ValueError(f"{symbol}: report does not confirm conservative mark-price drawdown")
+        policy = {
+            "risk_per_trade_percent": _positive(assumptions.get("risk_percent_per_trade"), f"{symbol} risk_percent_per_trade"),
+            "margin_allocation_percent": _positive(assumptions.get("margin_allocation_percent"), f"{symbol} margin_allocation_percent"),
+            "leverage": _positive(assumptions.get("recommended_futures_leverage"), f"{symbol} recommended_futures_leverage"),
+            "fee_rate_per_side": _finite(assumptions.get("fee_rate_per_side"), f"{symbol} fee_rate_per_side"),
+            "slippage_rate_per_side": _finite(assumptions.get("slippage_rate_per_side"), f"{symbol} slippage_rate_per_side"),
+        }
+        declared_multiple = _finite(assumptions.get("max_notional_equity_multiple"), f"{symbol} max_notional_equity_multiple")
+        expected_multiple = policy["margin_allocation_percent"] / 100.0 * policy["leverage"]
+        if not math.isclose(declared_multiple, expected_multiple, rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError(f"{symbol}: declared notional cap disagrees with margin/leverage policy")
+        if shared_policy is None:
+            shared_policy = policy
+        elif any(not math.isclose(policy[key], shared_policy[key], rel_tol=1e-9, abs_tol=1e-12)
+                 for key in shared_policy):
+            raise ValueError("Symbols have inconsistent risk, margin, leverage or execution-cost assumptions")
         oos_trades = chrono.get("out_of_sample_trades")
         folds = report.get("walk_forward", {}).get("folds")
         if not isinstance(oos_trades, list) or not isinstance(folds, list) or len(folds) != 3:
@@ -452,10 +503,18 @@ def run_report_directory(reports_dir: str | Path, mark_price_dir: str | Path,
             "walk_forward_trade_counts": [len(fold.get("trades", [])) for fold in folds],
         }
 
-    oos_result = simulate_shared_wallet(all_oos, marks, initial_equity=initial_equity)
+    simulation_options = {
+        "initial_equity": initial_equity,
+        "risk_per_trade_percent": shared_policy["risk_per_trade_percent"],
+        "margin_allocation_percent": shared_policy["margin_allocation_percent"],
+        "leverage": shared_policy["leverage"],
+        "fee_rate_per_side": shared_policy["fee_rate_per_side"],
+        "slippage_rate_per_side": shared_policy["slippage_rate_per_side"],
+    }
+    oos_result = simulate_shared_wallet(all_oos, marks, **simulation_options)
     fold_results = []
     for index, trades in enumerate(fold_trades):
-        result = simulate_shared_wallet(trades, marks, initial_equity=initial_equity)
+        result = simulate_shared_wallet(trades, marks, **simulation_options)
         result["fold"] = index + 1
         result["test_start_timestamp"] = fold_windows[index][0]
         result["test_end_timestamp"] = fold_windows[index][1]
@@ -466,6 +525,7 @@ def run_report_directory(reports_dir: str | Path, mark_price_dir: str | Path,
         "market": "FUTURES",
         "source": "SI-AI Binance Vision 730-day per-symbol reports; shared-wallet replay",
         "initial_equity_usdt": initial_equity,
+        "risk_policy": shared_policy,
         "symbols": sorted(per_symbol),
         "per_symbol_inputs": per_symbol,
         "out_of_sample": oos_result,
