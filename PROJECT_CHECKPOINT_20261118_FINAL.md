@@ -1,36 +1,32 @@
-# SI-AI Resume Checkpoint — 2026-11-18 (updated after 365-day validation)
+# SI-AI Resume Checkpoint — 2026-11-18 (latest risk/data-integrity audit)
 
 ## Candidate and safety
 - Repository: Eventodigital473/SI-AI
 - Candidate branch: fix/scanner-risk-audit-2026-11-18
-- Current branch/PR head: 3629d28e2f9f64880fcff1f181bf2cf0664f29a8 (checkpoint-document-only commit after validated code).
-- Historical validation code head: 853d758e3ea75ade96cd2bfdaad66dccd88cce61; its Python code is unchanged from 3aa29bf61d934ca480915c64b910f2989aec617c.
+- Current branch/PR head: d083ec091a343c2c84d28044237b3ef53f2feaaa
 - Draft PR: https://github.com/Eventodigital473/SI-AI/pull/17
 - PR #17 is open, draft, mergeable and unmerged. Do not merge without explicit user approval.
 - Futures-only; Spot excluded from the active scanner/backtest files.
 - Signal/notification provider only. No automatic orders, private account endpoints or balance fetching.
-- Reference equity 100 USDT; per-trade risk 0.5%; margin allocation cap 20%; leverage guidance 1x; minimum net R:R 2:1.
+- Reference equity 100 USDT; per-trade risk 0.5% (0.50 USDT); margin allocation cap 20%; leverage guidance 1x; minimum net R:R 2:1.
 
-## Verified automated checks
-- Python/Termux CI run 44291060801: SUCCESS; 221 passed, 4 subtests passed; dependency consistency, minimal synchronous Termux CCXT profile, Widget shell syntax/installer preservation, and Python compilation passed.
-- Duplicate CI run 44291070721: SUCCESS on the same candidate code.
-- CI run 44290166008: SUCCESS on code head 3aa29bf61d934ca480915c64b910f2989aec617c (221 passed, 4 subtests passed).
-- The old historical workflow 44290154788 was cancelled by the concurrency policy; it is superseded and must not be treated as a failure.
-- Replacement 365-day historical workflow 44291060559: SUCCESS on documentation-only descendant 853d758e3ea75ade96cd2bfdaad66dccd88cce61; the Python research code is equivalent to 3aa29bf.
+## Latest verified automated checks
+- Latest candidate CI: https://github.com/Eventodigital473/SI-AI/actions/runs/44341693784 — SUCCESS.
+- Exact test output: **231 passed, 8 subtests passed**.
+- Dependency consistency, minimal synchronous Termux CCXT profile (CCXT 4.5.93), Termux Widget shell validation, Python compilation and full pytest suite all passed.
+- Latest 730-day historical workflow: https://github.com/Eventodigital473/SI-AI/actions/runs/44341693703 — IN PROGRESS at checkpoint time. Its dependency, compile and full automated-test steps passed; checksum-verified Binance Vision backtest step is still running.
+- Intermediate CI failures on earlier commits were caused by synthetic test fixtures using non-UTC-aligned candle timestamps after strict boundary validation was added. Test fixtures were corrected; the latest candidate CI above passes.
+- Historical 365-day baseline run: https://github.com/Eventodigital473/SI-AI/actions/runs/44291060559 — SUCCESS.
 - Core source static review found no Spot references in SI_AI_smc.py or si_ai_scanner.py and no create_order/cancel_order/set_leverage/private/balance calls in those files.
 
-## Completed changes
-- Checksum-verified Binance Vision monthly archive loader for USD-M OHLCV, mark-price candles and funding-rate audit files.
-- Daily markPriceKlines archive fallback repairs identified missing 1h mark-price candles; no interpolation or synthetic candles are used.
-- Tests cover checksum validation, path traversal, CSV parsing, symbol validation and daily archive gap repair.
-- Conservative intratrade mark-to-market drawdown uses timestamp-aligned mark-price OHLC; intrabar ordering is a conservative bound.
-- Chronological training and walk-forward folds slice mark-price arrays to match their OHLCV prefixes.
-- Mark-price timestamps must exactly align; mismatch fails closed.
-- Funding settlement ambiguity for open, intrabar and close exits is aligned with funding_data.py rules.
-- Profitability gate cannot PASS with realized-only drawdown.
-- Termux runbook corrected to use binance_vision_backtest.py and explicitly state funding is audit-only, not applied to P&L.
+## Completed changes in latest audit
+1. **Profitability gate fail-open fix:** previously only the first required number of walk-forward folds were evaluated. The gate now evaluates every supplied fold and marks malformed fold entries INCONCLUSIVE. Added regression tests for a later losing fold and malformed extra fold.
+2. **Binance Vision archive coverage:** exact requested start/end candle coverage and timeframe alignment are now required, in addition to checksum validation and internal continuity. Missing first/last candles cannot pass.
+3. **Public OHLCV and mark-price coverage:** added shared full-window coverage validation to historical_data.py and mark_price_data.py. Downloads, saved datasets and loaded datasets must cover every expected fully closed candle; edge gaps fail closed.
+4. **Regression tests:** added edge-gap, malformed-fold, and UTC-boundary tests; synthetic fixture timestamps were aligned to real Binance UTC candle boundaries.
+5. **Historical research window:** updated the GitHub historical workflow from 365 to 730 days for the same ten USD-M symbols. Current run ID 44341693703 is in progress.
 
-## 365-day historical validation — completed 2026-11-18
+## 365-day historical validation baseline
 - Workflow: https://github.com/Eventodigital473/SI-AI/actions/runs/44291060559
 - Artifact: si-ai-futures-validation-44291060559; 71 files; 10.7 MB.
 - Artifact SHA-256: e4cf59c0018f2b7ce565b5e46aa87a6bd589a1f035d9954f20fd103a32b0460e
@@ -42,23 +38,23 @@
 - OOS positive/negative symbols: 5 / 5. Walk-forward positive/negative symbols: 4 / 6.
 - Every symbol profitability_gate: FAIL. Overall research summary certification: INCONCLUSIVE.
 - All per-symbol OOS samples are far below the 100-trade gate; individual walk-forward folds contain 0–6 trades versus the required 20 per fold.
-- Positive individual OOS results do not persist consistently in walk-forward; no symbol is certified profitable.
+- No symbol is certified profitable. Do not present the 365-day results as evidence of a profitable system.
 
-## Certification blockers — do not claim profitability
-1. Binance Vision funding-rate archives do not include exact event-specific settlement markPrice. Rates are archived for audit but not applied to P&L.
-2. Timestamp-matched historical maintenance-margin tier snapshots are unavailable; historical liquidation events are not simulated.
-3. Mark-price OHLC does not replace exact intrabar liquidation sequencing.
-4. The ten symbols use independent 100-USDT reference equity; no shared-wallet portfolio simulation exists.
-5. Trade sample size is insufficient: 2–8 OOS trades per symbol and 0–6 trades per walk-forward fold.
-6. Android/Termux runtime, live public-data connectivity and Android notification delivery have not been tested on the user's phone.
+## Remaining certification blockers and next research
+1. **Exact funding settlement prices:** Binance's official USD-M API documents that GET /fapi/v1/fundingRate returns the markPrice associated with each funding fee. Existing funding_data.py and run_public_futures_backtest.py already require and preserve that field. The exact-price public API route still needs a live 730-day retrieval/validation on the candidate environment; the Binance Vision CSV route remains audit-only and does not apply funding to P&L.
+2. **Historical liquidation:** timestamp-matched historical maintenance-margin tier snapshots are still unavailable in the current archive workflow. Current bracket data must not be substituted for historical tiers; no historical liquidation certification.
+3. **Intrabar liquidation sequence:** mark-price OHLC does not establish exact event ordering within a candle.
+4. **Portfolio simulation:** the ten symbols use independent 100-USDT reference equity; no shared-wallet multi-symbol portfolio simulation exists.
+5. **Evidence volume:** 365-day OOS and walk-forward samples are insufficient. Await the 730-day report; do not lower thresholds to force PASS.
+6. **Device verification:** Android/Termux runtime, live public-data connectivity, notifications, sound/vibration and LED behavior have not been tested on the user's phone.
 7. Historical results do not guarantee future performance.
 
 ## Exact next steps
-1. Continue read-only strategy/backtest audit without changing parameters based on OOS results; inspect signal scarcity, train/OOS split integrity, walk-forward aggregation, trade execution assumptions, and risk sizing.
-2. Extend the historical window toward the runner's supported 730-day maximum to seek a larger independent sample; preserve chronological OOS and walk-forward separation. Do not lower evidence thresholds just to obtain a PASS.
-3. Investigate a verifiable source for exact historical funding settlement mark prices and timestamp-matched maintenance-margin tier snapshots. If unavailable, keep the gate fail-closed.
-4. Build and test a shared-wallet multi-symbol portfolio simulator before making portfolio-level claims.
-5. Rerun full CI and historical research after any code change; update this checkpoint with exact commit, run IDs, artifact digest and observed metrics.
+1. Poll workflow 44341693703 until complete. Download its artifact, verify SHA-256, inspect all ten per-symbol OOS and walk-forward results, and record sample counts and gate status.
+2. Validate the exact public funding API route with Binance USD-M funding history and per-event markPrice, ideally for the full research period; if inaccessible or incomplete, retain the fail-closed funding blocker.
+3. Continue checking signal scarcity and train/OOS separation without tuning against OOS data.
+4. Build and test a shared-wallet multi-symbol portfolio simulator before any portfolio-level claim.
+5. Keep the profitability gate INCONCLUSIVE/FAIL until funding, historical liquidation, execution costs, sample thresholds and portfolio evidence are genuinely satisfied.
 6. Only after remote code/research review, prepare one final isolated Termux deployment/verification step. Do not overwrite the existing ~/SI-AI_FINAL checkout.
 7. Keep PR #17 draft/unmerged until the user explicitly approves integration.
 
