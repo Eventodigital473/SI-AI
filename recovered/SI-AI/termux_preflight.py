@@ -37,10 +37,18 @@ def _termux_api_companion_installed():
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    return (
-        result.returncode == 0
-        and any(line.strip().startswith("package:") for line in result.stdout.splitlines())
-    )
+    if result.returncode == 0 and any(
+        line.strip().startswith("package:") for line in result.stdout.splitlines()
+    ):
+        return True
+    output = (result.stdout + "\\n" + result.stderr).lower()
+    if any(marker in output for marker in (
+        "package com.termux.api was not found",
+        "unknown package: com.termux.api",
+        "unable to find package com.termux.api",
+    )):
+        return False
+    return None
 
 
 def collect_preflight(
