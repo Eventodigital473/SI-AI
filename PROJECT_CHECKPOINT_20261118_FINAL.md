@@ -144,3 +144,21 @@ No live trading is enabled. No automatic orders are placed.
 1. Wait for workflow `44402897767` and independently inspect its shared-wallet JSON artifact and job logs.
 2. Keep PR #17 draft/unmerged. Keep profitability certification blocked/inconclusive; do not tune thresholds to force a pass.
 3. Only after the above, give the user one reviewed Termux update-and-validation command sequence using the existing clone and venv. The phone-side public API dry-run must stop on HTTP 451; do not propose a VPN/proxy workaround.
+
+
+## Correction and final validation status — 2026-11-18 21:43 UTC
+
+- Current branch head is now `d5ba05b8c3c7709f77c6baa87a0a92678857d8cd`; PR #17 remains open, draft, mergeable and unmerged.
+- Scanner operational fail-closed fix committed:
+  - HTTP 451 during universe refresh or candle retrieval now stops the cycle immediately; it does not continue across the remaining symbols or attempt a regional restriction bypass.
+  - A cycle with zero successfully analysed symbols now exits as an error.
+  - A dry-run must complete at least the configured minimum number of symbols before it can report success.
+  - Live cycles with partial but non-zero coverage log an explicit warning.
+- Added three scanner-cycle regression tests. Latest test workflow runs [44404257888](https://github.com/Eventodigital473/SI-AI/actions/runs/44404257888) and [44404250810](https://github.com/Eventodigital473/SI-AI/actions/runs/44404250810) completed successfully: **247 passed, 8 subtests passed**. Dependency checks, pinned CCXT 4.5.93 synchronous import profile, Termux Widget shell checks, and Python compilation all passed.
+- The expensive 730-day Vision workflow is now manual-dispatch only to prevent every scanner-only PR update from re-downloading the full historical archive. Two redundant reruns [44404258273](https://github.com/Eventodigital473/SI-AI/actions/runs/44404258273) and [44404249848](https://github.com/Eventodigital473/SI-AI/actions/runs/44404249848) were already queued before that trigger change and were still in progress at this checkpoint.
+- The previous completed 730-day Vision dataset run [44344222453](https://github.com/Eventodigital473/SI-AI/actions/runs/44344222453) remains the source for the local shared-wallet integration test. The updated shared-wallet engine was run against that artifact locally; exact report manifests, mark-price SHA-256, report risk policy and walk-forward windows validated. The portfolio diagnostic remains negative and not profitability-certified; funding and liquidation remain excluded.
+- The attempted exact-funding public API job was removed after Binance HTTP 451 from the GitHub runner. Do not use VPN/proxy or attempt to bypass. The Termux device's normal API access is still unknown.
+- Existing Termux clone and venv remain at `~/SI-AI_FINAL_VALIDATION/recovered/SI-AI/.venv`. No new clone or package install is needed. The final device check must use `git pull --ff-only`, compile, pytest, preflight and one dry-run. If the normal Binance endpoint returns 451, stop; do not start continuous scanning.
+
+## Remaining exact next step
+Run the single final Termux update/validation sequence only after confirming the latest source is on branch head `d5ba05b8c3c7709f77c6baa87a0a92678857d8cd`. If the phone-side dry-run passes and notification companion app is confirmed, explain foreground start/stop. Do not call SI-AI profitability-certified or recommend live execution.
