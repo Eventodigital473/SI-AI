@@ -2,7 +2,7 @@
 set -eu
 
 PROJECT_DIR=""
-for candidate in "$HOME/SI-AI_FINAL/recovered/SI-AI" "$HOME/SI-AI_FUTURES/recovered/SI-AI"; do
+for candidate in "$HOME/SI-AI_FINAL_VALIDATION/recovered/SI-AI" "$HOME/SI-AI_FINAL/recovered/SI-AI" "$HOME/SI-AI_FUTURES/recovered/SI-AI"; do
     if [ -f "$candidate/si_ai_scanner.py" ]; then
         PROJECT_DIR="$candidate"
         break
