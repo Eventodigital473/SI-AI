@@ -3,7 +3,7 @@
 ## Candidate and safety
 - Repository: Eventodigital473/SI-AI
 - Candidate branch: `fix/scanner-risk-audit-2026-11-18`
-- Current branch/PR head: `8db3277a0d80c3981ebced5f096c70e0a79ba475`
+- Latest code commit covered by passing CI: `8db3277a0d80c3981ebced5f096c70e0a79ba475`. Later checkpoint/PR-description updates are documentation-only.
 - Latest candidate commit `8db3277a` includes the strict archive coverage and test fixture alignment changes; see CI run below.
 - Draft PR: https://github.com/Eventodigital473/SI-AI/pull/17
 - PR #17 is open, draft, mergeable and unmerged. Do not merge without explicit user approval.
@@ -12,7 +12,7 @@
 - Reference equity 100 USDT; per-trade risk 0.5% (0.50 USDT); margin allocation cap 20%; leverage guidance 1x; minimum net R:R 2:1.
 
 ## Latest verified automated checks
-- Latest CI on current PR head: https://github.com/Eventodigital473/SI-AI/actions/runs/44342780258 — SUCCESS.
+- Latest CI on the latest code commit (documentation-only checkpoint updates followed): https://github.com/Eventodigital473/SI-AI/actions/runs/44342780258 — SUCCESS.
 - Exact pytest output: **231 passed, 8 subtests passed in 2.15 seconds**.
 - Dependency consistency passed; minimal synchronous Termux CCXT profile passed with CCXT 4.5.93; Termux Widget shell syntax and installer preservation passed; Python compilation passed.
 - Previous CI run: https://github.com/Eventodigital473/SI-AI/actions/runs/44342174543 — SUCCESS, same 231 passed and 8 subtests.
