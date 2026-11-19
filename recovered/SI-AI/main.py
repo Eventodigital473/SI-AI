@@ -95,7 +95,7 @@ function showDetail(item){
    ["TP3 · engine target",numberText(item.take_profit)],
    ["Net reward / risk",numberText(item.reward_risk,":1")],
    ["Leverage guidance",numberText(item.leverage,"x")],
-   ["Position size · paper",numberText(item.position_size)],
+   ["Position size · paper",numberText(item.position_size," "+item.symbol.split("/")[0])],
    ["Notional · paper",numberText(item.notional_usdt," USDT")],
    ["Estimated margin",numberText(item.margin_usdt," USDT")],
    ["Estimated total risk",numberText(item.risk_usdt," USDT")],
@@ -128,7 +128,7 @@ function render(items){
   button.addEventListener("click",()=>showDetail(item));
   listNode.append(button);
  }
- const selected=items.find(item=>item.symbol===requestedSymbol&&item.status==="ACTIVE")||items[0];
+ const selected=items.find(item=>item.symbol===requestedSymbol)||items[0];
  showDetail(selected);
 }
 async function refresh(){
