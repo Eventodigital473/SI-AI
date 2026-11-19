@@ -31,7 +31,7 @@ def _results():
 
 def _run_with_failed_notification(monkeypatch, confirmed_signal, previous_signal):
     key = "FUTURES|BTC/USDT"
-    previous_alert_time = 1_800_000_000.0 if previous_signal in ("BUY", "SELL") else None
+    previous_alert_time = scanner.time.time() if previous_signal in ("BUY", "SELL") else None
     state = {
         "version": scanner.STATE_VERSION,
         "last_signals": {key: previous_signal},
