@@ -875,6 +875,11 @@ def run_cycle(dry_run=False):
                         except Exception:
                             logger.exception("%s: WAIT notification failed", key)
                             updated_signals[key] = previous
+                            updated_latest_signals[key] = make_signal_snapshot(
+                                market, symbol, "WAIT", results, wait_content,
+                                previous_record=updated_latest_signals.get(key),
+                                notification_sent=False,
+                            )
                 continue
 
             # Build the same validated trade plan for the dashboard and notification.
@@ -912,7 +917,12 @@ def run_cycle(dry_run=False):
 
             except Exception:
                 logger.exception(
-                    "%s: notification failed; saved state unchanged", key
+                    "%s: notification failed; scanner alert state unchanged", key
+                )
+                updated_latest_signals[key] = make_signal_snapshot(
+                    market, symbol, signal, results, content,
+                    previous_record=updated_latest_signals.get(key),
+                    notification_sent=False,
                 )
 
     if completed_pairs == 0:
