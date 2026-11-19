@@ -6,10 +6,17 @@ import math
 import os
 import subprocess
 import shutil
+import shlex
 import sys
 import tempfile
 import time
 from pathlib import Path
+
+from signal_dashboard import (
+    load_latest_signals,
+    make_signal_snapshot,
+    save_latest_signals,
+)
 
 import SI_AI_smc as smc
 from liquidation_model import calculate_isolated_liquidation_price
@@ -685,6 +692,12 @@ def notification_command(market, symbol, title, content):
     if signal_style["sound"]:
         command.append("--sound")
 
+    action = " ".join((
+        shlex.quote(sys.executable),
+        shlex.quote(str(BASE_DIR / "open_dashboard.py")),
+        shlex.quote(symbol),
+    ))
+    command.extend(["--action", action])
     return command
 
 
@@ -710,6 +723,14 @@ def run_cycle(dry_run=False):
     previous_notified_at = state["last_notified_at"]
     updated_signals = dict(previous_signals)
     updated_notified_at = dict(previous_notified_at)
+    try:
+        latest_signals = load_latest_signals()
+        latest_store_available = True
+    except Exception:
+        logger.exception("Latest-signal dashboard store is unavailable; preserving it")
+        latest_signals = {}
+        latest_store_available = False
+    updated_latest_signals = dict(latest_signals)
     completed_pairs = 0
 
     request_delay = number(
@@ -845,19 +866,18 @@ def run_cycle(dry_run=False):
                     else:
                         try:
                             send_notification(market, symbol, "WAIT", wait_content)
+                            updated_latest_signals[key] = make_signal_snapshot(
+                                market, symbol, "WAIT", results, wait_content,
+                                previous_record=updated_latest_signals.get(key),
+                                notification_sent=True,
+                            )
                             logger.info("%s: WAIT transition notification sent", key)
                         except Exception:
                             logger.exception("%s: WAIT notification failed", key)
                             updated_signals[key] = previous
                 continue
 
-            # Dry-run always previews actionable signals, even if previously alerted.
-            if not dry_run and should_suppress_duplicate(
-                signal, previous, previous_notified_at.get(key)
-            ):
-                logger.info("%s: duplicate alert suppressed (last alert is fresh)", key)
-                continue
-
+            # Build the same validated trade plan for the dashboard and notification.
             title, content = make_alert(
                 market, symbol, signal, results
             )
@@ -868,10 +888,26 @@ def run_cycle(dry_run=False):
                 )
                 continue
 
+            if should_suppress_duplicate(
+                signal, previous, previous_notified_at.get(key)
+            ):
+                updated_latest_signals[key] = make_signal_snapshot(
+                    market, symbol, signal, results, content,
+                    previous_record=updated_latest_signals.get(key),
+                    notification_sent=False,
+                )
+                logger.info("%s: duplicate alert suppressed (last alert is fresh)", key)
+                continue
+
             try:
                 send_notification(market, symbol, title, content)
                 updated_signals[key] = signal
                 updated_notified_at[key] = time.time()
+                updated_latest_signals[key] = make_signal_snapshot(
+                    market, symbol, signal, results, content,
+                    previous_record=updated_latest_signals.get(key),
+                    notification_sent=True,
+                )
                 logger.info("%s: notification sent", key)
 
             except Exception:
@@ -893,6 +929,12 @@ def run_cycle(dry_run=False):
             "Partial live scan: %d fully analysed pairs; configured minimum is %d.",
             completed_pairs, smc.MIN_ELIGIBLE_COINS
         )
+
+    if not dry_run and latest_store_available and updated_latest_signals != latest_signals:
+        try:
+            save_latest_signals(updated_latest_signals)
+        except Exception:
+            logger.exception("Could not save latest-signal dashboard data")
 
     if not dry_run and (
         updated_signals != previous_signals
