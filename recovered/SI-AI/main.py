@@ -1,8 +1,10 @@
 import time
+from datetime import datetime, timezone
 from flask import Flask, jsonify, request
 
 import SI_AI_smc as smc
 import si_ai_scanner as scanner
+import signal_dashboard as dashboard_store
 
 app = Flask(__name__)
 
@@ -27,25 +29,168 @@ def validate_market_symbol(data):
     return market, symbol
 
 
+DASHBOARD_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>SI-AI Signal Dashboard</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0b1220;color:#e7edf7}
+*{box-sizing:border-box}body{margin:0;padding:18px;max-width:980px;margin-inline:auto}
+header{padding:16px 0 20px;border-bottom:1px solid #293449}
+h1{font-size:27px;margin:0 0 5px}h2{font-size:18px;margin:0 0 12px}
+.muted{color:#9eabc0;font-size:13px}.safety{color:#a9c5db;font-size:13px;margin-top:10px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:14px;margin-top:16px}
+.panel{background:#131e30;border:1px solid #293449;border-radius:14px;padding:14px;min-width:0}
+#signal-list{display:grid;gap:8px}.signal-item{width:100%;text-align:left;background:#1a2940;color:inherit;border:1px solid #35455e;border-radius:10px;padding:12px;cursor:pointer}
+.signal-item strong{display:block;font-size:15px}.signal-item span{display:block;color:#aebbd0;font-size:12px;margin-top:4px}
+.status{font-size:12px;font-weight:700;letter-spacing:.04em}.active{color:#58d68d}.invalid{color:#f0bd63}.stale{color:#ff9b83}
+#side{font-size:28px;font-weight:800;margin:4px 0}.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0}
+.metric{background:#1a2940;border-radius:9px;padding:10px;min-width:0}.metric small{display:block;color:#aebbd0;font-size:11px}.metric b{display:block;margin-top:4px;overflow-wrap:anywhere;font-size:15px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0d1727;padding:12px;border-radius:9px;font-size:12px;line-height:1.5}
+.empty{color:#aebbd0;padding:12px 2px;font-size:14px}
+@media(max-width:680px){body{padding:12px}.layout{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header>
+<h1>SI-AI</h1>
+<div class="muted">Binance USD-M Futures · Confirmed signal dashboard</div>
+<div class="safety">Analysis only. No automatic orders. Review live price, exchange filters and risk before any manual trade.</div>
+</header>
+<div class="layout">
+<section class="panel">
+<h2>Recent signals</h2>
+<div id="signal-list" class="empty">Loading saved signals…</div>
+</section>
+<section class="panel">
+<div id="detail" class="empty">Select a signal to view its trade plan.</div>
+</section>
+</div>
+<script>
+"use strict";
+const listNode=document.getElementById("signal-list");
+const detailNode=document.getElementById("detail");
+const requestedSymbol=(new URLSearchParams(location.search).get("symbol")||"").toUpperCase();
+let currentItems=[];
+function element(tag,className,text){const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=String(text);return node;}
+function numberText(value,suffix=""){return typeof value==="number"&&Number.isFinite(value)?value.toLocaleString(undefined,{maximumFractionDigits:8})+suffix:"Unavailable";}
+function showDetail(item){
+ detailNode.replaceChildren();
+ if(!item){detailNode.append(element("div","empty","No saved signal yet. The dashboard fills after the scanner confirms a signal and sends its alert."));return;}
+ const heading=element("div","status "+(item.status==="ACTIVE"?(item.is_stale?"stale":"active"):"invalid"),item.status==="ACTIVE"?(item.is_stale?"STALE — CHECK LIVE DATA":"ACTIVE — CONFIRMED"):"WAIT — ENTRY NO LONGER CONFIRMED");
+ detailNode.append(heading);
+ detailNode.append(element("h2","",item.symbol+" · "+item.market));
+ detailNode.append(element("div","",item.side||"WAIT"));
+ const side=detailNode.lastChild;side.id="side";
+ detailNode.append(element("div","muted","Last confirmed: "+(item.last_confirmed_at||"Unknown")));
+ if(item.status==="ACTIVE"){
+  const metrics=[
+   ["Entry reference",numberText(item.entry_price)],
+   ["Stop loss",numberText(item.stop_loss)],
+   ["TP1 · 1R reference",numberText(item.entry_price!==null&&item.entry_price!==undefined&&item.stop_loss!==null?item.signal==="BUY"?item.entry_price+(item.entry_price-item.stop_loss):item.entry_price-(item.stop_loss-item.entry_price):null)],
+   ["TP2 · 1.5R reference",numberText(item.entry_price!==null&&item.entry_price!==undefined&&item.stop_loss!==null?item.signal==="BUY"?item.entry_price+1.5*(item.entry_price-item.stop_loss):item.entry_price-1.5*(item.stop_loss-item.entry_price):null)],
+   ["TP3 · engine target",numberText(item.take_profit)],
+   ["Net reward / risk",numberText(item.reward_risk,":1")],
+   ["Leverage guidance",numberText(item.leverage,"x")],
+   ["Position size · paper",numberText(item.position_size)],
+   ["Notional · paper",numberText(item.notional_usdt," USDT")],
+   ["Estimated margin",numberText(item.margin_usdt," USDT")],
+   ["Estimated total risk",numberText(item.risk_usdt," USDT")],
+   ["Estimated net target reward",numberText(item.estimated_net_reward_usdt," USDT")]
+  ];
+  const grid=element("div","metrics");
+  for(const pair of metrics){const card=element("div","metric");card.append(element("small","",pair[0]),element("b","",pair[1]));grid.append(card);}
+  detailNode.append(grid);
+  if(item.is_stale)detailNode.append(element("p","status stale","This saved analysis is older than 2 hours. Do not use it as a fresh entry signal; wait for a new confirmed alert."));
+ }else{
+  detailNode.append(element("p","muted","The scanner withdrew the entry confirmation. Do not open a new position from this alert."));
+ }
+ detailNode.append(element("h2","","Reasons"));
+ const reasons=Array.isArray(item.reasons)?item.reasons:[];
+ detailNode.append(element("p","muted",reasons.length?reasons.join(" · "):"No reason details saved."));
+ detailNode.append(element("h2","","Full alert"));
+ detailNode.append(element("pre","",item.alert_text||"No alert text saved."));
+}
+function render(items){
+ currentItems=items;
+ listNode.replaceChildren();
+ if(!items.length){listNode.className="empty";listNode.textContent="No saved confirmed signals yet. Keep the scanner running; signals appear here after confirmation.";showDetail(null);return;}
+ listNode.className="";
+ for(const item of items){
+  const button=element("button","signal-item");
+  button.type="button";
+  button.append(element("strong","",(item.side||"WAIT")+" · "+item.symbol));
+  button.append(element("span","",item.status==="ACTIVE"?(item.is_stale?"STALE":"ACTIVE"):"INVALIDATED"));
+  button.append(element("span","",item.last_confirmed_at||"Timestamp unavailable"));
+  button.addEventListener("click",()=>showDetail(item));
+  listNode.append(button);
+ }
+ const selected=items.find(item=>item.symbol===requestedSymbol&&item.status==="ACTIVE")||items[0];
+ showDetail(selected);
+}
+async function refresh(){
+ try{
+  const response=await fetch("/api/latest-signals",{cache:"no-store"});
+  const payload=await response.json();
+  if(!response.ok||!payload.success)throw new Error(payload.error||"Dashboard data unavailable");
+  render(payload.signals||[]);
+ }catch(error){listNode.className="empty";listNode.textContent="Could not load signal data: "+error.message;}
+}
+refresh();
+setInterval(refresh,15000);
+</script>
+</body>
+</html>"""
+
+
 @app.route("/")
 def home():
-    return """
-    <html>
-    <head><title>SI AI</title></head>
-    <body>
-        <h1>SI AI</h1>
-        <h2>Super Intelligent AI</h2>
-        <p>SMC Market Intelligence Engine Connected.</p>
-        <p>Public market data only. No automatic trading.</p>
-        <ul>
-            <li>/status</li>
-            <li>/api/config</li>
-            <li>/api/analyze</li>
-            <li>/api/multi-timeframe</li>
-        </ul>
-    </body>
-    </html>
-    """
+    return DASHBOARD_HTML
+
+
+@app.route("/signal")
+def signal_dashboard():
+    return DASHBOARD_HTML
+
+
+@app.route("/api/latest-signals")
+def api_latest_signals():
+    try:
+        records = dashboard_store.load_latest_signals()
+    except RuntimeError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 503
+
+    requested_symbol = str(request.args.get("symbol", "")).strip().upper()
+    now = datetime.now(timezone.utc)
+    signals = []
+    for record in records.values():
+        if requested_symbol and record.get("symbol", "").upper() != requested_symbol:
+            continue
+        item = dict(record)
+        stamp = dashboard_store.parse_timestamp(item.get("last_confirmed_at"))
+        age = (now - stamp).total_seconds() if stamp is not None else None
+        item["age_seconds"] = max(0, int(age)) if age is not None else None
+        item["is_stale"] = (
+            age is None or age < -300
+            or age > dashboard_store.STALE_AFTER_SECONDS
+        )
+        signals.append(item)
+
+    signals.sort(
+        key=lambda item: item.get("last_confirmed_at") or "",
+        reverse=True,
+    )
+    response = jsonify({
+        "success": True,
+        "automatic_orders": False,
+        "stale_after_seconds": dashboard_store.STALE_AFTER_SECONDS,
+        "signals": signals,
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/status")
