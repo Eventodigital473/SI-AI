@@ -66,6 +66,7 @@ def test_wait_snapshot_invalidates_entry_and_preserves_notification_time():
 
 def test_latest_signal_store_round_trip_is_atomic(tmp_path, monkeypatch):
     target = tmp_path / "si_ai_latest_signals_state.json"
+    monkeypatch.setattr(dashboard, "BASE_DIR", tmp_path)
     monkeypatch.setattr(dashboard, "LATEST_SIGNALS_FILE", target)
     snapshot = dashboard.make_signal_snapshot(
         "FUTURES", "BTC/USDT", "BUY", sample_results(), "alert",
