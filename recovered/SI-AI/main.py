@@ -88,6 +88,8 @@ function showDetail(item){
  detailNode.append(element("div","muted","Last confirmed: "+(item.last_confirmed_at||"Unknown")));
  if(item.status==="ACTIVE"){
   const metrics=[
+   ["1h entry setup",item.timeframe_1h||"Unavailable"],
+   ["4h confirmation",item.timeframe_4h||"Unavailable"],
    ["Entry reference",numberText(item.entry_price)],
    ["Stop loss",numberText(item.stop_loss)],
    ["TP1 · 1R reference",numberText(item.entry_price!==null&&item.entry_price!==undefined&&item.stop_loss!==null?item.signal==="BUY"?item.entry_price+(item.entry_price-item.stop_loss):item.entry_price-(item.stop_loss-item.entry_price):null)],
