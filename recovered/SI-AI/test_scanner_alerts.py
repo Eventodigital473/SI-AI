@@ -100,6 +100,16 @@ class SignalAlertTests(unittest.TestCase):
             scanner.coin_display_name("UNKNOWN/USDT"), "Unknown asset"
         )
 
+    def test_notification_tap_action_opens_dashboard_for_the_coin(self):
+        command = scanner.notification_command(
+            "FUTURES", "BTC/USDT", "BUY", "test"
+        )
+        self.assertIn("--action", command)
+        action = command[command.index("--action") + 1]
+        self.assertIn(str(scanner.BASE_DIR / "open_dashboard.py"), action)
+        self.assertIn("BTC/USDT", action)
+        self.assertIn(scanner.sys.executable, action)
+
     def test_buy_notification_uses_green_led_and_high_priority(self):
         command = scanner.notification_command(
             "FUTURES", "BTC/USDT", "BUY", "test"
