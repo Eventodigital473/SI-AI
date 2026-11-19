@@ -92,7 +92,15 @@ python si_ai_scanner.py --interval 120
 
 Stop with Ctrl+C. Confirm notification permission and behavior on the actual phone.
 
-### Local API
+### Signal dashboard and notification tap
+
+The scanner stores the latest successfully confirmed Futures signal in a separate atomic local state file. The local dashboard shows LONG/SHORT, the 1h entry reference, stop loss, TP1/TP2 reference levels, TP3 engine target, net reward/risk, 1x leverage guidance, paper position size, estimated margin/risk/costs, confirmation reasons, and the last-confirmed timestamp.
+
+When a BUY/SELL/WAIT notification is tapped, its Termux:API action starts the local Flask dashboard if it is not already running and opens the relevant symbol in the Android browser. Android only opens it after the user taps the notification; SI-AI does not force another app to the foreground. The dashboard binds to 127.0.0.1 only and does not expose a network listener.
+
+Saved analysis older than two hours is marked STALE and must not be treated as a fresh entry. A WAIT transition is marked INVALIDATED. TP1 and TP2 are reference levels; TP3 is the engine target. All order execution remains manual on Binance. No order, cancellation, amendment, or leverage-setting API is used.
+
+## Local API
 
 ```bash
 python main.py
